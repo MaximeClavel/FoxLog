@@ -86,7 +86,7 @@
 }
 
 .sf-panel-filters {
-  display: grid !important; grid-template-columns: 1fr 140px !important; gap: 8px !important;
+  display: grid !important; grid-template-columns: 1fr 100px !important; gap: 8px !important;
   padding: 12px !important; border-bottom: 1px solid var(--sf-border) !important;
   background: var(--sf-bg) !important;
 }
