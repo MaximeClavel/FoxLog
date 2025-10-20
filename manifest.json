@@ -44,6 +44,8 @@
         "icon48.png",
         "icon128.png",
         "tail128.png",
+        "trash.png",
+        "refresh.png",
         "injected.js"
       ],
       "matches": [

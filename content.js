@@ -5,14 +5,19 @@ const CONFIG = {
   DEBUG_MODE: true
 };
 
-// Définir l'URL absolue de l'icône FoxLog
+// Définir l'URL absolue des icône FoxLog
+//>LOGO
 const FOXLOG_ICON_URL = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL
-  ? chrome.runtime.getURL('icon128.png')
-  : 'icon128.png';
-// Définir l'URL absolue de l'icône FoxLog
+  ? chrome.runtime.getURL('icon128.png') : 'icon128.png';
+//>TAIL
 const TAIL_ICON_URL = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL
-  ? chrome.runtime.getURL('tail128.png')
-  : 'tail128.png';
+  ? chrome.runtime.getURL('tail128.png') : 'tail128.png';
+//>TRASH
+  const TRASH_ICON_URL = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL
+  ? chrome.runtime.getURL('trash.png') : 'trash.png';
+//>REFRESH
+  const REFRESH_ICON_URL = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL
+  ? chrome.runtime.getURL('refresh.png') : 'refresh.png';
 
 // Variables globales
 let logCount = 0;
@@ -105,10 +110,14 @@ function createPanel() {
   
   panel.innerHTML = `
     <div class="sf-panel-header">
-      <h3><img src="${FOXLOG_ICON_URL}" alt="FoxLog" style="width:28px;height:28px;vertical-align:middle;">   FoxLog</h3>
+      <h3><img src="${FOXLOG_ICON_URL}" alt="FoxLog" style="width:28px;height:28px;vertical-align:left;">   FoxLog</h3>
       <div class="sf-panel-controls">
-        <button id="sf-clear-logs" title="Effacer les logs">🗑️</button>
-        <button id="sf-refresh-logs" title="Rafraîchir">🔄</button>
+        <button id="sf-clear-logs" title="Effacer les logs">
+          <img src="${TRASH_ICON_URL}" alt="Delete" style="width:18px;height:18px;vertical-align:middle;">
+        </button>
+        <button id="sf-refresh-logs" title="Rafraîchir">
+          <img src="${REFRESH_ICON_URL}" alt="Refresh" style="width:18px;height:18px;vertical-align:middle;">
+        </button>
         <button id="sf-close-panel" title="Fermer">✕</button>
       </div>
     </div>
@@ -939,7 +948,7 @@ async function fetchDebugLogs(sessionId, userId) {
     }
     
     // Query SOQL pour récupérer les ApexLog
-    const query = `SELECT Id, StartTime, DurationMilliseconds, Operation, Status, LogLength, LogUserId 
+    const query = `SELECT Id, StartTime, DurationMilliseconds, Operation, Status, LogLength, LogUserId, Request, Application
                    FROM ApexLog 
                    WHERE LogUserId = '${userId}' 
                    ORDER BY StartTime DESC 
@@ -1040,11 +1049,12 @@ function displayLogs(logs) {
     const duration = log.DurationMilliseconds || 'N/A';
     const status = log.Status || 'INFO';
     
-    const message = `${log.Operation || 'Operation'} - ${log.Location || 'No location'} (${duration}ms)`;
+    const message = `${log.Operation || 'Operation'} - ${log.Request || 'No request'} (${duration}ms)`;
     const details = {
       user: log.LogUserId,
       application: log.Application,
-      logId: log.Id
+      logId: log.Id,
+      size : log.LogLength
     };
     
     addLogEntry(status, message, details, timestamp);
@@ -1067,13 +1077,12 @@ function addLogEntry(level, message, details = {}, customTimestamp = null) {
     
     let detailsHtml = '';
     if (details.user) detailsHtml += `<div class="sf-log-user">User: ${details.user}</div>`;
-    if (details.application) detailsHtml += `<div class="sf-log-app">App: ${details.application}</div>`;
-    if (details.stack) detailsHtml += `<pre class="sf-log-stack">${details.stack}</pre>`;
+    if (details.application && details.size) detailsHtml += `<div class="sf-log-app">App: ${details.application} - Size: ${details.size}B</div>`;
     
     // Créer le bouton sans onclick inline
     let buttonHtml = '';
     if (details.logId) {
-        buttonHtml = `<button class="sf-view-details" data-log-id="${details.logId}">Voir détails complets</button>`;
+        buttonHtml = `<button class="sf-view-details" data-log-id="${details.logId}">Details</button>`;
     }
     
     logEntry.innerHTML = `

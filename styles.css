@@ -371,7 +371,8 @@
 
 .sf-log-location,
 .sf-log-user,
-.sf-log-message {
+.sf-log-message,
+.sf-log-app {
   color: #666;
   margin: 2px 0;
   font-size: 12px;
