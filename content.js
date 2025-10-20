@@ -165,7 +165,11 @@ async function startMonitoring() {
   try {
     debugLog('Démarrage du monitoring...');
     
+    // Afficher le spinner
+    showLoadingSpinner('Initialisation...', 'Connexion à Salesforce');
+    
     // 0. Forcer la session sur my.salesforce.com
+    showLoadingSpinner('Connexion...', 'Établissement de la session');
     await ensureMySalesforceSession();
     await new Promise(resolve => setTimeout(resolve, 1500));
     
@@ -174,18 +178,22 @@ async function startMonitoring() {
     debugLog('🗑️ Cache Session ID vidé');
     
     // 2. Récupérer l'User ID
+    showLoadingSpinner('Authentification...', 'Récupération de l\'identifiant utilisateur');
     const userId = await getCurrentUserId();
     if (!userId) {
+      hideLoadingSpinner();
       showError('Impossible de récupérer l\'User ID');
       return;
     }
     debugLog('User ID obtenu:', userId);
     
     // 3. Récupérer le Session ID depuis background.js (Chrome Cookies API)
+    showLoadingSpinner('Authentification...', 'Récupération du token de session');
     debugLog('🔍 Récupération Session ID via Chrome Cookies API...');
     const sessionId = await extractViaBackground();
     
     if (!sessionId) {
+      hideLoadingSpinner();
       showError('Impossible de récupérer le Session ID');
       return;
     }
@@ -194,7 +202,11 @@ async function startMonitoring() {
     cachedSessionId = sessionId;
     
     // 4. Récupérer les logs
+    showLoadingSpinner('Chargement des logs...', 'Requête vers l\'API Salesforce');
     const logs = await fetchDebugLogs(sessionId, userId);
+    
+    // Masquer le spinner
+    hideLoadingSpinner();
     
     if (logs && logs.length > 0) {
       displayLogs(logs);
@@ -204,6 +216,7 @@ async function startMonitoring() {
     }
     
   } catch (error) {
+    hideLoadingSpinner();
     console.error('[FoxLog] Erreur monitoring:', error);
     showError('Erreur: ' + error.message);
   }
@@ -222,12 +235,73 @@ function stopMonitoring() {
 }
 
 // Rafraîchissement manuel
-function manualRefresh() {
+async function manualRefresh() {
   debugLog('Rafraîchissement manuel demandé');
-  addLogEntry('INFO', 'Rafraîchissement manuel...');
-  cachedSessionId = null; // Forcer une nouvelle extraction
-  retryCount = 0; // Réinitialiser le compteur
-  fetchDebugLogs();
+  
+  try {
+    // Afficher le spinner
+    showLoadingSpinner('Rafraîchissement...', 'Mise à jour des logs');
+    
+    // 1. Vider le cache pour forcer une nouvelle extraction
+    cachedSessionId = null;
+    retryCount = 0;
+    debugLog('🗑️ Cache vidé pour rafraîchissement manuel');
+    
+    // 2. Forcer la session sur my.salesforce.com
+    showLoadingSpinner('Reconnexion...', 'Actualisation de la session');
+    await ensureMySalesforceSession();
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // 3. Récupérer l'User ID
+    showLoadingSpinner('Authentification...', 'Vérification de l\'identité');
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      hideLoadingSpinner();
+      addLogEntry('ERROR', 'Impossible de récupérer l\'User ID');
+      showError('Impossible de récupérer l\'User ID');
+      return;
+    }
+    debugLog('✅ User ID pour rafraîchissement:', userId);
+    
+    // 4. Récupérer le Session ID (avec le bon cookie my.salesforce.com)
+    showLoadingSpinner('Authentification...', 'Récupération du token');
+    debugLog('🔍 Récupération Session ID via Chrome Cookies API...');
+    const sessionId = await extractViaBackground();
+    
+    if (!sessionId) {
+      hideLoadingSpinner();
+      addLogEntry('ERROR', 'Impossible de récupérer le Session ID');
+      showError('Impossible de récupérer le Session ID');
+      return;
+    }
+    
+    debugLog('✅ Session ID obtenu pour rafraîchissement:', sessionId.substring(0, 30) + '...');
+    cachedSessionId = sessionId;
+    
+    // 5. Récupérer les logs
+    showLoadingSpinner('Chargement des logs...', 'Requête API en cours');
+    const logs = await fetchDebugLogs(sessionId, userId);
+    
+    // Masquer le spinner
+    hideLoadingSpinner();
+    
+    if (logs && logs.length > 0) {
+      // Effacer les anciens logs avant d'afficher les nouveaux
+      clearLogs();
+      displayLogs(logs);
+      addLogEntry('SUCCESS', `✅ ${logs.length} log(s) rechargé(s)`);
+      showSuccess(`${logs.length} log(s) rechargé(s)`);
+    } else {
+      addLogEntry('INFO', 'Aucun debug log trouvé');
+      showInfo('Aucun debug log trouvé');
+    }
+    
+  } catch (error) {
+    hideLoadingSpinner();
+    console.error('[FoxLog] Erreur rafraîchissement manuel:', error);
+    addLogEntry('ERROR', 'Erreur: ' + error.message);
+    showError('Erreur: ' + error.message);
+  }
 }
 
 // ============================================
@@ -1063,31 +1137,39 @@ function updateLastUpdate() {
 // Voir les détails d'un log
 window.viewLogDetails = async function(logId) {
   debugLog('Demande de détails pour log:', logId);
-  const sessionId = await extractSessionId();
-  if (!sessionId) {
-    addLogEntry('ERROR', 'Session ID manquant - Impossible de récupérer les détails');
-    return;
-  }
   
   try {
+    // Afficher un mini-spinner dans le statut
+    updateStatus('Chargement des détails...', 'info');
+    
+    const sessionId = await extractSessionId();
+    if (!sessionId) {
+      addLogEntry('ERROR', 'Session ID manquant - Impossible de récupérer les détails');
+      updateStatus('Erreur', 'error');
+      return;
+    }
+    
     const instanceUrl = window.location.origin;
     const response = await fetch(`${instanceUrl}/services/data/v59.0/tooling/sobjects/ApexLog/${logId}/Body`, {
       headers: {
-                'Authorization': `Bearer ${sessionId}`,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
+        'Authorization': `Bearer ${sessionId}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
     });
     
     if (response.ok) {
       const logBody = await response.text();
+      updateStatus('Détails chargés', 'connected');
       showLogModal(logBody);
     } else {
       addLogEntry('ERROR', 'Impossible de récupérer les détails du log');
+      updateStatus('Erreur', 'error');
     }
   } catch (error) {
     debugLog('Erreur lors de la récupération des détails:', error);
     addLogEntry('ERROR', 'Erreur: ' + error.message);
+    updateStatus('Erreur', 'error');
   }
 };
 
@@ -1137,6 +1219,45 @@ function addStatusIndicator() {
     sessionStatus.style.fontSize = '11px';
     sessionStatus.style.marginLeft = '10px';
     statusDiv.appendChild(sessionStatus);
+  }
+}
+
+// ========== FONCTIONS SPINNER DE CHARGEMENT ==========
+
+/**
+ * Afficher le spinner de chargement
+ * @param {string} message - Message principal à afficher
+ * @param {string} subtext - Sous-texte optionnel
+ */
+function showLoadingSpinner(message = 'Chargement...', subtext = '') {
+  const container = document.getElementById('sf-logs-container');
+  if (!container) return;
+  
+  // Supprimer le spinner existant si présent
+  hideLoadingSpinner();
+  
+  const spinner = document.createElement('div');
+  spinner.className = 'sf-loading-overlay';
+  spinner.id = 'sf-loading-spinner';
+  
+  spinner.innerHTML = `
+    <div class="sf-spinner"></div>
+    <div class="sf-loading-text">${message}</div>
+    ${subtext ? `<div class="sf-loading-subtext">${subtext}</div>` : ''}
+  `;
+  
+  container.appendChild(spinner);
+  debugLog('🔄 Spinner affiché:', message);
+}
+
+/**
+ * Masquer le spinner de chargement
+ */
+function hideLoadingSpinner() {
+  const spinner = document.getElementById('sf-loading-spinner');
+  if (spinner) {
+    spinner.remove();
+    debugLog('✅ Spinner masqué');
   }
 }
 
