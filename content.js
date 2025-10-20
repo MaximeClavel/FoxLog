@@ -14,8 +14,13 @@ const FOXLOG_ICON_URL = typeof chrome !== 'undefined' && chrome.runtime && chrom
 let logCount = 0;
 let monitoringInterval = null;
 let cachedSessionId = null;
+let cachedUserId = null;
+let cachedLogs = null; // ✅ Cache des logs
+let lastFetchTime = null; // ✅ Timestamp du dernier fetch
 let retryCount = 0;
 const MAX_RETRIES = 2;
+const CACHE_DURATION = 30000; // 30 secondes de cache
+const REFRESH_INTERVAL = 10000; // 10 secondes
 
 // Injecter le script dans le contexte de la page
 function injectScript() {
@@ -142,7 +147,23 @@ function createPanel() {
   debugLog('Panel créé avec succès');
 }
 
-// Toggle du panel
+// Démarrer l'auto-refresh
+function startAutoRefresh() {
+  if (monitoringInterval) return; // Déjà actif
+  
+  debugLog('🔄 Auto-refresh activé (10s)');
+  monitoringInterval = setInterval(async () => {
+    const panel = document.getElementById('sf-debug-panel');
+    if (panel && panel.classList.contains('sf-panel-open')) {
+      debugLog('🔄 Auto-refresh des logs...');
+      // Invalider le cache et recharger
+      lastFetchTime = null;
+      await loadLogs();
+    }
+  }, REFRESH_INTERVAL);
+}
+
+// Modifier togglePanel() pour démarrer/arrêter l'auto-refresh
 function togglePanel() {
   const panel = document.getElementById('sf-debug-panel');
   const isOpen = panel.classList.contains('sf-panel-open');
@@ -155,8 +176,39 @@ function togglePanel() {
   } else {
     panel.classList.remove('sf-panel-closed');
     panel.classList.add('sf-panel-open');
-    startMonitoring();
+    
+    // Charger les logs (avec cache intelligent)
+    loadLogs();
+    
+    // ✅ Démarrer l'auto-refresh
+    startAutoRefresh();
+    
     debugLog('Panel ouvert');
+  }
+}
+
+/**
+ * Charger les logs (avec cache intelligent)
+ * Utilise le cache si disponible, sinon fetch
+ */
+async function loadLogs(forceRefresh = false) {
+  try {
+    // Si le cache est valide et pas de forceRefresh, utiliser le cache
+    if (!forceRefresh && isCacheValid() && cachedLogs) {
+      debugLog('✅ Utilisation du cache (logs préchargés)');
+      displayLogs(cachedLogs);
+      showSuccess(`${cachedLogs.length} log(s) chargé(s) (cache)`);
+      updateStatus('Prêt', 'connected');
+      return;
+    }
+    
+    // Sinon, charger les logs depuis l'API
+    debugLog('🔄 Chargement des logs depuis l\'API...');
+    await startMonitoring();
+    
+  } catch (error) {
+    console.error('[FoxLog] Erreur loadLogs:', error);
+    showError('Erreur: ' + error.message);
   }
 }
 
@@ -168,42 +220,52 @@ async function startMonitoring() {
     // Afficher le spinner
     showLoadingSpinner('Initialisation...', 'Connexion à Salesforce');
     
-    // 0. Forcer la session sur my.salesforce.com
-    showLoadingSpinner('Connexion...', 'Établissement de la session');
-    await ensureMySalesforceSession();
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Utiliser les données en cache si disponibles
+    let userId = cachedUserId;
+    let sessionId = cachedSessionId;
     
-    // 1. VIDER LE CACHE pour forcer une nouvelle extraction
-    cachedSessionId = null;
-    debugLog('🗑️ Cache Session ID vidé');
-    
-    // 2. Récupérer l'User ID
-    showLoadingSpinner('Authentification...', 'Récupération de l\'identifiant utilisateur');
-    const userId = await getCurrentUserId();
-    if (!userId) {
-      hideLoadingSpinner();
-      showError('Impossible de récupérer l\'User ID');
-      return;
+    // Si pas en cache, récupérer
+    if (!userId || !sessionId) {
+      // 0. Forcer la session sur my.salesforce.com
+      showLoadingSpinner('Connexion...', 'Établissement de la session');
+      await ensureMySalesforceSession();
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // 1. Récupérer l'User ID
+      showLoadingSpinner('Authentification...', 'Récupération de l\'identifiant utilisateur');
+      userId = await getCurrentUserId();
+      if (!userId) {
+        hideLoadingSpinner();
+        showError('Impossible de récupérer l\'User ID');
+        return;
+      }
+      cachedUserId = userId;
+      debugLog('User ID obtenu:', userId);
+      
+      // 2. Récupérer le Session ID depuis background.js (Chrome Cookies API)
+      showLoadingSpinner('Authentification...', 'Récupération du token de session');
+      debugLog('🔍 Récupération Session ID via Chrome Cookies API...');
+      sessionId = await extractViaBackground();
+      
+      if (!sessionId) {
+        hideLoadingSpinner();
+        showError('Impossible de récupérer le Session ID');
+        return;
+      }
+      
+      debugLog('✅ Session ID obtenu:', sessionId.substring(0, 30) + '...');
+      cachedSessionId = sessionId;
+    } else {
+      debugLog('✅ Utilisation des credentials en cache');
     }
-    debugLog('User ID obtenu:', userId);
     
-    // 3. Récupérer le Session ID depuis background.js (Chrome Cookies API)
-    showLoadingSpinner('Authentification...', 'Récupération du token de session');
-    debugLog('🔍 Récupération Session ID via Chrome Cookies API...');
-    const sessionId = await extractViaBackground();
-    
-    if (!sessionId) {
-      hideLoadingSpinner();
-      showError('Impossible de récupérer le Session ID');
-      return;
-    }
-    
-    debugLog('✅ Session ID obtenu:', sessionId.substring(0, 30) + '...');
-    cachedSessionId = sessionId;
-    
-    // 4. Récupérer les logs
+    // 3. Récupérer les logs
     showLoadingSpinner('Chargement des logs...', 'Requête vers l\'API Salesforce');
     const logs = await fetchDebugLogs(sessionId, userId);
+    
+    // Mettre à jour le cache
+    cachedLogs = logs;
+    lastFetchTime = Date.now();
     
     // Masquer le spinner
     hideLoadingSpinner();
@@ -211,8 +273,10 @@ async function startMonitoring() {
     if (logs && logs.length > 0) {
       displayLogs(logs);
       showSuccess(`${logs.length} log(s) chargé(s)`);
+      updateBadge(logs.length);
     } else {
       showInfo('Aucun debug log trouvé');
+      updateBadge(0);
     }
     
   } catch (error) {
@@ -238,70 +302,18 @@ function stopMonitoring() {
 async function manualRefresh() {
   debugLog('Rafraîchissement manuel demandé');
   
-  try {
-    // Afficher le spinner
-    showLoadingSpinner('Rafraîchissement...', 'Mise à jour des logs');
-    
-    // 1. Vider le cache pour forcer une nouvelle extraction
-    cachedSessionId = null;
-    retryCount = 0;
-    debugLog('🗑️ Cache vidé pour rafraîchissement manuel');
-    
-    // 2. Forcer la session sur my.salesforce.com
-    showLoadingSpinner('Reconnexion...', 'Actualisation de la session');
-    await ensureMySalesforceSession();
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // 3. Récupérer l'User ID
-    showLoadingSpinner('Authentification...', 'Vérification de l\'identité');
-    const userId = await getCurrentUserId();
-    if (!userId) {
-      hideLoadingSpinner();
-      addLogEntry('ERROR', 'Impossible de récupérer l\'User ID');
-      showError('Impossible de récupérer l\'User ID');
-      return;
-    }
-    debugLog('✅ User ID pour rafraîchissement:', userId);
-    
-    // 4. Récupérer le Session ID (avec le bon cookie my.salesforce.com)
-    showLoadingSpinner('Authentification...', 'Récupération du token');
-    debugLog('🔍 Récupération Session ID via Chrome Cookies API...');
-    const sessionId = await extractViaBackground();
-    
-    if (!sessionId) {
-      hideLoadingSpinner();
-      addLogEntry('ERROR', 'Impossible de récupérer le Session ID');
-      showError('Impossible de récupérer le Session ID');
-      return;
-    }
-    
-    debugLog('✅ Session ID obtenu pour rafraîchissement:', sessionId.substring(0, 30) + '...');
-    cachedSessionId = sessionId;
-    
-    // 5. Récupérer les logs
-    showLoadingSpinner('Chargement des logs...', 'Requête API en cours');
-    const logs = await fetchDebugLogs(sessionId, userId);
-    
-    // Masquer le spinner
-    hideLoadingSpinner();
-    
-    if (logs && logs.length > 0) {
-      // Effacer les anciens logs avant d'afficher les nouveaux
-      clearLogs();
-      displayLogs(logs);
-      addLogEntry('SUCCESS', `✅ ${logs.length} log(s) rechargé(s)`);
-      showSuccess(`${logs.length} log(s) rechargé(s)`);
-    } else {
-      addLogEntry('INFO', 'Aucun debug log trouvé');
-      showInfo('Aucun debug log trouvé');
-    }
-    
-  } catch (error) {
-    hideLoadingSpinner();
-    console.error('[FoxLog] Erreur rafraîchissement manuel:', error);
-    addLogEntry('ERROR', 'Erreur: ' + error.message);
-    showError('Erreur: ' + error.message);
-  }
+  // Vider le cache pour forcer un fetch
+  cachedLogs = null;
+  cachedSessionId = null;
+  cachedUserId = null;
+  lastFetchTime = null;
+  retryCount = 0;
+  
+  // Effacer les logs affichés
+  clearLogs();
+  
+  // Recharger avec forceRefresh
+  await loadLogs(true);
 }
 
 // ============================================
@@ -1261,6 +1273,86 @@ function hideLoadingSpinner() {
   }
 }
 
+// ========== PRÉCHARGEMENT DES LOGS EN ARRIÈRE-PLAN ==========
+
+/**
+ * Précharger les logs en arrière-plan (sans ouvrir le panel)
+ * Cette fonction s'exécute automatiquement au chargement de la page
+ */
+async function preloadLogsInBackground() {
+  try {
+    debugLog('🔄 Préchargement des logs en arrière-plan...');
+    
+    // Forcer la session sur my.salesforce.com
+    await ensureMySalesforceSession();
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Récupérer l'User ID
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      debugLog('⚠️ Impossible de précharger : User ID non trouvé');
+      return;
+    }
+    cachedUserId = userId;
+    debugLog('✅ User ID en cache:', userId);
+    
+    // Récupérer le Session ID
+    const sessionId = await extractViaBackground();
+    if (!sessionId) {
+      debugLog('⚠️ Impossible de précharger : Session ID non trouvé');
+      return;
+    }
+    cachedSessionId = sessionId;
+    debugLog('✅ Session ID en cache');
+    
+    // Récupérer les logs
+    const logs = await fetchDebugLogs(sessionId, userId);
+    if (logs && logs.length > 0) {
+      cachedLogs = logs;
+      lastFetchTime = Date.now();
+      debugLog(`✅ ${logs.length} log(s) préchargé(s) en arrière-plan`);
+      
+      // Mettre à jour le badge (optionnel - nombre de logs)
+      updateBadge(logs.length);
+    } else {
+      debugLog('ℹ️ Aucun log à précharger');
+    }
+    
+  } catch (error) {
+    debugLog('❌ Erreur préchargement:', error);
+  }
+}
+
+/**
+ * Vérifier si le cache est encore valide
+ */
+function isCacheValid() {
+  if (!cachedLogs || !lastFetchTime) return false;
+  const cacheAge = Date.now() - lastFetchTime;
+  const isValid = cacheAge < CACHE_DURATION;
+  debugLog(`🔍 Cache valide: ${isValid} (âge: ${Math.round(cacheAge / 1000)}s)`);
+  return isValid;
+}
+
+/**
+ * Mettre à jour le badge du bouton avec le nombre de logs
+ */
+function updateBadge(count) {
+  const button = document.getElementById('sf-debug-toggle');
+  if (!button) return;
+  
+  // Supprimer l'ancien badge si existant
+  const oldBadge = button.querySelector('.sf-badge');
+  if (oldBadge) oldBadge.remove();
+  
+  if (count > 0) {
+    const badge = document.createElement('div');
+    badge.className = 'sf-badge';
+    badge.textContent = count > 99 ? '99+' : count;
+    button.appendChild(badge);
+  }
+}
+
 // Initialisation
 function init() {
   debugLog('=== Initialisation de FoxLog ===');
@@ -1280,21 +1372,14 @@ function init() {
     addStatusIndicator();
     debugLog('=== FoxLog initialisé avec succès ===');
     
-    // Test de Session ID au démarrage
-    extractSessionId().then(sessionId => {
-      if (sessionId) {
-        debugLog('✅ Session ID détecté au démarrage');
-        const statusElem = document.getElementById('sf-session-status');
-        if (statusElem) statusElem.textContent = '🔑 Session OK';
-      } else {
-        debugLog('⚠️ Session ID non détecté au démarrage');
-        const statusElem = document.getElementById('sf-session-status');
-        if (statusElem) statusElem.textContent = '⚠️ Session manquante';
-      }
-    });
+    // ✅ PRÉCHARGER LES LOGS EN ARRIÈRE-PLAN
+    // Attendre 2 secondes que la page soit bien chargée
+    setTimeout(() => {
+      preloadLogsInBackground();
+    }, 2000);
 
   } catch (error) {
-    debugLog('⌀ Erreur lors de l\'initialisation:', error);
+    debugLog('❌ Erreur lors de l\'initialisation:', error);
   }
 }
 
