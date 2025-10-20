@@ -9,6 +9,10 @@ const CONFIG = {
 const FOXLOG_ICON_URL = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL
   ? chrome.runtime.getURL('icon128.png')
   : 'icon128.png';
+// Définir l'URL absolue de l'icône FoxLog
+const TAIL_ICON_URL = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL
+  ? chrome.runtime.getURL('tail128.png')
+  : 'tail128.png';
 
 // Variables globales
 let logCount = 0;
@@ -20,7 +24,7 @@ let lastFetchTime = null; // ✅ Timestamp du dernier fetch
 let retryCount = 0;
 const MAX_RETRIES = 2;
 const CACHE_DURATION = 30000; // 30 secondes de cache
-const REFRESH_INTERVAL = 10000; // 10 secondes
+const REFRESH_INTERVAL = 60000; // 10 secondes
 
 // Injecter le script dans le contexte de la page
 function injectScript() {
@@ -74,7 +78,7 @@ function createFloatingButton() {
   
   const button = document.createElement('div');
   button.id = 'sf-debug-toggle';
-  button.innerHTML = `<img src="${FOXLOG_ICON_URL}" alt="FoxLog" style="width:32px;height:32px;vertical-align:middle;">`;
+  button.innerHTML = `<img src="${TAIL_ICON_URL}" alt="FoxLog" style="width:32px;height:32px;vertical-align:middle;">`;
   button.title = 'FoxLog - Ouvrir les logs Salesforce';
   document.body.appendChild(button);
   
@@ -101,7 +105,7 @@ function createPanel() {
   
   panel.innerHTML = `
     <div class="sf-panel-header">
-      <h3><img src="${FOXLOG_ICON_URL}" alt="FoxLog" style="width:28px;height:28px;vertical-align:middle;"> FoxLog</h3>
+      <h3><img src="${FOXLOG_ICON_URL}" alt="FoxLog" style="width:28px;height:28px;vertical-align:middle;">   FoxLog</h3>
       <div class="sf-panel-controls">
         <button id="sf-clear-logs" title="Effacer les logs">🗑️</button>
         <button id="sf-refresh-logs" title="Rafraîchir">🔄</button>
@@ -158,7 +162,7 @@ function startAutoRefresh() {
       debugLog('🔄 Auto-refresh des logs...');
       // Invalider le cache et recharger
       lastFetchTime = null;
-      await loadLogs();
+      await loadLogs(false,true);
     }
   }, REFRESH_INTERVAL);
 }
@@ -191,7 +195,7 @@ function togglePanel() {
  * Charger les logs (avec cache intelligent)
  * Utilise le cache si disponible, sinon fetch
  */
-async function loadLogs(forceRefresh = false) {
+async function loadLogs(forceRefresh = false, autoRefresh = false) {
   try {
     // Si le cache est valide et pas de forceRefresh, utiliser le cache
     if (!forceRefresh && isCacheValid() && cachedLogs) {
@@ -213,12 +217,12 @@ async function loadLogs(forceRefresh = false) {
 }
 
 // Démarrer le monitoring
-async function startMonitoring() {
+async function startMonitoring(autoRefresh = false) {
   try {
     debugLog('Démarrage du monitoring...');
     
     // Afficher le spinner
-    showLoadingSpinner('Initialisation...', 'Connexion à Salesforce');
+    if(!autoRefresh){showLoadingSpinner('Initialisation...', 'Connexion à Salesforce');}
     
     // Utiliser les données en cache si disponibles
     let userId = cachedUserId;
@@ -227,12 +231,12 @@ async function startMonitoring() {
     // Si pas en cache, récupérer
     if (!userId || !sessionId) {
       // 0. Forcer la session sur my.salesforce.com
-      showLoadingSpinner('Connexion...', 'Établissement de la session');
+      if(!autoRefresh){showLoadingSpinner('Connexion...', 'Établissement de la session');}
       await ensureMySalesforceSession();
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       // 1. Récupérer l'User ID
-      showLoadingSpinner('Authentification...', 'Récupération de l\'identifiant utilisateur');
+      if(!autoRefresh){showLoadingSpinner('Authentification...', 'Récupération de l\'identifiant utilisateur');}
       userId = await getCurrentUserId();
       if (!userId) {
         hideLoadingSpinner();
@@ -243,7 +247,7 @@ async function startMonitoring() {
       debugLog('User ID obtenu:', userId);
       
       // 2. Récupérer le Session ID depuis background.js (Chrome Cookies API)
-      showLoadingSpinner('Authentification...', 'Récupération du token de session');
+      if(!autoRefresh){showLoadingSpinner('Authentification...', 'Récupération du token de session');}
       debugLog('🔍 Récupération Session ID via Chrome Cookies API...');
       sessionId = await extractViaBackground();
       
@@ -260,7 +264,7 @@ async function startMonitoring() {
     }
     
     // 3. Récupérer les logs
-    showLoadingSpinner('Chargement des logs...', 'Requête vers l\'API Salesforce');
+    if(!autoRefresh){showLoadingSpinner('Chargement des logs...', 'Requête vers l\'API Salesforce');}
     const logs = await fetchDebugLogs(sessionId, userId);
     
     // Mettre à jour le cache
@@ -1049,51 +1053,61 @@ function displayLogs(logs) {
 
 // Ajouter une entrée de log
 function addLogEntry(level, message, details = {}, customTimestamp = null) {
-  const container = document.getElementById('sf-logs-container');
-  if (!container) return;
-  
-  const emptyState = container.querySelector('.sf-empty-state');
-  if (emptyState) emptyState.remove();
-  
-  const logEntry = document.createElement('div');
-  logEntry.className = 'sf-log-entry sf-log-live';
-  logEntry.dataset.level = level;
-  
-  const timestamp = customTimestamp || new Date().toLocaleTimeString('fr-FR');
-  
-  let detailsHtml = '';
-  if (details.user) detailsHtml += `<div class="sf-log-user">User: ${details.user}</div>`;
-  if (details.application) detailsHtml += `<div class="sf-log-app">App: ${details.application}</div>`;
-  if (details.stack) detailsHtml += `<pre class="sf-log-stack">${details.stack}</pre>`;
-  if (details.logId) {
-    detailsHtml += `<button class="sf-view-details" onclick="window.viewLogDetails('${details.logId}')">Voir détails complets</button>`;
-  }
-  
-  logEntry.innerHTML = `
-    <div class="sf-log-header">
-      <span class="sf-log-level ${level}">${level}</span>
-      <span class="sf-log-time">${timestamp}</span>
-    </div>
-    <div class="sf-log-body">
-      <div class="sf-log-message">${message}</div>
-      ${detailsHtml}
-    </div>
-  `;
-  
-  container.insertBefore(logEntry, container.firstChild);
-  logCount++;
-  
-  // Limiter le nombre de logs
-  const entries = container.querySelectorAll('.sf-log-entry');
-  if (entries.length > CONFIG.MAX_LOGS) {
-    entries[entries.length - 1].remove();
-    logCount--;
-  }
-  
-  updateLogCount(logCount);
-  updateLastUpdate();
-  
-  debugLog('Log ajouté:', level, message);
+    const container = document.getElementById('sf-logs-container');
+    if (!container) return;
+    
+    const emptyState = container.querySelector('.sf-empty-state');
+    if (emptyState) emptyState.remove();
+    
+    const logEntry = document.createElement('div');
+    logEntry.className = 'sf-log-entry sf-log-live';
+    logEntry.dataset.level = level;
+    
+    const timestamp = customTimestamp || new Date().toLocaleTimeString('fr-FR');
+    
+    let detailsHtml = '';
+    if (details.user) detailsHtml += `<div class="sf-log-user">User: ${details.user}</div>`;
+    if (details.application) detailsHtml += `<div class="sf-log-app">App: ${details.application}</div>`;
+    if (details.stack) detailsHtml += `<pre class="sf-log-stack">${details.stack}</pre>`;
+    
+    // Créer le bouton sans onclick inline
+    let buttonHtml = '';
+    if (details.logId) {
+        buttonHtml = `<button class="sf-view-details" data-log-id="${details.logId}">Voir détails complets</button>`;
+    }
+    
+    logEntry.innerHTML = `
+        <div class="sf-log-header">
+            <span class="sf-log-level ${level}">${level}</span>
+            <span class="sf-log-time">${timestamp}</span>
+        </div>
+        <div class="sf-log-body">
+            <div class="sf-log-message">${message}</div>
+            ${detailsHtml}
+            ${buttonHtml}
+        </div>
+    `;
+    
+    // Attacher l'événement après création du DOM
+    if (details.logId) {
+        const button = logEntry.querySelector('.sf-view-details');
+        button.addEventListener('click', () => {
+            window.viewLogDetails(details.logId);
+        });
+    }
+    
+    container.insertBefore(logEntry, container.firstChild);
+    logCount++;
+    
+    const entries = container.querySelectorAll('.sf-log-entry');
+    if (entries.length > CONFIG.MAX_LOGS) {
+        entries[entries.length - 1].remove();
+        logCount--;
+    }
+    
+    updateLogCount(logCount);
+    updateLastUpdate();
+    debugLog('Log ajouté:', level, message);
 }
 
 // Filtrer les logs
@@ -1161,7 +1175,13 @@ window.viewLogDetails = async function(logId) {
       return;
     }
     
-    const instanceUrl = window.location.origin;
+    const hostname = window.location.hostname;
+    let instanceUrl = window.location.origin;
+
+    // Si on est sur lightning.force.com, basculer vers my.salesforce.com
+    if (hostname.includes('lightning.force.com')) {
+      instanceUrl = instanceUrl.replace('lightning.force.com', 'my.salesforce.com');
+    }
     const response = await fetch(`${instanceUrl}/services/data/v59.0/tooling/sobjects/ApexLog/${logId}/Body`, {
       headers: {
         'Authorization': `Bearer ${sessionId}`,
@@ -1187,22 +1207,42 @@ window.viewLogDetails = async function(logId) {
 
 // Afficher une modal avec le contenu du log
 function showLogModal(content) {
-  const modal = document.createElement('div');
-  modal.className = 'sf-log-modal';
-  modal.innerHTML = `
-    <div class="sf-modal-content">
-      <div class="sf-modal-header">
-        <h3>Détails du log Salesforce</h3>
-        <button onclick="this.closest('.sf-log-modal').remove()">✕</button>
-      </div>
-      <pre class="sf-modal-body">${content}</pre>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) modal.remove();
-  });
+    // Retirer l'ancienne modal si elle existe
+    const existingModal = document.querySelector('.sf-log-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    const modal = document.createElement('div');
+    modal.className = 'sf-log-modal';
+    
+    // Ne pas utiliser onclick inline - CSP violation
+    modal.innerHTML = `
+        <div class="sf-modal-content">
+            <div class="sf-modal-header">
+                <h3>Détails du log Salesforce</h3>
+                <button class="sf-modal-close-btn">×</button>
+            </div>
+            <pre class="sf-modal-body">${content}</pre>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Attacher les event listeners après création du DOM
+    const closeBtn = modal.querySelector('.sf-modal-close-btn');
+    closeBtn.addEventListener('click', () => {
+        modal.remove();
+    });
+    
+    // Cliquer en dehors pour fermer
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+    
+    debugLog('Modal affichée avec z-index maximum');
 }
 
 // Récupérer et afficher la version de l'extension
