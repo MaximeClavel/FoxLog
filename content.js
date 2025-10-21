@@ -132,7 +132,6 @@ function createPanel() {
     <div class="sf-panel-content" id="sf-logs-container">
       <div class="sf-empty-state">
         <p>👋 Bienvenue dans FoxLog !</p>
-        <p class="sf-hint">Cliquez sur ▶️ pour démarrer le monitoring</p>
         <p class="sf-hint">Les logs apparaîtront automatiquement</p>
       </div>
     </div>
@@ -231,13 +230,6 @@ async function startMonitoring(autoRefresh = false) {
     let sessionId = cachedSessionId;
     
     if (!userId || !sessionId) {
-      // Forcer la session sur my.salesforce.com
-      if (!autoRefresh) {
-        showLoadingSpinner('Connexion...', 'Établissement de la session');
-      }
-      await ensureMySalesforceSession();
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
       // Récupérer l'User ID
       if (!autoRefresh) {
         showLoadingSpinner('Authentification...', 'Récupération de l\'identifiant utilisateur');
@@ -257,10 +249,23 @@ async function startMonitoring(autoRefresh = false) {
       }
       sessionId = await extractSessionId();
       
+      // ✅ Si pas de Session ID, forcer la création puis réessayer
       if (!sessionId) {
-        hideLoadingSpinner();
-        showError('Impossible de récupérer le Session ID');
-        return;
+        debugLog('⚠️ Pas de Session ID, tentative de création via my.salesforce.com...');
+        if (!autoRefresh) {
+          showLoadingSpinner('Connexion...', 'Établissement de la session Salesforce');
+        }
+        await ensureMySalesforceSession();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Réessayer après avoir forcé la session
+        sessionId = await extractSessionId();
+        
+        if (!sessionId) {
+          hideLoadingSpinner();
+          showError('Impossible de récupérer le Session ID. Essayez d\'ouvrir la Developer Console puis rechargez.');
+          return;
+        }
       }
       
       debugLog('✅ Session ID obtenu:', sessionId.substring(0, 30) + '...');
@@ -313,7 +318,7 @@ async function manualRefresh() {
 // EXTRACTION SESSION ID - VERSION SIMPLIFIÉE
 // ============================================
 
-// Forcer la création du cookie sur my.salesforce.com
+// Forcer la création du cookie sur my.salesforce.com (méthode non-intrusive)
 async function ensureMySalesforceSession() {
   debugLog('🔄 Forçage session my.salesforce.com...');
   
@@ -324,53 +329,55 @@ async function ensureMySalesforceSession() {
       
       debugLog('URL my.salesforce.com:', mySfUrl);
       
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
-      iframe.id = 'foxlog-mysf-iframe';
+      // ✅ SOLUTION: Utiliser une image au lieu d'un iframe
+      // Cela déclenche une requête vers my.salesforce.com sans risque de refresh
+      const img = document.createElement('img');
+      img.style.display = 'none';
+      img.style.width = '1px';
+      img.style.height = '1px';
+      img.id = 'foxlog-mysf-trigger';
       
       let resolved = false;
       
+      // Timeout de 2 secondes (réduit de 3 à 2)
       const timeout = setTimeout(() => {
         if (!resolved) {
           resolved = true;
           try {
-            document.body.removeChild(iframe);
+            document.body.removeChild(img);
           } catch(e) {}
           debugLog('✓ Session my.salesforce.com forcée (timeout)');
           resolve(true);
         }
-      }, 3000);
+      }, 2000);
       
-      iframe.onload = () => {
-        setTimeout(() => {
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timeout);
-            try {
-              document.body.removeChild(iframe);
-            } catch(e) {}
-            debugLog('✓ Session my.salesforce.com forcée (onload)');
-            resolve(true);
-          }
-        }, 500);
-      };
-      
-      iframe.onerror = () => {
+      img.onload = () => {
         if (!resolved) {
           resolved = true;
           clearTimeout(timeout);
           try {
-            document.body.removeChild(iframe);
+            document.body.removeChild(img);
           } catch(e) {}
-          debugLog('✗ Erreur iframe my.salesforce.com');
-          resolve(false);
+          debugLog('✓ Session my.salesforce.com forcée (onload)');
+          resolve(true);
         }
       };
       
-      document.body.appendChild(iframe);
-      iframe.src = mySfUrl;
+      img.onerror = () => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          try {
+            document.body.removeChild(img);
+          } catch(e) {}
+          debugLog('✓ Session my.salesforce.com forcée (onerror - normal)');
+          resolve(true); // Résoudre même en cas d'erreur (l'important c'est la requête)
+        }
+      };
+      
+      document.body.appendChild(img);
+      // Charger une ressource inexistante pour déclencher la requête + cookies
+      img.src = `${mySfUrl}/favicon.ico?t=${Date.now()}`;
       
     } catch (error) {
       debugLog('✗ Erreur ensureMySalesforceSession:', error);
@@ -897,8 +904,8 @@ async function preloadLogsInBackground() {
   try {
     debugLog('🔄 Préchargement des logs en arrière-plan...');
     
-    await ensureMySalesforceSession();
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // ❌ NE PAS forcer la session au préchargement (cause des refresh)
+    // await ensureMySalesforceSession();
     
     const userId = await getCurrentUserId();
     if (!userId) {
@@ -910,7 +917,7 @@ async function preloadLogsInBackground() {
     
     const sessionId = await extractSessionId();
     if (!sessionId) {
-      debugLog('⚠️ Impossible de précharger : Session ID non trouvé');
+      debugLog('⚠️ Impossible de précharger : Session ID non trouvé (normal au 1er chargement)');
       return;
     }
     cachedSessionId = sessionId;
