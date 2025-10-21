@@ -79,6 +79,12 @@ function getParser() {
     return logParser;
 }
 
+// Appeler au chargement
+if (isSalesforcePage()) {
+  injectScript();
+  loadParser();
+}
+
 // Log de debug pour l'extension
 function debugLog(message, data = null) {
   if (CONFIG.DEBUG_MODE) {
