@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FoxLog",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Display Salesforce debug logs in a user-friendly format.",
   "permissions": [
     "activeTab",
@@ -24,7 +24,7 @@
         "https://*.lightning.force.com/*"
       ],
       "js": ["content.js"],
-      "css": ["styles.css"],
+      "css": ["styles.css", "modal-styles.css"],
       "run_at": "document_end",
       "all_frames": false
     }
@@ -46,7 +46,8 @@
         "tail128.png",
         "trash.png",
         "refresh.png",
-        "injected.js"
+        "injected.js",
+        "log-parser.js"
       ],
       "matches": [
         "https://*.salesforce.com/*",

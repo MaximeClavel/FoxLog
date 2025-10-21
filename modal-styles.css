@@ -1,0 +1,409 @@
+/* ============================================
+   STYLES POUR LA MODAL PARSÉE - PHASE 1
+   ============================================ */
+
+/* Tabs de la modal */
+.sf-modal-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px 0;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.sf-tab-btn {
+  padding: 10px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sf-tab-btn:hover {
+  color: #0176d3;
+  background: rgba(1, 118, 211, 0.05);
+  border-radius: 6px 6px 0 0;
+}
+
+.sf-tab-btn.active {
+  color: #0176d3;
+  border-bottom-color: #0176d3;
+  font-weight: 600;
+}
+
+.sf-modal-body-tabs {
+  max-height: calc(80vh - 120px);
+  overflow-y: auto;
+}
+
+.sf-tab-content {
+  display: none;
+  padding: 20px;
+}
+
+.sf-tab-content.active {
+  display: block;
+}
+
+/* ============================================
+   ONGLET RÉSUMÉ
+   ============================================ */
+
+.sf-summary-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.sf-summary-section {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.sf-summary-section h4 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sf-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.sf-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sf-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sf-value {
+  font-size: 16px;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.sf-status-success {
+  color: #10b981;
+}
+
+.sf-status-error {
+  color: #ef4444;
+}
+
+.sf-status-warning {
+  color: #f59e0b;
+}
+
+/* Barres de limites */
+.sf-limits-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sf-limit-item {
+  display: grid;
+  grid-template-columns: 140px 1fr 120px;
+  align-items: center;
+  gap: 12px;
+}
+
+.sf-limit-bar {
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.sf-limit-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  transition: width 0.3s ease;
+  border-radius: 4px;
+}
+
+.sf-limit-fill[style*="width: 7"],
+.sf-limit-fill[style*="width: 8"],
+.sf-limit-fill[style*="width: 9"] {
+  background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+}
+
+.sf-limit-fill[style*="width: 100%"] {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+.sf-limit-value {
+  font-size: 13px;
+  color: #4b5563;
+  font-weight: 500;
+  text-align: right;
+}
+
+/* Section erreurs */
+.sf-errors-section {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.sf-error-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.sf-error-type {
+  padding: 4px 8px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.sf-error-msg {
+  flex: 1;
+  font-size: 13px;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.sf-error-time {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Liste des méthodes */
+.sf-methods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.sf-method-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.sf-method-item:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.sf-method-name {
+  font-size: 13px;
+  color: #1f2937;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+.sf-method-calls {
+  font-size: 12px;
+  color: #6b7280;
+  background: #e5e7eb;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+/* ============================================
+   ONGLET TIMELINE
+   ============================================ */
+
+.sf-timeline-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 8px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.sf-timeline-item {
+  display: grid;
+  grid-template-columns: 100px 160px 1fr;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border-left: 3px solid #e5e7eb;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  align-items: center;
+}
+
+.sf-timeline-item:hover {
+  background: #f3f4f6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.sf-timeline-time {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.sf-timeline-type {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sf-timeline-content {
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Types de timeline */
+.sf-timeline-method_entry {
+  border-left-color: #3b82f6;
+}
+
+.sf-timeline-method_entry .sf-timeline-type {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.sf-timeline-method_exit {
+  border-left-color: #8b5cf6;
+}
+
+.sf-timeline-method_exit .sf-timeline-type {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.sf-timeline-soql_execute_begin {
+  border-left-color: #10b981;
+}
+
+.sf-timeline-soql_execute_begin .sf-timeline-type {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.sf-timeline-dml_begin {
+  border-left-color: #f59e0b;
+}
+
+.sf-timeline-dml_begin .sf-timeline-type {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.sf-timeline-user_debug {
+  border-left-color: #6366f1;
+}
+
+.sf-timeline-user_debug .sf-timeline-type {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.sf-timeline-exception_thrown {
+  border-left-color: #ef4444;
+  background: #fef2f2 !important;
+}
+
+.sf-timeline-exception_thrown .sf-timeline-type {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Scrollbar personnalisée */
+.sf-timeline-container::-webkit-scrollbar,
+.sf-methods-list::-webkit-scrollbar,
+.sf-modal-body-tabs::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sf-timeline-container::-webkit-scrollbar-track,
+.sf-methods-list::-webkit-scrollbar-track,
+.sf-modal-body-tabs::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.sf-timeline-container::-webkit-scrollbar-thumb,
+.sf-methods-list::-webkit-scrollbar-thumb,
+.sf-modal-body-tabs::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.sf-timeline-container::-webkit-scrollbar-thumb:hover,
+.sf-methods-list::-webkit-scrollbar-thumb:hover,
+.sf-modal-body-tabs::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Hint text */
+.sf-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+  text-align: center;
+  padding: 8px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sf-summary-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .sf-limit-item {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .sf-timeline-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  
+  .sf-timeline-type {
+    width: fit-content;
+  }
+}
