@@ -316,90 +316,114 @@ class SalesforceLogParser {
     return (hours * 3600000) + (minutes * 60000) + (seconds * 1000) + milliseconds;
   }
 
-  /**
-   * Initialise les statistiques
-   * @returns {ExecutionStats}
-   */
   initStats() {
     return {
-      limits: {
-        soqlQueries: 0,
-        dmlStatements: 0,
-        cpuTime: 0,
-        heapSize: 0,
-        maxSoqlQueries: 100,
-        maxDmlStatements: 150,
-        maxCpuTime: 10000,
-        maxHeapSize: 6000000
-      },
-      methods: [],
-      errors: [],
-      queries: [],
-      dmlOperations: []
+        limits: {
+            soqlQueries: 0,
+            dmlStatements: 0,
+            cpuTime: 0,
+            heapSize: 0,
+            maxSoqlQueries: 100,
+            maxDmlStatements: 150,
+            maxCpuTime: 10000,
+            maxHeapSize: 6000000
+        },
+        methods: [],
+        errors: [],
+        queries: [],
+        dmlOperations: [],
+        methodStack: [] // AJOUT : Pile pour tracker les méthodes actives
     };
   }
 
   /**
-   * Collecte les statistiques pendant le parsing
-   * @param {LogLine} line
-   * @param {ExecutionStats} stats
-   */
-  collectStats(line, stats) {
+ * Collecte les statistiques pendant le parsing
+ * @param {LogLine} line
+ * @param {ExecutionStats} stats
+ */
+collectStats(line, stats) {
     switch(line.type) {
-      case 'SOQL_EXECUTE_BEGIN':
-        stats.limits.soqlQueries++;
-        stats.queries.push({
-          query: line.details.query,
-          timestamp: line.timestamp,
-          index: line.index
-        });
-        break;
+        case 'SOQL_EXECUTE_BEGIN':
+            stats.limits.soqlQueries++;
+            stats.queries.push({
+                query: line.details.query,
+                timestamp: line.timestamp,
+                index: line.index
+            });
+            break;
 
-      case 'SOQL_EXECUTE_END':
-        if (stats.queries.length > 0) {
-          const lastQuery = stats.queries[stats.queries.length - 1];
-          lastQuery.rows = line.details.rows;
-        }
-        break;
+        case 'SOQL_EXECUTE_END':
+            if (stats.queries.length > 0) {
+                const lastQuery = stats.queries[stats.queries.length - 1];
+                lastQuery.rows = line.details.rows;
+            }
+            break;
 
-      case 'DML_BEGIN':
-        stats.limits.dmlStatements++;
-        stats.dmlOperations.push({
-          operation: line.details.operation,
-          objectType: line.details.objectType,
-          timestamp: line.timestamp,
-          index: line.index
-        });
-        break;
+        case 'DML_BEGIN':
+            stats.limits.dmlStatements++;
+            stats.dmlOperations.push({
+                operation: line.details.operation,
+                objectType: line.details.objectType,
+                timestamp: line.timestamp,
+                index: line.index
+            });
+            break;
 
-      case 'METHOD_ENTRY':
-        const existingMethod = stats.methods.find(
-          m => m.class === line.details.class && m.method === line.details.method
-        );
+        case 'METHOD_ENTRY':
+            const existingMethod = stats.methods.find(
+                m => m.class === line.details.class && m.method === line.details.method
+            );
+            if (existingMethod) {
+                existingMethod.calls++;
+            } else {
+                stats.methods.push({
+                    class: line.details.class,
+                    method: line.details.method,
+                    calls: 1,
+                    firstCall: line.timestamp
+                });
+            }
+            
+            // Tracker la méthode active (pour les erreurs)
+            if (!stats.methodStack) {
+                stats.methodStack = [];
+            }
+            stats.methodStack.push({
+                class: line.details.class,
+                method: line.details.method,
+                timestamp: line.timestamp,
+                index: line.index
+            });
+            break;
         
-        if (existingMethod) {
-          existingMethod.calls++;
-        } else {
-          stats.methods.push({
-            class: line.details.class,
-            method: line.details.method,
-            calls: 1,
-            firstCall: line.timestamp
-          });
-        }
-        break;
+        case 'METHOD_EXIT':
+            // Retirer la méthode de la pile
+            if (stats.methodStack && stats.methodStack.length > 0) {
+                stats.methodStack.pop();
+            }
+            break;
 
-      case 'EXCEPTION_THROWN':
-      case 'FATAL_ERROR':
-        stats.errors.push({
-          type: line.type,
-          message: line.details.message || line.content,
-          timestamp: line.timestamp,
-          index: line.index
-        });
-        break;
+        case 'EXCEPTION_THROWN':
+        case 'FATAL_ERROR':
+            // Trouver la méthode active au moment de l'erreur
+            let currentMethod = null;
+            if (stats.methodStack && stats.methodStack.length > 0) {
+                const activeMethod = stats.methodStack[stats.methodStack.length - 1];
+                currentMethod = `${activeMethod.class}.${activeMethod.method}`;
+            }
+            
+            stats.errors.push({
+                type: line.type,
+                message: line.details.message || line.content,
+                exceptionType: line.details.exceptionType,
+                timestamp: line.timestamp,
+                index: line.index,
+                method: currentMethod, // AJOUT : Méthode où l'erreur s'est produite
+                depth: line.depth
+            });
+            break;
     }
-  }
+}
 
   /**
    * Parse les limites cumulatives à la fin du log

@@ -163,43 +163,69 @@
   text-align: right;
 }
 
-/* Section erreurs */
-.sf-errors-section {
-  background: #fef2f2;
-  border-color: #fecaca;
+/* Section Erreurs améliorée */
+.sf-summary-errors {
+    background: #fef2f2 !important;
+    border-left: 4px solid #ef4444 !important;
+}
+
+.sf-errors-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .sf-error-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: #ffffff;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
-  margin-bottom: 8px;
+    background: white;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    padding: 12px;
 }
 
 .sf-error-type {
-  padding: 4px 8px;
-  background: #fee2e2;
-  color: #991b1b;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: 4px;
-  text-transform: uppercase;
+    display: inline-block;
+    padding: 4px 8px;
+    background: #fee2e2;
+    color: #991b1b;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-bottom: 8px;
 }
 
-.sf-error-msg {
-  flex: 1;
-  font-size: 13px;
-  color: #dc2626;
-  font-weight: 500;
+.sf-error-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sf-error-message {
+    color: #dc2626;
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.sf-error-location {
+    color: #6b7280;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sf-error-location code {
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    color: #1f2937;
+    font-size: 11px;
 }
 
 .sf-error-time {
-  font-size: 12px;
-  color: #6b7280;
+    color: #9ca3af;
+    font-size: 11px;
+    font-family: monospace;
 }
 
 /* Liste des méthodes */

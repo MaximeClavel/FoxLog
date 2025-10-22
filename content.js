@@ -1108,16 +1108,21 @@ function renderSummaryTab(summary, parsedLog) {
       </div>
       
       ${parsedLog.stats.errors.length > 0 ? `
-      <div class="sf-summary-section sf-errors-section">
-        <h4>❌ Erreurs (${parsedLog.stats.errors.length})</h4>
-        ${parsedLog.stats.errors.map(err => `
-          <div class="sf-error-item">
-            <span class="sf-error-type">${err.type}</span>
-            <span class="sf-error-msg">${err.message}</span>
-            <span class="sf-error-time">${err.timestamp}</span>
-          </div>
-        `).join('')}
-      </div>
+      <div class="sf-summary-section sf-summary-errors">
+            <h4>❌ Erreurs (${parsedLog.stats.errors.length})</h4>
+            <div class="sf-errors-list">
+                ${parsedLog.stats.errors.map(error => `
+                    <div class="sf-error-item">
+                        <div class="sf-error-type">${error.type}</div>
+                        <div class="sf-error-details">
+                            <div class="sf-error-message">${error.exceptionType || 'Exception'}: ${error.message}</div>
+                            ${error.method ? `<div class="sf-error-location">📍 Location : <code>${error.method}</code></div>` : ''}
+                            <div class="sf-error-time">${error.timestamp}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
       ` : ''}
       
       <div class="sf-summary-section">
