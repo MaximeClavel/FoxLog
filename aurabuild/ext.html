@@ -1,0 +1,72 @@
+<aside id="sf-debug-panel" class="sf-panel-open bg-white ring-1 ring-zinc-200 shadow-2xl rounded-xl"
+  style="position:fixed;right:12px;top:50%;width:320px;max-height:72vh;z-index:2147483647;">
+  <!-- Header -->
+  <div
+    class="sf-panel-header sticky flex bg-white/95 h-14 border-zinc-200 rounded-t-xl border-b pr-3 pl-3 top-0 backdrop-blur items-center justify-between">
+    <h3 class="text-[15px] font-semibold tracking-tight flex items-center gap-2">
+      <img src="https://dummyimage.com/96x96/f1f5f9/0176d3.png&amp;text=F" alt="FoxLog" class="w-6 h-6">
+                FoxLog
+    </h3>
+    <div class="sf-panel-controls flex items-center gap-1.5">
+      <button id="sf-clear-logs" class="w-8 h-8 rounded-lg ring-1 ring-zinc-200 hover:ring-zinc-300 hover:bg-zinc-50 text-zinc-600 flex items-center justify-center" title="Effacer les logs">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" data-lucide="trash-2" class="lucide lucide-trash-2 w-4 h-4"><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+      <button id="sf-refresh-logs" class="w-8 h-8 rounded-lg ring-1 ring-zinc-200 hover:ring-zinc-300 hover:bg-zinc-50 text-zinc-600 flex items-center justify-center" title="Rafraîchir">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" data-lucide="rotate-cw" class="lucide lucide-rotate-cw w-4 h-4"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path></svg>
+                </button>
+      <button id="sf-close-panel" class="w-8 h-8 rounded-lg ring-1 ring-zinc-200 hover:ring-zinc-300 hover:bg-zinc-50 text-zinc-600 flex items-center justify-center" title="Fermer">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" data-lucide="x" class="lucide lucide-x w-4 h-4"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                </button>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div
+    class="sf-panel-status flex items-center gap-2.5 text-[12px] text-zinc-600 px-3 py-2 border-b border-zinc-200 bg-zinc-50">
+    <span id="sf-status-indicator" class="sf-status-connected"></span>
+    <span id="sf-status-text" class="font-medium">Connecté</span>
+    <span id="sf-session-status" class="ml-auto text-zinc-500">🔑 Session OK</span>
+  </div>
+
+  <!-- Filtres -->
+  <div class="sf-panel-filters grid grid-cols-[1fr,140px] gap-2 px-3 py-3 border-b border-zinc-200 bg-white">
+    <input type="text" id="sf-log-filter" placeholder="Filtrer les logs..." class="h-9 text-[13px] px-3 rounded-lg ring-1 ring-zinc-200 focus:ring-2 focus:ring-[#0176d3] outline-none placeholder:text-zinc-400">
+    <select id="sf-log-level" class="h-9 text-[13px] px-3 rounded-lg ring-1 ring-zinc-200 bg-white focus:ring-2 focus:ring-[#0176d3] outline-none">
+                <option value="all">Tous les niveaux</option>
+                <option value="ERROR">ERROR</option>
+                <option value="WARN">WARN</option>
+                <option value="INFO">INFO</option>
+                <option value="DEBUG">DEBUG</option>
+              </select>
+  </div>
+
+  <!-- Contenu -->
+  <div class="sf-panel-content overflow-y-auto p-3 bg-white" style="max-height:56vh;">
+    <div class="sf-empty-state rounded-lg ring-1 ring-zinc-200 bg-zinc-50 p-4 text-center">
+      <p class="text-[14px] font-medium text-zinc-700">👋 Bienvenue dans FoxLog !</p>
+      <p class="sf-hint text-[12px] text-zinc-500 mt-1">Cliquez sur ▶️ pour démarrer le monitoring</p>
+      <p class="sf-hint text-[12px] text-zinc-500">Les logs apparaîtront automatiquement</p>
+    </div>
+
+    <!-- Exemple de log -->
+    <div class="sf-log-entry mt-3 rounded-lg ring-1 ring-zinc-200 bg-white p-3" data-level="ERROR">
+      <div class="sf-log-header flex items-center justify-between">
+        <span class="sf-log-level ERROR text-[11px] font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-700 ring-1 ring-red-200">ERROR</span>
+        <span class="sf-log-time text-[12px] text-zinc-500">14:12:33</span>
+      </div>
+      <div class="sf-log-body mt-2">
+        <div class="sf-log-message text-[13px] text-zinc-800">Operation - No location (120ms)</div>
+        <div class="sf-log-user text-[12px] text-zinc-500 mt-1">User: 005XXXXXXXXXXX</div>
+        <div class="sf-log-app text-[12px] text-zinc-500">App: Lightning</div>
+        <button class="sf-view-details mt-2 text-[12px] text-[#0176d3] hover:underline">Voir détails complets</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div
+    class="sf-panel-footer bg-white border-t border-zinc-200 px-3 py-2 flex items-center justify-between text-[12px] text-zinc-500 rounded-b-xl">
+    <span id="sf-version-display">v1.0.0</span>
+    <span id="sf-last-update">Mis à jour: 12:00</span>
+  </div>
+</aside>
