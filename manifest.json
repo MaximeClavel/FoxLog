@@ -23,7 +23,7 @@
         "https://*.visualforce.com/*",
         "https://*.lightning.force.com/*"
       ],
-      "js": ["content.js"],
+      "js": ["log-parser.js","content.js"],
       "css": ["styles.css", "modal-styles.css"],
       "run_at": "document_end",
       "all_frames": false
