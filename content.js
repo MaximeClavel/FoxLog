@@ -23,7 +23,7 @@ let cachedUserId = null;
 let cachedLogs = null;
 let lastFetchTime = null;
 const CACHE_DURATION = 30000; // 30 secondes
-const REFRESH_INTERVAL = 60000; // 60 secondes
+const REFRESH_INTERVAL = 10000; // 10 secondes
 
 // Injecter le script dans le contexte de la page
 function injectScript() {
@@ -44,9 +44,46 @@ function injectScript() {
   }
 }
 
-// Appeler l'injection au chargement
+//let logParser = null;
+
+// Charger le script log-parser.js
+/*function loadParser() {
+    try {
+        const script = document.createElement('script');
+        script.src = chrome.runtime.getURL('log-parser.js');
+        script.onload = function() {
+            debugLog('✅ Parser chargé avec succès');
+            this.remove();
+        };
+        script.onerror = function() {
+            debugLog('❌ Erreur lors du chargement de log-parser.js');
+            this.remove();
+        };
+        (document.head || document.documentElement).appendChild(script);
+    } catch (error) {
+        debugLog('❌ Erreur chargement parser:', error);
+    }
+}*/
+
+let parserInstance = null;
+
+function getParser() {
+    if (!parserInstance && typeof window.SalesforceLogParser !== 'undefined') {
+        try {
+            parserInstance = new window.SalesforceLogParser();
+            debugLog('LogParser initialisé');
+        } catch (error) {
+            debugLog('Erreur initialisation parser', error);
+            return null;
+        }
+    }
+    return parserInstance;
+}
+
+// Appeler au chargement
 if (isSalesforcePage()) {
   injectScript();
+  //loadParser();
 }
 
 // Log de debug pour l'extension
@@ -200,12 +237,21 @@ function togglePanel() {
 // Charger les logs (avec cache intelligent)
 async function loadLogs(forceRefresh = false, autoRefresh = false) {
   try {
-    if (!forceRefresh && isCacheValid() && cachedLogs) {
+    if (!forceRefresh && isCacheValid() && cachedLogs && cachedLogs.raw) {
       debugLog('✅ Utilisation du cache (logs préchargés)');
-      displayLogs(cachedLogs);
-      showSuccess(`${cachedLogs.length} log(s) chargé(s) (cache)`);
-      updateStatus('Prêt', 'connected');
-      return;
+      
+      // Vérifier que c'est un tableau
+      if (Array.isArray(cachedLogs.raw)) {
+        displayLogs(cachedLogs.raw);
+        showSuccess(`${cachedLogs.raw.length} log(s) chargé(s) (cache)`);
+        updateStatus('Prêt', 'connected');
+        return;
+      } else {
+        // Cache invalide, forcer le rechargement
+        debugLog('⚠️ Cache invalide, rechargement');
+        cachedLogs = null;
+        lastFetchTime = null;
+      }
     }
     
     debugLog('🔄 Chargement des logs depuis l\'API...');
@@ -280,7 +326,27 @@ async function startMonitoring(autoRefresh = false) {
     }
     const logs = await fetchDebugLogs(sessionId, userId);
     
-    cachedLogs = logs;
+    const parsedLogs = [];
+    if (logs && logs.length > 0 && getParser()) {
+      for (const log of logs) {
+        parsedLogs.push({
+          metadata: log,
+          parsed: null,
+          summary: {
+            id: log.Id,
+            operation: log.Operation,
+            status: log.Status,
+            duration: log.DurationMilliseconds,
+            logLength: log.LogLength
+          }
+        });
+      }
+    }
+
+    cachedLogs = {
+      raw: logs,
+      parsed: parsedLogs
+    };
     lastFetchTime = Date.now();
     
     hideLoadingSpinner();
@@ -649,6 +715,18 @@ function showSuccess(message) {
 
 // Affichage des logs
 function displayLogs(logs) {
+  // Vérifier que logs est un tableau
+  if (!logs || !Array.isArray(logs)) {
+    debugLog('⚠️ displayLogs: logs invalide', logs);
+    showInfo('Aucun log disponible');
+    return;
+  }
+  
+  if (logs.length === 0) {
+    showInfo('Aucun debug log trouvé');
+    return;
+  }
+  
   debugLog('Affichage de', logs.length, 'logs');
   
   logs.forEach(log => {
@@ -776,43 +854,79 @@ function updateLastUpdate() {
 
 // Voir les détails d'un log
 window.viewLogDetails = async function(logId) {
-  debugLog('Demande de détails pour log:', logId);
-  
-  try {
-    updateStatus('Chargement des détails...', 'info');
+    console.log('🔍 viewLogDetails appelée avec logId:', logId);
     
-    const sessionId = await extractSessionId();
-    if (!sessionId) {
-      showError('Session ID manquant');
-      return;
-    }
-    
-    const hostname = window.location.hostname;
-    let instanceUrl = window.location.origin;
+    try {
+        updateStatus('Chargement des détails...', 'info');
+        const sessionId = await extractSessionId();
+        
+        console.log('🔑 Session ID:', sessionId ? 'OK' : 'MANQUANT');
+        
+        if (!sessionId) {
+            showError('Session ID manquant');
+            return;
+        }
 
-    if (hostname.includes('lightning.force.com')) {
-      instanceUrl = instanceUrl.replace('lightning.force.com', 'my.salesforce.com');
+        const hostname = window.location.hostname;
+        let instanceUrl = window.location.origin;
+        if (hostname.includes('lightning.force.com')) {
+            instanceUrl = instanceUrl.replace('lightning.force.com', 'my.salesforce.com');
+        }
+
+        const response = await fetch(`${instanceUrl}/services/data/v59.0/tooling/sobjects/ApexLog/${logId}/Body`, {
+            headers: {
+                'Authorization': `Bearer ${sessionId}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+        });
+
+        console.log('📡 Response status:', response.status);
+
+        if (response.ok) {
+            const logBody = await response.text();
+            
+            console.log('📄 Log body reçu, longueur:', logBody.length);
+            console.log('🔍 getParser():', getParser());
+            console.log('📦 cachedLogs:', cachedLogs);
+            
+            // PARSER LE LOG si le parser est disponible
+            if (getParser() && cachedLogs) {
+                console.log('✅✅✅ BRANCHE PARSED - showParsedLogModal VA ÊTRE APPELÉE');
+                
+                showLoadingSpinner('Analyse du log...', 'Parsing en cours');
+                const logMetadata = cachedLogs.raw.find(l => l.Id === logId);
+                
+                console.log('🏷️ logMetadata:', logMetadata);
+                
+                const parsedLog = getParser().parse(logBody, logMetadata);
+                
+                console.log('✅ Log parsé:', parsedLog);
+                console.log('📊 Stats:', parsedLog.stats);
+                
+                hideLoadingSpinner();
+                updateStatus('Détails chargés', 'connected');
+                
+                console.log('🚀 Appel de showParsedLogModal...');
+                showParsedLogModal(parsedLog);
+                console.log('✅ showParsedLogModal appelée');
+            } else {
+                console.log('❌❌❌ BRANCHE NON-PARSED - showLogModal VA ÊTRE APPELÉE');
+                console.log('Raison: getParser() =', getParser(), 'cachedLogs =', cachedLogs);
+                
+                hideLoadingSpinner();
+                updateStatus('Détails chargés', 'connected');
+                showLogModal(logBody);
+            }
+        } else {
+            console.log('❌ Erreur response:', response.status, response.statusText);
+            showError('Impossible de récupérer les détails du log');
+        }
+    } catch (error) {
+        console.error('❌ Erreur dans viewLogDetails:', error);
+        debugLog('Erreur lors de la récupération des détails', error);
+        showError('Erreur: ' + error.message);
     }
-    
-    const response = await fetch(`${instanceUrl}/services/data/v59.0/tooling/sobjects/ApexLog/${logId}/Body`, {
-      headers: {
-        'Authorization': `Bearer ${sessionId}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    });
-    
-    if (response.ok) {
-      const logBody = await response.text();
-      updateStatus('Détails chargés', 'connected');
-      showLogModal(logBody);
-    } else {
-      showError('Impossible de récupérer les détails du log');
-    }
-  } catch (error) {
-    debugLog('Erreur lors de la récupération des détails:', error);
-    showError('Erreur: ' + error.message);
-  }
 };
 
 // Afficher une modal avec le contenu du log
@@ -849,6 +963,207 @@ function showLogModal(content) {
   });
   
   debugLog('Modal affichée');
+}
+
+// Afficher le log parsé
+function showParsedLogModal(parsedLog) {
+  console.log('🎯 showParsedLogModal APPELÉE !');
+  console.log('📊 parsedLog reçu:', parsedLog);
+
+  const existingModal = document.querySelector('.sf-log-modal');
+  if (existingModal) {
+    existingModal.remove();
+  }
+  
+  const summary = getParser().getSummary(parsedLog);
+  console.log('📋 Summary créé:', summary);
+
+  const modal = document.createElement('div');
+  modal.className = 'sf-log-modal';
+
+  console.log('🏗️ Modal créée, classe:', modal.className);
+  
+  modal.innerHTML = `
+    <div class="sf-modal-content">
+      <div class="sf-modal-header">
+        <h3>📋 Détails du log Salesforce (Parsé)</h3>
+        <button class="sf-modal-close-btn">×</button>
+      </div>
+      <div class="sf-modal-tabs">
+        <button class="sf-tab-btn active" data-tab="summary">Résumé</button>
+        <button class="sf-tab-btn" data-tab="timeline">Timeline</button>
+        <button class="sf-tab-btn" data-tab="raw">Log brut</button>
+      </div>
+      <div class="sf-modal-body-tabs">
+        <div class="sf-tab-content active" id="tab-summary">
+          ${renderSummaryTab(summary, parsedLog)}
+        </div>
+        <div class="sf-tab-content" id="tab-timeline">
+          ${renderTimelineTab(parsedLog)}
+        </div>
+        <div class="sf-tab-content" id="tab-raw">
+          <pre class="sf-modal-body">${parsedLog.rawContent}</pre>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+
+  console.log('✅ Modal ajoutée au DOM');
+  console.log('🔍 Recherche des tabs...');
+
+  const tabs = document.querySelectorAll('.sf-modal-tabs');
+  const tabBtns = document.querySelectorAll('.sf-tab-btn');
+  
+  console.log('📊 Tabs trouvés:', tabs.length);
+  console.log('🔘 Boutons trouvés:', tabBtns.length);
+
+  if (tabs.length === 0) {
+      console.error('❌ PROBLÈME: Aucun .sf-modal-tabs trouvé !');
+  }
+  
+  // Gérer les tabs
+  modal.querySelectorAll('.sf-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modal.querySelectorAll('.sf-tab-btn').forEach(b => b.classList.remove('active'));
+      modal.querySelectorAll('.sf-tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      modal.querySelector(`#tab-${btn.dataset.tab}`).classList.add('active');
+    });
+  });
+  
+  const closeBtn = modal.querySelector('.sf-modal-close-btn');
+  closeBtn.addEventListener('click', () => {
+    modal.remove();
+  });
+  
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+  
+  debugLog('Modal parsée affichée');
+}
+
+// ✅ Rendu de l'onglet Résumé
+function renderSummaryTab(summary, parsedLog) {
+  return `
+    <div class="sf-summary-container">
+      <div class="sf-summary-section">
+        <h4>🎯 Informations générales</h4>
+        <div class="sf-summary-grid">
+          <div class="sf-summary-item">
+            <span class="sf-label">Opération:</span>
+            <span class="sf-value">${summary.metadata.operation}</span>
+          </div>
+          <div class="sf-summary-item">
+            <span class="sf-label">Statut:</span>
+            <span class="sf-value sf-status-${summary.metadata.status.toLowerCase()}">${summary.metadata.status}</span>
+          </div>
+          <div class="sf-summary-item">
+            <span class="sf-label">Durée:</span>
+            <span class="sf-value">${summary.duration}ms</span>
+          </div>
+          <div class="sf-summary-item">
+            <span class="sf-label">Lignes:</span>
+            <span class="sf-value">${summary.totalLines}</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="sf-summary-section">
+        <h4>📊 Limites Salesforce</h4>
+        <div class="sf-limits-grid">
+          <div class="sf-limit-item">
+            <span class="sf-label">SOQL Queries:</span>
+            <div class="sf-limit-bar">
+              <div class="sf-limit-fill" style="width: ${(parsedLog.stats.limits.soqlQueries / parsedLog.stats.limits.maxSoqlQueries) * 100}%"></div>
+            </div>
+            <span class="sf-limit-value">${summary.limits.soql}</span>
+          </div>
+          <div class="sf-limit-item">
+            <span class="sf-label">DML Statements:</span>
+            <div class="sf-limit-bar">
+              <div class="sf-limit-fill" style="width: ${(parsedLog.stats.limits.dmlStatements / parsedLog.stats.limits.maxDmlStatements) * 100}%"></div>
+            </div>
+            <span class="sf-limit-value">${summary.limits.dml}</span>
+          </div>
+          <div class="sf-limit-item">
+            <span class="sf-label">CPU Time:</span>
+            <div class="sf-limit-bar">
+              <div class="sf-limit-fill" style="width: ${(parsedLog.stats.limits.cpuTime / parsedLog.stats.limits.maxCpuTime) * 100}%"></div>
+            </div>
+            <span class="sf-limit-value">${summary.limits.cpu}</span>
+          </div>
+          <div class="sf-limit-item">
+            <span class="sf-label">Heap Size:</span>
+            <div class="sf-limit-bar">
+              <div class="sf-limit-fill" style="width: ${(parsedLog.stats.limits.heapSize / parsedLog.stats.limits.maxHeapSize) * 100}%"></div>
+            </div>
+            <span class="sf-limit-value">${summary.limits.heap}</span>
+          </div>
+        </div>
+      </div>
+      
+      ${parsedLog.stats.errors.length > 0 ? `
+      <div class="sf-summary-section sf-summary-errors">
+            <h4>❌ Erreurs (${parsedLog.stats.errors.length})</h4>
+            <div class="sf-errors-list">
+                ${parsedLog.stats.errors.map(error => `
+                    <div class="sf-error-item">
+                        <div class="sf-error-type">${error.type}</div>
+                        <div class="sf-error-details">
+                            <div class="sf-error-message">${error.exceptionType || 'Exception'}: ${error.message}</div>
+                            ${error.method ? `<div class="sf-error-location">📍 Location : <code>${error.method}</code></div>` : ''}
+                            <div class="sf-error-time">${error.timestamp}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+      ` : ''}
+      
+      <div class="sf-summary-section">
+        <h4>🔧 Méthodes (${summary.methods})</h4>
+        <div class="sf-methods-list">
+          ${parsedLog.stats.methods.slice(0, 10).map(m => `
+            <div class="sf-method-item">
+              <span class="sf-method-name">${m.class}.${m.method}</span>
+              <span class="sf-method-calls">${m.calls} appel${m.calls > 1 ? 's' : ''}</span>
+            </div>
+          `).join('')}
+          ${parsedLog.stats.methods.length > 10 ? `<div class="sf-hint">...et ${parsedLog.stats.methods.length - 10} autres</div>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ✅ Rendu de l'onglet Timeline
+function renderTimelineTab(parsedLog) {
+    const importantLines = parsedLog.lines.filter(line => 
+        ['METHOD_ENTRY', 'METHOD_EXIT', 'SOQL_EXECUTE_BEGIN', 'DML_BEGIN', 'USER_DEBUG', 'EXCEPTION_THROWN'].includes(line.type)
+    ).slice(0, 100);
+    
+    return `
+        <div class="sf-timeline-container">
+            <div class="sf-timeline-wrapper">
+                ${importantLines.map(line => {
+                    const indent = (line.details?.depth || 0) * 20;
+                    
+                    return `
+                        <div class="sf-timeline-item sf-timeline-${line.type.toLowerCase()}" style="padding-left: ${indent}px">
+                            <div class="sf-timeline-time">${line.timestamp}</div>
+                            <div class="sf-timeline-type">${line.type}</div>
+                            <div class="sf-timeline-content">${line.content}</div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
 }
 
 // Récupérer et afficher la version de l'extension
@@ -925,7 +1240,27 @@ async function preloadLogsInBackground() {
     
     const logs = await fetchDebugLogs(sessionId, userId);
     if (logs && logs.length > 0) {
-      cachedLogs = logs;
+      const parsedLogs = [];
+      if (logs && logs.length > 0 && getParser()) {
+        for (const log of logs) {
+          parsedLogs.push({
+            metadata: log,
+            parsed: null,
+            summary: {
+              id: log.Id,
+              operation: log.Operation,
+              status: log.Status,
+              duration: log.DurationMilliseconds,
+              logLength: log.LogLength
+            }
+          });
+        }
+      }
+
+      cachedLogs = {
+        raw: logs,
+        parsed: parsedLogs
+      };
       lastFetchTime = Date.now();
       debugLog(`✅ ${logs.length} log(s) préchargé(s) en arrière-plan`);
       updateBadge(logs.length);
@@ -939,7 +1274,10 @@ async function preloadLogsInBackground() {
 }
 
 function isCacheValid() {
-  if (!cachedLogs || !lastFetchTime) return false;
+  if (!cachedLogs || !cachedLogs.raw || !Array.isArray(cachedLogs.raw) || !lastFetchTime){
+    debugLog('🔍 Cache invalide ou vide');
+    return false;
+  }
   const cacheAge = Date.now() - lastFetchTime;
   const isValid = cacheAge < CACHE_DURATION;
   debugLog(`🔍 Cache valide: ${isValid} (âge: ${Math.round(cacheAge / 1000)}s)`);
