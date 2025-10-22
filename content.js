@@ -715,35 +715,35 @@ function showSuccess(message) {
 
 // Affichage des logs
 function displayLogs(logs) {
-  // Vérifier que logs est un tableau
-  if (!logs || !Array.isArray(logs)) {
-    debugLog('⚠️ displayLogs: logs invalide', logs);
-    showInfo('Aucun log disponible');
-    return;
-  }
-  
-  if (logs.length === 0) {
-    showInfo('Aucun debug log trouvé');
-    return;
-  }
-  
-  debugLog('Affichage de', logs.length, 'logs');
-  
-  logs.forEach(log => {
-    const timestamp = new Date(log.StartTime).toLocaleString('fr-FR');
-    const duration = log.DurationMilliseconds || 'N/A';
-    const status = log.Status || 'INFO';
+    // Vérifier que logs est un tableau
+    if (!logs || !Array.isArray(logs)) {
+        debugLog('displayLogs: logs invalide', logs);
+        showInfo('Aucun log disponible');
+        return;
+    }
     
-    const message = `${log.Operation || 'Operation'} - ${log.Request || 'No request'} (${duration}ms)`;
-    const details = {
-      user: log.LogUserId,
-      application: log.Application,
-      logId: log.Id,
-      size: log.LogLength
-    };
+    if (logs.length === 0) {
+        showInfo('Aucun debug log trouvé');
+        return;
+    }
     
-    addLogEntry(status, message, details, timestamp);
-  });
+    debugLog(`Affichage de ${logs.length} logs`);
+    
+    logs.forEach(log => {
+        const timestamp = new Date(log.StartTime).toLocaleString('fr-FR');
+        const duration = log.DurationMilliseconds || 'N/A';
+        const status = log.Status || 'INFO';
+        const message = `${log.Operation} - ${log.Request || 'No request'} (${duration}ms)`;
+        const details = {
+            user: log.LogUserId,
+            application: log.Application,
+            logId: log.Id,
+            size: log.LogLength
+        };
+        addLogEntry(status, message, details, timestamp);
+    });
+    
+    filterLogs();
 }
 
 // Ajouter une entrée de log
