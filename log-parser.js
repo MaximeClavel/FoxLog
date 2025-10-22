@@ -208,11 +208,18 @@ class SalesforceLogParser {
       case 'METHOD_EXIT':
         const methodParts = content.split('|');
         // Format: [DEPTH]|ID|Class.Method
-        // On veut extraire le dernier élément qui contient Class.Method
-        let methodSignature = '';
         
+        // Extraire la profondeur depuis le premier élément [X]
+        if (methodParts.length > 0 && methodParts[0].includes('[') && methodParts[0].includes(']')) {
+            const depthMatch = methodParts[0].match(/\[(\d+)\]/);
+            if (depthMatch) {
+                details.depth = parseInt(depthMatch[1], 10);
+            }
+        }
+        
+        // Extraire le nom de classe et méthode (dernier élément)
+        let methodSignature = '';
         if (methodParts.length >= 3) {
-            // Le dernier élément contient généralement Class.Method
             methodSignature = methodParts[methodParts.length - 1];
         } else if (methodParts.length === 1) {
             methodSignature = methodParts[0];
@@ -224,12 +231,11 @@ class SalesforceLogParser {
             details.class = methodSignature.substring(0, lastDotIndex);
             details.method = methodSignature.substring(lastDotIndex + 1);
         } else {
-            // Fallback si pas de point trouvé
             details.class = 'Unknown';
             details.method = methodSignature || 'Unknown';
         }
         
-        // Extraire l'ID si présent (pour référence)
+        // Extraire l'ID si présent
         if (methodParts.length >= 3) {
             details.id = methodParts[1];
         }

@@ -1138,21 +1138,27 @@ function renderSummaryTab(summary, parsedLog) {
 
 // ✅ Rendu de l'onglet Timeline
 function renderTimelineTab(parsedLog) {
-  const importantLines = parsedLog.lines.filter(line => 
-    ['METHOD_ENTRY', 'METHOD_EXIT', 'SOQL_EXECUTE_BEGIN', 'DML_BEGIN', 'USER_DEBUG', 'EXCEPTION_THROWN'].includes(line.type)
-  ).slice(0, 100);
-  
-  return `
-    <div class="sf-timeline-container">
-      ${importantLines.map(line => `
-        <div class="sf-timeline-item sf-timeline-${line.type.toLowerCase()}" style="padding-left: ${line.depth * 20}px">
-          <span class="sf-timeline-time">${line.timestamp}</span>
-          <span class="sf-timeline-type">${line.type}</span>
-          <span class="sf-timeline-content">${line.content.substring(0, 80)}</span>
+    const importantLines = parsedLog.lines.filter(line => 
+        ['METHOD_ENTRY', 'METHOD_EXIT', 'SOQL_EXECUTE_BEGIN', 'DML_BEGIN', 'USER_DEBUG', 'EXCEPTION_THROWN'].includes(line.type)
+    ).slice(0, 100);
+    
+    return `
+        <div class="sf-timeline-container">
+            <div class="sf-timeline-wrapper">
+                ${importantLines.map(line => {
+                    const indent = (line.details?.depth || 0) * 20;
+                    
+                    return `
+                        <div class="sf-timeline-item sf-timeline-${line.type.toLowerCase()}" style="padding-left: ${indent}px">
+                            <div class="sf-timeline-time">${line.timestamp}</div>
+                            <div class="sf-timeline-type">${line.type}</div>
+                            <div class="sf-timeline-content">${line.content}</div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
         </div>
-      `).join('')}
-    </div>
-  `;
+    `;
 }
 
 // Récupérer et afficher la version de l'extension

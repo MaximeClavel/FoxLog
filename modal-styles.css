@@ -243,115 +243,148 @@
 }
 
 /* ============================================
-   ONGLET TIMELINE
-   ============================================ */
+ONGLET TIMELINE
+============================================ */
 
 .sf-timeline-container {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  background: #f9fafb;
-  padding: 16px;
-  border-radius: 8px;
-  max-height: 600px;
-  overflow-y: auto;
+    display: block; /* Changé de flex à block */
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    background: #f9fafb;
+    padding: 16px;
+    border-radius: 8px;
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: auto; /* Scroll horizontal */
+}
+
+/* Wrapper interne pour forcer une largeur minimum */
+.sf-timeline-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 1200px; /* Force une largeur minimum pour déclencher le scroll */
 }
 
 .sf-timeline-item {
-  display: grid;
-  grid-template-columns: 100px 160px 1fr;
-  gap: 12px;
-  padding: 8px 12px;
-  background: #ffffff;
-  border-left: 3px solid #e5e7eb;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  align-items: center;
+    display: grid;
+    grid-template-columns: 100px 160px 1fr; /* Simplifié */
+    gap: 12px;
+    padding: 8px 12px;
+    background: #ffffff;
+    border-left: 3px solid #e5e7eb;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    align-items: center;
+    min-height: 32px;
 }
 
 .sf-timeline-item:hover {
-  background: #f3f4f6;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    background: #f3f4f6;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .sf-timeline-time {
-  color: #6b7280;
-  font-weight: 500;
+    color: #6b7280;
+    font-weight: 500;
+    white-space: nowrap;
 }
 
 .sf-timeline-type {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  text-align: center;
-  white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-align: center;
+    white-space: nowrap;
 }
 
 .sf-timeline-content {
-  color: #1f2937;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    color: #1f2937;
+    white-space: nowrap; /* Pas de retour à la ligne */
+    overflow: visible; /* Laisse déborder */
+}
+
+/* Scrollbar personnalisée pour le container */
+.sf-timeline-container::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+}
+
+.sf-timeline-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.sf-timeline-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.sf-timeline-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Corner entre scroll horizontal et vertical */
+.sf-timeline-container::-webkit-scrollbar-corner {
+    background: #f1f5f9;
 }
 
 /* Types de timeline */
 .sf-timeline-method_entry {
-  border-left-color: #3b82f6;
+    border-left-color: #3b82f6;
 }
 
 .sf-timeline-method_entry .sf-timeline-type {
-  background: #dbeafe;
-  color: #1e40af;
+    background: #dbeafe;
+    color: #1e40af;
 }
 
 .sf-timeline-method_exit {
-  border-left-color: #8b5cf6;
+    border-left-color: #8b5cf6;
 }
 
 .sf-timeline-method_exit .sf-timeline-type {
-  background: #ede9fe;
-  color: #6d28d9;
+    background: #ede9fe;
+    color: #6d28d9;
 }
 
 .sf-timeline-soql_execute_begin {
-  border-left-color: #10b981;
+    border-left-color: #10b981;
 }
 
 .sf-timeline-soql_execute_begin .sf-timeline-type {
-  background: #d1fae5;
-  color: #065f46;
+    background: #d1fae5;
+    color: #065f46;
 }
 
 .sf-timeline-dml_begin {
-  border-left-color: #f59e0b;
+    border-left-color: #f59e0b;
 }
 
 .sf-timeline-dml_begin .sf-timeline-type {
-  background: #fef3c7;
-  color: #92400e;
+    background: #fef3c7;
+    color: #92400e;
 }
 
 .sf-timeline-user_debug {
-  border-left-color: #6366f1;
+    border-left-color: #6366f1;
 }
 
 .sf-timeline-user_debug .sf-timeline-type {
-  background: #e0e7ff;
-  color: #3730a3;
+    background: #e0e7ff;
+    color: #3730a3;
 }
 
 .sf-timeline-exception_thrown {
-  border-left-color: #ef4444;
-  background: #fef2f2 !important;
+    border-left-color: #ef4444;
+    background: #fef2f2 !important;
 }
 
 .sf-timeline-exception_thrown .sf-timeline-type {
-  background: #fee2e2;
-  color: #991b1b;
+    background: #fee2e2;
+    color: #991b1b;
 }
 
 /* Scrollbar personnalisée */
