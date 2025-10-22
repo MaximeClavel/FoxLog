@@ -207,8 +207,32 @@ class SalesforceLogParser {
       case 'METHOD_ENTRY':
       case 'METHOD_EXIT':
         const methodParts = content.split('|');
-        details.class = methodParts[0];
-        details.method = methodParts[1];
+        // Format: [DEPTH]|ID|Class.Method
+        // On veut extraire le dernier élément qui contient Class.Method
+        let methodSignature = '';
+        
+        if (methodParts.length >= 3) {
+            // Le dernier élément contient généralement Class.Method
+            methodSignature = methodParts[methodParts.length - 1];
+        } else if (methodParts.length === 1) {
+            methodSignature = methodParts[0];
+        }
+        
+        // Parser le format Class.Method
+        if (methodSignature.includes('.')) {
+            const lastDotIndex = methodSignature.lastIndexOf('.');
+            details.class = methodSignature.substring(0, lastDotIndex);
+            details.method = methodSignature.substring(lastDotIndex + 1);
+        } else {
+            // Fallback si pas de point trouvé
+            details.class = 'Unknown';
+            details.method = methodSignature || 'Unknown';
+        }
+        
+        // Extraire l'ID si présent (pour référence)
+        if (methodParts.length >= 3) {
+            details.id = methodParts[1];
+        }
         break;
 
       case 'SOQL_EXECUTE_BEGIN':
