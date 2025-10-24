@@ -128,6 +128,16 @@
       this.panel.querySelector('#sf-close-panel')?.addEventListener('click', () => {
         this.toggle();
       });
+
+      // filtre texte
+      this.panel.querySelector('#sf-log-filter')?.addEventListener('input', (e) => {
+          this.filterLogs(e.target.value, this.panel.querySelector('#sf-log-level').value);
+      });
+      
+      // filtre niveau
+      this.panel.querySelector('#sf-log-level')?.addEventListener('change', (e) => {
+          this.filterLogs(this.panel.querySelector('#sf-log-filter').value, e.target.value);
+      });
       
       // Click sur un log
       this.panel.querySelector('#sf-logs-list')?.addEventListener('click', (e) => {
@@ -142,6 +152,29 @@
         }
       });
     }
+
+    filterLogs(searchText, level) {
+      const logItems = this.panel.querySelectorAll('.sf-log-item');
+      const searchLower = searchText.toLowerCase();
+      
+      logItems.forEach(item => {
+          const operation = item.querySelector('.sf-log-operation')?.textContent.toLowerCase() || '';
+          const message = item.querySelector('.sf-log-message')?.textContent.toLowerCase() || '';
+          const logLevel = item.querySelector('.sf-log-level')?.textContent || '';
+          
+          // Filtre par texte
+          const matchesSearch = searchText === '' || 
+                              operation.includes(searchLower) || 
+                              message.includes(searchLower);
+          
+          // Filtre par niveau
+          const matchesLevel = level === 'all' || logLevel === level;
+          
+          // Afficher/masquer
+          item.style.display = (matchesSearch && matchesLevel) ? '' : 'none';
+      });
+    }
+
 
     _showEmptyState() {
       const container = this.panel.querySelector('#sf-logs-list');
