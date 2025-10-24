@@ -196,8 +196,33 @@
       }
 
       try {
-        panelManager.showLoading();
+        const SPINNER_DELAY = 300; // Délai avant d'afficher le spinner
+        const MIN_SPINNER_TIME = 600; // Durée minimum d'affichage du spinner
+
+        let showSpinner = false;
+        let spinnerStartTime = null;
+
+        // Afficher le spinner seulement si le chargement prend plus de 300ms
+        const spinnerTimeout = setTimeout(() => {
+            showSpinner = true;
+            spinnerStartTime = Date.now();
+            panelManager.showLoading();
+        }, SPINNER_DELAY);
+
         const logs = await salesforceAPI.fetchLogs(this.userId);
+        
+        // Annuler l'affichage du spinner s'il n'a pas encore été montré
+        clearTimeout(spinnerTimeout);
+
+        // Si le spinner a été montré, attendre le temps minimum
+        if (showSpinner && spinnerStartTime) {
+            const elapsed = Date.now() - spinnerStartTime;
+            const remaining = MIN_SPINNER_TIME - elapsed;
+            if (remaining > 0) {
+                await new Promise(resolve => setTimeout(resolve, remaining));
+            }
+        }
+
         this.currentLogs = logs;
         panelManager.updateLogList(logs);
         logger.success(`Loaded ${logs.length} logs`);

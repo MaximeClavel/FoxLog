@@ -42,6 +42,7 @@
       } else {
         this._renderLogs(logs);
       }
+      this.updateLastRefreshTime();
     }
 
     showLoading() {
@@ -219,6 +220,19 @@
     _formatSize(bytes) {
       if (bytes < 1024) return `${bytes}B`;
       return `${(bytes / 1024).toFixed(1)}KB`;
+    }
+
+    updateLastRefreshTime() {
+      const lastUpdateElement = this.panel.querySelector('#sf-last-update');
+      if (lastUpdateElement) {
+          const now = new Date();
+          const timeString = now.toLocaleTimeString('fr-FR', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit'
+          });
+          lastUpdateElement.textContent = `Dernière mise à jour: ${timeString}`;
+      }
     }
   }
 

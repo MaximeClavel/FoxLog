@@ -5,7 +5,7 @@
   window.FoxLog = window.FoxLog || {};
   
   window.FoxLog.CONFIG = {
-    AUTO_REFRESH_INTERVAL: 30000,
+    AUTO_REFRESH_INTERVAL: 5000,
     MAX_LOGS: 100,
     CACHE_DURATION: 30000,
     REFRESH_INTERVAL: 10000,
