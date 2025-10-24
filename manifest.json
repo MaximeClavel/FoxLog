@@ -39,6 +39,7 @@
         "src/services/session-manager.js",
         "src/services/salesforce-api.js",
         "src/parsers/log-parser.js",
+        "src/ui/filter-manager.js",
         "src/ui/modal-manager.js",
         "src/ui/panel-manager.js",
         "src/content.js"

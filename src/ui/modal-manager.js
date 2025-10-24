@@ -1,4 +1,4 @@
-// src/ui/modal-manager.js (VERSION CORRIGÉE)
+// src/ui/modal-manager.js (VERSION COMPLÈTE)
 (function() {
   'use strict';
   
@@ -15,36 +15,37 @@
      */
     showRawLog(content) {
       this.close();
-      
       const modal = this._createModal();
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
-            <h3>Détails du log Salesforce</h3>
+            <h3>📄 Log brut</h3>
             <button class="sf-modal-close-btn">✕</button>
           </div>
-          <pre class="sf-modal-body">${this._escapeHtml(content)}</pre>
+          <div class="sf-modal-body">
+            <pre class="sf-raw-log-content">${this._escapeHtml(content)}</pre>
+          </div>
         </div>
       `;
-      
       this._attachModal(modal);
       this.logger.success('Raw log modal displayed');
     }
 
     /**
-     * Affiche une modal avec le log parsé (avec tabs)
+     * Affiche une modal avec le log parsé (avec tabs et filtres)
      */
     showParsedLog(parsedLog, parser) {
       this.close();
       
+      const filterManager = window.FoxLog.filterManager;
       const summary = parser.getSummary(parsedLog);
-      const modal = this._createModal();
       
+      const modal = this._createModal();
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
-            <h3>📊 Détails du log Salesforce (Parsé)</h3>
-            <button class="sf-modal-close-btn">✕</button>
+            <h3>📊 Analyse du log</h3>
+            <button class="sf-modal-close-btn">×</button>
           </div>
           
           <div class="sf-modal-tabs">
@@ -54,14 +55,28 @@
           </div>
           
           <div class="sf-modal-body-tabs">
-            <div class="sf-tab-content active" id="tab-summary">
+            <div id="tab-summary" class="sf-tab-content active">
               ${this._renderSummaryTab(summary, parsedLog)}
             </div>
-            <div class="sf-tab-content" id="tab-timeline">
+            
+            <div id="tab-timeline" class="sf-tab-content">
+              
+              <!-- SEARCH BAR -->
+              <div class="sf-search-bar-sticky">
+                <div class="sf-search-container-wrapper"></div> 
+              </div>
+              
+              <!-- FILTER BAR -->
+              <div class="sf-filters-wrapper"></div>
+              
+              <!-- METHOD FILTER -->
+              <div class="sf-method-filter-wrapper"></div>
+              
               ${this._renderTimelineTab(parsedLog)}
             </div>
-            <div class="sf-tab-content" id="tab-raw">
-              <pre class="sf-modal-body">${this._escapeHtml(parsedLog.rawContent)}</pre>
+            
+            <div id="tab-raw" class="sf-tab-content">
+              ${this._renderRawTab(parsedLog)}
             </div>
           </div>
         </div>
@@ -69,7 +84,61 @@
       
       this._attachModal(modal);
       this._setupTabs(modal);
-      this.logger.success('Parsed log modal displayed');
+      
+      // Insert search bar
+      const searchWrapper = modal.querySelector('.sf-search-container-wrapper');
+      if (searchWrapper && filterManager) {
+      searchWrapper.appendChild(filterManager.createSearchBar());
+      }
+      
+      // Insert filter bar
+      const filtersWrapper = modal.querySelector('.sf-filters-wrapper');
+      if (filtersWrapper && filterManager) {
+      filtersWrapper.appendChild(filterManager.createFilterBar());
+      }
+      
+      // Insert method filter
+      const methodFilterWrapper = modal.querySelector('.sf-method-filter-wrapper');
+      if (methodFilterWrapper && filterManager) {
+      methodFilterWrapper.appendChild(filterManager.createMethodFilter(parsedLog));
+      }
+      
+      // Setup filter change listener
+      if (filterManager) {
+        filterManager.onFilterChange = () => {
+          this._applyFilters(modal, parsedLog);
+          this._triggerInitialHighlight();
+        };
+        this._applyFilters(modal, parsedLog);
+        this._triggerInitialHighlight();
+      }
+      
+      this.logger.success('Parsed log modal with filters displayed');
+    }
+
+    _triggerInitialHighlight() {
+      setTimeout(() => {
+        const searchInput = this.currentModal?.querySelector('.sf-search-input');
+        if (searchInput && searchInput.value) {
+          // Créer et déclencher un événement input manuellement
+          const event = new Event('input', { bubbles: true });
+          searchInput.dispatchEvent(event);
+        }
+      }, 100);
+    }
+
+    _applyFilters(modal, parsedLog) {
+      const filterManager = window.FoxLog.filterManager;
+      if (!filterManager) return;
+      
+      const filteredLines = filterManager.applyFilters(parsedLog.lines);
+      
+      // Re-render timeline
+      const timelineWrapper = modal.querySelector('#tab-timeline .sf-timeline-wrapper');
+      if (timelineWrapper) {
+        const timelineContent = filteredLines.map(line => this._renderTimelineLine(line)).join('');
+        timelineWrapper.innerHTML = timelineContent;
+      }
     }
 
     /**
@@ -228,42 +297,96 @@
     }
 
     _renderTimelineTab(parsedLog) {
-      const importantTypes = [
-        'METHOD_ENTRY', 'METHOD_EXIT', 
-        'SOQL_EXECUTE_BEGIN', 'DML_BEGIN', 
-        'USER_DEBUG', 'EXCEPTION_THROWN'
-      ];
-      
-      const importantLines = parsedLog.lines
-        .filter(line => importantTypes.includes(line.type))
-        .slice(0, 100);
-
       return `
         <div class="sf-timeline-container">
           <div class="sf-timeline-wrapper">
-            ${importantLines.map(line => {
-              const indent = (line.details?.depth || 0) * 20;
-              return `
-                <div class="sf-timeline-item sf-timeline-${line.type.toLowerCase()}" 
-                    style="padding-left: ${indent}px">
-                  <div class="sf-timeline-time">${line.timestamp}</div>
-                  <div class="sf-timeline-type">${line.type}</div>
-                  <div class="sf-timeline-content">${this._escapeHtml(line.content)}</div>
+            ${parsedLog.lines.map(line => this._renderTimelineLine(line)).join('')}
+          </div>
                 </div>
               `;
-            }).join('')}
+    }
+
+    _renderTimelineLine(line) {
+      const iconMap = {
+        'METHOD_ENTRY': '→',
+        'METHOD_EXIT': '←',
+        'SOQL_EXECUTE_BEGIN': '🔍',
+        'SOQL_EXECUTE_END': '✓',
+        'DML_BEGIN': '💾',
+        'DML_END': '✓',
+        'USER_DEBUG': '🐛',
+        'EXCEPTION_THROWN': '⚠️',
+        'FATAL_ERROR': '❌',
+        'CODE_UNIT_STARTED': '📦',
+        'CODE_UNIT_FINISHED': '✅'
+      };
+
+      const typeClassMap = {
+        'METHOD_ENTRY': 'sf-type-method',
+        'METHOD_EXIT': 'sf-type-method',
+        'SOQL_EXECUTE_BEGIN': 'sf-type-database',
+        'SOQL_EXECUTE_END': 'sf-type-database',
+        'DML_BEGIN': 'sf-type-database',
+        'DML_END': 'sf-type-database',
+        'USER_DEBUG': 'sf-type-debug',
+        'EXCEPTION_THROWN': 'sf-type-error',
+        'FATAL_ERROR': 'sf-type-error',
+        'CODE_UNIT_STARTED': 'sf-type-system',
+        'CODE_UNIT_FINISHED': 'sf-type-system'
+      };
+
+      const icon = iconMap[line.type] || '•';
+      const typeClass = typeClassMap[line.type] || '';
+      const indent = `margin-left: ${line.depth * 20}px`;
+
+      let details = '';
+      if (line.details.class && line.details.method) {
+        details = `<span class="sf-timeline-method">${line.details.class}.${line.details.method}</span>`;
+      } else if (line.details.message) {
+        details = `<span class="sf-timeline-message">${this._escapeHtml(line.details.message)}</span>`;
+      } else if (line.details.query) {
+        details = `<span class="sf-timeline-query">${this._escapeHtml(line.details.query)}</span>`;
+      }
+
+      const durationBadge = line.duration > 0 
+        ? `<span class="sf-timeline-duration">${line.duration}ms</span>` 
+        : '';
+
+      return `
+        <div class="sf-timeline-item ${typeClass}" style="${indent}" data-line="${line.lineNumber}">
+          <div class="sf-timeline-icon">${icon}</div>
+          <div class="sf-timeline-content">
+            <div class="sf-timeline-header">
+              <span class="sf-timeline-type">${line.type}</span>
+              <span class="sf-timeline-time">${line.timestamp}</span>
+              ${durationBadge}
+            </div>
+            ${details ? `<div class="sf-timeline-details">${details}</div>` : ''}
           </div>
         </div>
       `;
     }
 
-    _escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
+    _renderRawTab(parsedLog) {
+      return `
+        <div class="sf-raw-tab-content">
+          <pre class="sf-raw-log-content">${this._escapeHtml(parsedLog.rawContent)}</pre>
+        </div>
+      `;
+    }
+
+    _escapeHtml(unsafe) {
+      if (!unsafe) return '';
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
     }
   }
 
+  window.FoxLog.ModalManager = ModalManager;
   window.FoxLog.modalManager = new ModalManager();
   console.log('[FoxLog] Modal Manager loaded');
 })();
