@@ -404,6 +404,22 @@
   background: #005fb2;
 }
 
+/* Rendre les logs cliquables */
+.sf-log-item {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sf-log-item:hover {
+  background-color: #f0f0f0;
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.sf-log-item:active {
+  transform: translateX(2px);
+}
+
 /* Footer */
 .sf-panel-footer {
   padding: 12px 16px;

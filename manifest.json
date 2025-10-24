@@ -1,20 +1,29 @@
 {
   "manifest_version": 3,
   "name": "FoxLog",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Display Salesforce debug logs in a user-friendly format.",
+  
   "permissions": [
     "activeTab",
     "storage",
     "cookies",
     "webRequest"
   ],
+  
   "host_permissions": [
     "https://*.salesforce.com/*",
     "https://*.force.com/*",
     "https://*.my.salesforce.com/*",
     "https://*.lightning.force.com/*"
   ],
+  
+  "icons": {
+    "16": "src/assets/icon16.png",
+    "48": "src/assets/icon48.png",
+    "128": "src/assets/icon128.png"
+  },
+  
   "content_scripts": [
     {
       "matches": [
@@ -23,31 +32,32 @@
         "https://*.visualforce.com/*",
         "https://*.lightning.force.com/*"
       ],
-      "js": ["log-parser.js","content.js"],
-      "css": ["styles.css", "modal-styles.css"],
+      "js": [
+        "src/core/constants.js",
+        "src/core/logger.js",
+        "src/core/cache-manager.js",
+        "src/services/session-manager.js",
+        "src/services/salesforce-api.js",
+        "src/parsers/log-parser.js",
+        "src/ui/modal-manager.js",
+        "src/ui/panel-manager.js",
+        "src/content.js"
+      ],
+      "css": ["src/styles.css", "src/modal-styles.css"],
       "run_at": "document_end",
       "all_frames": false
     }
   ],
+  
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background.js"
   },
-  "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
-  },
+  
   "web_accessible_resources": [
     {
       "resources": [
-        "icon16.png",
-        "icon48.png",
-        "icon128.png",
-        "tail128.png",
-        "trash.png",
-        "refresh.png",
-        "injected.js",
-        "log-parser.js"
+        "src/assets/*.png",
+        "src/injected.js"
       ],
       "matches": [
         "https://*.salesforce.com/*",
