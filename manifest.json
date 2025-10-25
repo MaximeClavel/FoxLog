@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FoxLog",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Display Salesforce debug logs in a user-friendly format.",
   
   "permissions": [
@@ -39,6 +39,7 @@
         "src/services/session-manager.js",
         "src/services/salesforce-api.js",
         "src/parsers/log-parser.js",
+        "src/ui/filter-manager.js",
         "src/ui/modal-manager.js",
         "src/ui/panel-manager.js",
         "src/content.js"
