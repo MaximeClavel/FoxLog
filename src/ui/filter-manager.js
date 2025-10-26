@@ -164,8 +164,9 @@
               <option value="system" ${this.activeFilters.namespace === 'system' ? 'selected' : ''}>Code système</option>
             </select>
           </div>
-          
-          <button class="sf-filter-reset">Réinitialiser</button>
+          <div class="sf-filter-group">
+            <button class="sf-filter-reset">Réinitialiser</button>
+          </div>
         </div>
       `;
       
