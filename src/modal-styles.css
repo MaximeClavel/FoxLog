@@ -486,8 +486,8 @@ ONGLET TIMELINE
 .sf-filter-bar {
   background: #ffffff;
   border-bottom: 2px solid #e5e7eb;
-  padding: 16px;
-  margin: 5px -20px 20px -20px;
+  padding: 8px 16px;
+  margin: 5px -20px 5px -20px;
 }
 
 .sf-filter-section {
@@ -743,7 +743,7 @@ ONGLET TIMELINE
    ============================================ */
 
 .sf-method-filter {
-  padding: 16px;
+  padding: 0px 16px;
   background: #f9fafb;
   border-radius: 8px;
   margin-bottom: 16px;
