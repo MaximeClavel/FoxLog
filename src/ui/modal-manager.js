@@ -63,7 +63,16 @@
               
               <!-- SEARCH BAR -->
               <div class="sf-search-bar-sticky">
-                <div class="sf-search-container-wrapper"></div> 
+                <div class="sf-search-container-wrapper">
+                </div>
+                
+                <button id="export-stats-btn" class="sf-export-btn">
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                  Exporter stats (.json)
+                </button>
+                
               </div>
               
               <!-- FILTER BAR -->
@@ -112,6 +121,8 @@
         this._applyFilters(modal, parsedLog);
         this._triggerInitialHighlight();
       }
+
+      this._setupExportButtons(modal, parsedLog);
       
       this.logger.success('Parsed log modal with filters displayed');
     }
@@ -139,6 +150,142 @@
         const timelineContent = filteredLines.map(line => this._renderTimelineLine(line)).join('');
         timelineWrapper.innerHTML = timelineContent;
       }
+    }
+
+    _setupExportButtons(modal, parsedLog) {
+      // Export log brut (texte)
+      const exportRawBtn = modal.querySelector('#export-raw-btn');
+      if (exportRawBtn) {
+        exportRawBtn.addEventListener('click', () => {
+          this._exportRawLog(parsedLog);
+        });
+      }
+
+      // Export statistiques (JSON)
+      const exportStatsBtn = modal.querySelector('#export-stats-btn');
+      if (exportStatsBtn) {
+        exportStatsBtn.addEventListener('click', () => {
+          this._exportStats(parsedLog);
+        });
+      }
+
+      // Copier dans le presse-papier
+      const copyBtn = modal.querySelector('#copy-raw-btn');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          this._copyToClipboard(parsedLog.rawContent, copyBtn);
+        });
+      }
+    }
+
+    _exportRawLog(parsedLog) {
+      try {
+        const filename = this._generateFilename(parsedLog, 'txt');
+        const blob = new Blob([parsedLog.rawContent], { type: 'text/plain' });
+        this._downloadFile(blob, filename);
+        this.logger.success('Raw log exported');
+        this._showToast('✅ Log exporté avec succès !');
+      } catch (error) {
+        this.logger.error('Export failed', error);
+        this._showToast('❌ Erreur lors de l\'export', 'error');
+      }
+    }
+
+    _exportStats(parsedLog) {
+      try {
+        const data = {
+          metadata: parsedLog.metadata,
+          stats: {
+            limits: parsedLog.stats.limits,
+            methods: parsedLog.stats.methods,
+            errors: parsedLog.stats.errors,
+            queries: parsedLog.stats.queries,
+            dmlOperations: parsedLog.stats.dmlOperations
+          },
+          summary: {
+            totalLines: parsedLog.lines.length,
+            duration: parsedLog.metadata.duration,
+            hasErrors: parsedLog.stats.errors.length > 0
+          }
+        };
+
+        const filename = this._generateFilename(parsedLog, 'json');
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        this._downloadFile(blob, filename);
+        this.logger.success('Stats exported');
+        this._showToast('✅ Statistiques exportées !');
+      } catch (error) {
+        this.logger.error('Export failed', error);
+        this._showToast('❌ Erreur lors de l\'export', 'error');
+      }
+    }
+
+    async _copyToClipboard(text, button) {
+      try {
+        await navigator.clipboard.writeText(text);
+        
+        // Feedback visuel
+        const originalText = button.innerHTML;
+        button.innerHTML = `
+          <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px;">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+          </svg>
+          Copié !
+        `;
+        button.classList.add('sf-export-btn-success');
+        
+        setTimeout(() => {
+          button.innerHTML = originalText;
+          button.classList.remove('sf-export-btn-success');
+        }, 2000);
+
+        this.logger.success('Copied to clipboard');
+        this._showToast('✅ Copié dans le presse-papier !');
+      } catch (error) {
+        this.logger.error('Copy failed', error);
+        this._showToast('❌ Erreur lors de la copie', 'error');
+      }
+    }
+
+    _generateFilename(parsedLog, extension) {
+      const date = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+      const operation = (parsedLog.metadata.operation || 'log')
+        .replace(/[^a-zA-Z0-9]/g, '_')
+        .substring(0, 30);
+      return `foxlog_${operation}_${date}.${extension}`;
+    }
+
+    _downloadFile(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    _showToast(message, type = 'success') {
+      // Supprimer les anciens toasts
+      const existingToast = document.querySelector('.sf-toast');
+      if (existingToast) {
+        existingToast.remove();
+      }
+
+      const toast = document.createElement('div');
+      toast.className = `sf-toast sf-toast-${type}`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      // Animation d'apparition
+      setTimeout(() => toast.classList.add('sf-toast-show'), 10);
+
+      // Disparition automatique
+      setTimeout(() => {
+        toast.classList.remove('sf-toast-show');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
     }
 
     /**
@@ -370,9 +517,34 @@
     _renderRawTab(parsedLog) {
       return `
         <div class="sf-raw-tab-content">
+          <div class="sf-export-toolbar">
+            <button id="copy-raw-btn" class="sf-export-btn sf-export-btn-primary">
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/>
+                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/>
+              </svg>
+              Copier
+            </button>
+            <button id="export-raw-btn" class="sf-export-btn">
+              <svg viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+              Exporter (.txt)
+            </button>
+            <div class="sf-export-info">
+              <span class="sf-export-size">${this._formatBytes(parsedLog.rawContent.length)}</span>
+              <span class="sf-export-lines">${parsedLog.lines.length} lignes</span>
+            </div>
+          </div>
           <pre class="sf-raw-log-content">${this._escapeHtml(parsedLog.rawContent)}</pre>
         </div>
       `;
+    }
+
+    _formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
     _escapeHtml(unsafe) {

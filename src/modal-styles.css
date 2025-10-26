@@ -46,6 +46,7 @@
 .sf-tab-content {
   display: none;
   padding: 20px;
+  padding-top: 5px;
 }
 
 .sf-tab-content.active {
@@ -486,7 +487,7 @@ ONGLET TIMELINE
   background: #ffffff;
   border-bottom: 2px solid #e5e7eb;
   padding: 16px;
-  margin: 20px -20px 20px -20px;
+  margin: 5px -20px 20px -20px;
 }
 
 .sf-filter-section {
@@ -607,9 +608,25 @@ ONGLET TIMELINE
 
 /* Barre de recherche sticky sous les tabs */
 .sf-search-bar-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+    position: sticky;
+    top: 0px;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: 1fr auto; /* Colonne flexible pour la recherche, colonne auto pour le bouton */
+    gap: 16px;
+    background: #ffffff;
+    padding: 0px 16px;
+    align-items: center;
+}
+
+.sf-search-container-wrapper {
+    flex: 1;
+    min-width: 0; /* Permet au conteneur de rétrécir si nécessaire */
+}
+
+#export-stats-btn {
+    flex-shrink: 0; /* Empêche le bouton de rétrécir */
+    margin-left: auto; /* Pousse le bouton vers la droite */
 }
 
 .sf-search-container {
@@ -881,5 +898,627 @@ ONGLET TIMELINE
   
   .sf-limits-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ======================
+   STYLES POUR L'EXPORT
+   ====================== */
+
+/* Toolbar d'export dans l'onglet Raw */
+.sf-export-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-wrap: wrap;
+}
+
+/* Boutons d'export */
+.sf-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sf-export-btn svg {
+  width: 16px;
+  height: 16px;
+  color: #6b7280;
+  transition: transform 0.2s ease;
+}
+
+.sf-export-btn:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.sf-export-btn:hover svg {
+  color: #374151;
+  transform: scale(1.1);
+}
+
+.sf-export-btn:active {
+  transform: translateY(1px);
+}
+
+.sf-export-btn:active svg {
+  transform: scale(0.95);
+}
+
+/* Bouton primaire (Copier) */
+.sf-export-btn-primary {
+  background: #0176d3;
+  border-color: #0176d3;
+  color: white;
+}
+
+.sf-export-btn-primary svg {
+  color: white;
+}
+
+.sf-export-btn-primary:hover {
+  background: #0369b3;
+  border-color: #0369b3;
+}
+
+/* État succès (après copie) */
+.sf-export-btn-success {
+  background: #10b981 !important;
+  border-color: #10b981 !important;
+  color: white !important;
+}
+
+.sf-export-btn-success svg {
+  color: white !important;
+}
+
+/* État disabled pour les boutons */
+.sf-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sf-export-btn:disabled:hover {
+  background: white;
+  border-color: #d1d5db;
+  transform: none;
+}
+
+/* Info sur le fichier */
+.sf-export-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.sf-export-size,
+.sf-export-lines {
+  padding: 4px 8px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+}
+
+/* Contenu du log brut avec toolbar */
+.sf-raw-tab-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0 !important;
+}
+
+.sf-raw-log-content {
+  flex: 1;
+  margin: 0;
+  padding: 20px;
+  overflow: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  background: #f8f8f8;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Scrollbar personnalisée pour le log brut */
+.sf-raw-log-content::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.sf-raw-log-content::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.sf-raw-log-content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.sf-raw-log-content::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.sf-raw-log-content::-webkit-scrollbar-corner {
+  background: #f1f5f9;
+}
+
+/* Highlight au survol des boutons */
+.sf-export-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.sf-export-btn:hover::before {
+  opacity: 1;
+}
+
+/* Animation de téléchargement */
+@keyframes downloadPulse {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+
+.sf-export-btn.downloading svg {
+  animation: downloadPulse 0.6s ease-in-out infinite;
+}
+
+/* ============================================
+   TOAST NOTIFICATIONS
+   ============================================ */
+
+.sf-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  z-index: 2147483650;
+  opacity: 0;
+  transform: translateX(400px);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 350px;
+}
+
+.sf-toast-show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.sf-toast-success {
+  background: #10b981;
+  color: white;
+}
+
+.sf-toast-error {
+  background: #ef4444;
+  color: white;
+}
+
+.sf-toast-warning {
+  background: #f59e0b;
+  color: white;
+}
+
+.sf-toast-info {
+  background: #0176d3;
+  color: white;
+}
+
+/* Animation d'apparition */
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(400px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toastSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(400px);
+  }
+}
+
+/* ============================================
+   INDICATEUR DE CHARGEMENT POUR EXPORT
+   ============================================ */
+
+.sf-export-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sf-export-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spinExport 0.6s linear infinite;
+}
+
+@keyframes spinExport {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+  .sf-export-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .sf-export-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sf-export-info {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .sf-toast {
+    right: 10px;
+    left: 10px;
+    max-width: none;
+    top: 10px;
+  }
+}
+
+/* Petits écrans */
+@media (max-width: 480px) {
+  .sf-export-toolbar {
+    padding: 12px;
+  }
+
+  .sf-export-btn {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .sf-export-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .sf-export-info {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .sf-export-size,
+  .sf-export-lines {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* ============================================
+   DARK MODE SUPPORT (OPTIONNEL)
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  .sf-export-toolbar {
+    background: #1f2937;
+    border-bottom-color: #374151;
+  }
+
+  .sf-export-btn {
+    background: #374151;
+    border-color: #4b5563;
+    color: #e5e7eb;
+  }
+
+  .sf-export-btn:hover {
+    background: #4b5563;
+    border-color: #6b7280;
+  }
+
+  .sf-export-btn svg {
+    color: #9ca3af;
+  }
+
+  .sf-export-btn:hover svg {
+    color: #e5e7eb;
+  }
+
+  .sf-export-info {
+    color: #9ca3af;
+  }
+
+  .sf-export-size,
+  .sf-export-lines {
+    background: #374151;
+    border-color: #4b5563;
+    color: #e5e7eb;
+  }
+
+  .sf-raw-log-content {
+    background: #111827;
+    color: #e5e7eb;
+  }
+
+  .sf-raw-log-content::-webkit-scrollbar-track {
+    background: #1f2937;
+  }
+
+  .sf-raw-log-content::-webkit-scrollbar-thumb {
+    background: #4b5563;
+  }
+
+  .sf-raw-log-content::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+  }
+}
+
+/* ============================================
+   AMÉLIORATIONS VISUELLES
+   ============================================ */
+
+/* Badge de taille de fichier avec couleur selon la taille */
+.sf-export-size {
+  position: relative;
+}
+
+/* Fichier > 1MB = rouge */
+.sf-export-size[data-large="true"] {
+  color: #ef4444;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+/* Transition smooth pour les boutons */
+.sf-export-btn,
+.sf-export-btn svg,
+.sf-export-info,
+.sf-toast {
+  will-change: transform, opacity, background-color;
+}
+
+/* Focus visible pour accessibilité */
+.sf-export-btn:focus-visible {
+  outline: 2px solid #0176d3;
+  outline-offset: 2px;
+}
+
+/* Effet de ripple au clic (optionnel) */
+.sf-export-btn.ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  animation: rippleEffect 0.6s ease-out;
+}
+
+@keyframes rippleEffect {
+  to {
+    width: 300px;
+    height: 300px;
+    opacity: 0;
+  }
+}
+
+/* ============================================
+   ÉTATS SPÉCIAUX
+   ============================================ */
+
+/* État de chargement */
+.sf-export-btn.loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.sf-export-btn.loading svg {
+  animation: spinExport 0.8s linear infinite;
+}
+
+/* État d'erreur */
+.sf-export-btn.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.sf-export-btn.error svg {
+  color: #dc2626;
+}
+
+/* Animation de succès */
+@keyframes successPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+}
+
+.sf-export-btn-success {
+  animation: successPulse 0.6s ease-out;
+}
+
+/* ============================================
+   AMÉLIORATIONS DE PERFORMANCE
+   ============================================ */
+
+/* Utiliser GPU acceleration pour les animations */
+.sf-toast,
+.sf-export-btn svg {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Optimiser le repaint */
+.sf-export-toolbar,
+.sf-raw-log-content {
+  contain: layout style paint;
+}
+
+/* ============================================
+   PRINT STYLES (pour impression)
+   ============================================ */
+
+@media print {
+  .sf-export-toolbar {
+    display: none;
+  }
+
+  .sf-raw-log-content {
+    background: white;
+    color: black;
+  }
+
+  .sf-toast {
+    display: none;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITÉ
+   ============================================ */
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .sf-export-btn {
+    border-width: 2px;
+  }
+
+  .sf-export-btn-primary {
+    background: #0056b3;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .sf-export-btn,
+  .sf-export-btn svg,
+  .sf-toast {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* Screen reader only text */
+.sf-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ============================================
+   TOOLTIPS POUR LES BOUTONS
+   ============================================ */
+
+.sf-export-btn[title] {
+  position: relative;
+}
+
+.sf-export-btn[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  background: #1f2937;
+  color: white;
+  font-size: 11px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  animation: tooltipFadeIn 0.2s ease forwards;
+}
+
+.sf-export-btn[title]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #1f2937;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  animation: tooltipFadeIn 0.2s ease forwards;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }
