@@ -39,10 +39,35 @@
 
     /**
      * Met à jour la liste des logs avec analyse d'erreurs
+     * @param {Array} logs - Liste des logs
+     * @param {Map} analysisResults - Résultats d'analyse (optionnel)
+     * @param {boolean} preservePage - Garder la page courante (défaut: false)
      */
-    async updateLogList(logs, analysisResults = null) {
+    async updateLogList(logs, analysisResults = null, preservePage = false) {
+      const previousLogsCount = this.allLogs.length;
+      const previousPage = this.currentPage;
+      
       this.allLogs = logs;
-      this.currentPage = 1;
+      
+      // Ne réinitialiser la page que si :
+      // 1. preservePage est false ET
+      // 2. Le nombre de logs a changé significativement (nouveau log ou suppression)
+      if (!preservePage) {
+        const hasNewLogs = logs.length !== previousLogsCount;
+        if (hasNewLogs) {
+          // Si nouveaux logs, aller à la page 1 pour les voir
+          this.currentPage = 1;
+        } else {
+          // Sinon garder la page courante (auto-refresh)
+          this.currentPage = previousPage;
+        }
+      }
+
+      // Vérifier que la page courante est valide
+      const totalPages = Math.ceil(logs.length / this.logsPerPage);
+      if (this.currentPage > totalPages) {
+        this.currentPage = Math.max(1, totalPages);
+      }
 
       if (analysisResults) {
         this.logAnalysis = analysisResults;
@@ -155,6 +180,17 @@
             <div class="sf-loading-text">Chargement des logs...</div>
           </div>
         `;
+      }
+    }
+
+    hideLoading() {
+      const container = this.panel.querySelector('#sf-logs-list');
+      if (!container) return;
+      
+      // Retirer l'overlay de chargement s'il existe
+      const loadingOverlay = container.querySelector('.sf-loading-overlay');
+      if (loadingOverlay) {
+          loadingOverlay.remove();
       }
     }
 
@@ -351,6 +387,7 @@
         lastUpdateElement.textContent = `Dernière mise à jour: ${timeString}`;
       }
     }
+
   }
 
   window.FoxLog.panelManager = new PanelManager();

@@ -166,8 +166,9 @@
 
     /**
      * Rafraîchir les logs avec analyse d'erreurs
+     * @param {boolean} isAutoRefresh - True si appelé par l'auto-refresh
      */
-    async refreshLogs() {
+    async refreshLogs(isAutoRefresh = false) {
       const { logger, salesforceAPI, panelManager, logPreviewService } = window.FoxLog;
       
       if (!this.userId) {
@@ -181,46 +182,86 @@
 
         let showSpinner = false;
         let spinnerStartTime = null;
+        let spinnerTimeout;
 
-        const spinnerTimeout = setTimeout(() => {
-          showSpinner = true;
-          spinnerStartTime = Date.now();
-          panelManager.showLoading();
-        }, SPINNER_DELAY);
+        // Ne pas afficher le spinner en auto-refresh
+        if (!isAutoRefresh) {
+          spinnerTimeout = setTimeout(() => {
+            showSpinner = true;
+            spinnerStartTime = Date.now();
+            panelManager.showLoading();
+          }, SPINNER_DELAY);
+        }
 
         // 1. Fetch les métadonnées des logs
         const logs = await salesforceAPI.fetchLogs(this.userId);
         
-        clearTimeout(spinnerTimeout);
+        if (!isAutoRefresh && spinnerTimeout) {
+          clearTimeout(spinnerTimeout);
 
-        if (showSpinner && spinnerStartTime) {
-          const elapsed = Date.now() - spinnerStartTime;
-          const remaining = MIN_SPINNER_TIME - elapsed;
-          if (remaining > 0) {
-            await new Promise(resolve => setTimeout(resolve, remaining));
+          if (showSpinner && spinnerStartTime) {
+            const elapsed = Date.now() - spinnerStartTime;
+            const remaining = MIN_SPINNER_TIME - elapsed;
+            if (remaining > 0) {
+              await new Promise(resolve => setTimeout(resolve, remaining));
+            }
           }
         }
 
+        // Détecter si les logs ont changé
+        const hasChanged = this._hasLogsChanged(this.currentLogs, logs);
         this.currentLogs = logs;
 
         // 2. Afficher les logs immédiatement
-        panelManager.updateLogList(logs);
-        logger.success(`Loaded ${logs.length} logs`);
-
-        // 3. Analyser les erreurs en arrière-plan
-        logger.log('Starting error analysis in background...');
-        const analysisResults = await logPreviewService.analyzeBatch(logs);
+        // preservePage = true en auto-refresh si les logs n'ont pas changé
+        const preservePage = isAutoRefresh && !hasChanged;
+        panelManager.updateLogList(logs, null, preservePage);
         
-        // 4. Mettre à jour l'affichage avec les badges d'erreur
-        panelManager.updateLogList(logs, analysisResults);
-        logger.success('Error analysis complete');
+        logger.success(`Loaded ${logs.length} logs${isAutoRefresh ? ' (auto-refresh)' : ''}`);
+
+        // 3. Analyser les erreurs en arrière-plan seulement si logs ont changé
+        if (hasChanged) {
+          logger.log('Starting error analysis in background...');
+          const analysisResults = await logPreviewService.analyzeBatch(logs);
+          
+          // 4. Mettre à jour l'affichage avec les badges d'erreur
+          panelManager.updateLogList(logs, analysisResults, preservePage);
+          logger.success('Error analysis complete');
+        } else {
+          logger.log('Logs unchanged, skipping analysis');
+        }
+
+        // TOUJOURS masquer le spinner à la fin
+        if (!isAutoRefresh) {
+            panelManager.hideLoading();
+        }
 
       } catch (error) {
         logger.error('Failed to fetch logs', error);
         panelManager.showError('Erreur de chargement des logs');
+        // Masquer aussi en cas d'erreur
+        if (!isAutoRefresh) {
+            panelManager.hideLoading();
+        }
       }
     }
 
+    /**
+     * Vérifie si les logs ont changé
+     * @private
+     */
+    _hasLogsChanged(oldLogs, newLogs) {
+      if (oldLogs.length !== newLogs.length) return true;
+      
+      // Comparer les IDs des 5 premiers logs (plus rapide)
+      const compareCount = Math.min(5, oldLogs.length);
+      for (let i = 0; i < compareCount; i++) {
+        if (oldLogs[i]?.Id !== newLogs[i]?.Id) return true;
+      }
+      
+      return false;
+    }
+    
     async viewLogDetails(logId) {
       const { logger, salesforceAPI } = window.FoxLog;
       
