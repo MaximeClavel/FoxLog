@@ -174,6 +174,12 @@
     showLoading() {
       const container = this.panel.querySelector('#sf-logs-list');
       if (container) {
+        // Forcer une hauteur minimale sur le conteneur parent
+        const panelContent = container.closest('.sf-panel-content');
+        if (panelContent) {
+          panelContent.style.minHeight = '250px';
+        }
+
         container.innerHTML = `
           <div class="sf-loading-overlay">
             <div class="sf-spinner"></div>

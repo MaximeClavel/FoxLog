@@ -95,7 +95,9 @@
   background: var(--sf-bg) !important;
   padding: 12px !important;
   max-height: 56vh !important;
+  min-height: 250px !important;
   overflow-y: auto !important;
+  position: relative !important;
 }
 .sf-empty-state {
   background: #f5f7fb !important; border: 1px solid var(--sf-border) !important;
