@@ -591,3 +591,108 @@
     transform: scale(1.1);
   }
 }
+
+/* Badge d'erreur sur les logs */
+.sf-log-has-error {
+  border-left-color: #ef4444 !important;
+  background: #fef2f2 !important;
+}
+
+.sf-log-has-error:hover {
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2) !important;
+}
+
+.sf-error-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 2px 8px !important;
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  border-radius: 4px !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  margin-left: 4px !important;
+}
+
+/* Compteur d'erreurs dans le header */
+.sf-error-count {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 4px 8px !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #ef4444 !important;
+  border-radius: 6px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  margin-left: 8px !important;
+}
+
+/* Pagination */
+.sf-pagination {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 16px !important;
+    border-top: 1px solid #e5e7eb !important;
+    background: #f9fafb !important;
+    margin-top: 8px !important;
+}
+
+.sf-pagination-btn {
+    padding: 8px 16px !important;
+    background: white !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 6px !important;
+    color: #374151 !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.sf-pagination-btn:hover:not(:disabled) {
+    background: #0176d3 !important;
+    color: white !important;
+    border-color: #0176d3 !important;
+}
+
+.sf-pagination-btn:disabled {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+}
+
+.sf-pagination-info {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    font-size: 14px !important;
+    color: #6b7280 !important;
+}
+
+.sf-current-page {
+    font-weight: 600 !important;
+    color: #0176d3 !important;
+}
+
+.sf-new-logs-badge {
+    display: inline-block !important;
+    width: 8px !important;
+    height: 8px !important;
+    background: #ef4444 !important;
+    border-radius: 50% !important;
+    animation: pulse-badge 2s infinite !important;
+    margin-left: 4px !important;
+}
+
+@keyframes pulse-badge {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.2);
+    }
+}

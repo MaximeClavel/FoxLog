@@ -35,6 +35,7 @@
      * Affiche une modal avec le log parsé (avec tabs et filtres)
      */
     showParsedLog(parsedLog, parser) {
+      console.log('showParsedLog called', parsedLog);
       this.close();
       
       const filterManager = window.FoxLog.filterManager;

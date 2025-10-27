@@ -8,6 +8,8 @@
       this.refreshInterval = null;
       this.userId = null;
       this.currentLogs = [];
+      this.errorScanQueue = []; // 🆕 File d'attente pour le scan d'erreurs
+      this.isScanning = false; // 🆕 Indicateur de scan en cours
     }
 
     async init() {
@@ -58,13 +60,12 @@
       this.userId = await this._getUserId();
       
       if (this.userId) {
-        logger.success('User ID obtained', this.userId);
+        logger.success(`User ID: ${this.userId}`);
+        await this.refreshLogs();
+        this._startAutoRefresh();
       } else {
-        logger.warn('User ID not found');
+          logger.error('Failed to get User ID');
       }
-      
-      // 6. Démarrer l'auto-refresh
-      this._startAutoRefresh();
       
       logger.success('Setup complete');
     }
@@ -164,7 +165,7 @@
     _attachEventListeners() {
       document.addEventListener('foxlog:refresh', () => this.refreshLogs());
       document.addEventListener('foxlog:clear', () => this.clearLogs());
-      document.addEventListener('foxlog:viewLog', (e) => {
+      document.addEventListener('foxlog:viewlog', (e) => {
         this.viewLogDetails(e.detail.logId);
       });
     }
@@ -188,82 +189,174 @@
 
     // ✅ Rafraîchir les logs
     async refreshLogs() {
-      const { logger, salesforceAPI, panelManager } = window.FoxLog;
-      
-      if (!this.userId) {
-        panelManager.showError('User ID not available');
-        return;
-      }
-
-      try {
-        const SPINNER_DELAY = 300; // Délai avant d'afficher le spinner
-        const MIN_SPINNER_TIME = 600; // Durée minimum d'affichage du spinner
-
-        let showSpinner = false;
-        let spinnerStartTime = null;
-
-        // Afficher le spinner seulement si le chargement prend plus de 300ms
-        const spinnerTimeout = setTimeout(() => {
-            showSpinner = true;
-            spinnerStartTime = Date.now();
-            panelManager.showLoading();
-        }, SPINNER_DELAY);
-
-        const logs = await salesforceAPI.fetchLogs(this.userId);
+        const { logger, salesforceAPI, panelManager } = window.FoxLog;
         
-        // Annuler l'affichage du spinner s'il n'a pas encore été montré
-        clearTimeout(spinnerTimeout);
-
-        // Si le spinner a été montré, attendre le temps minimum
-        if (showSpinner && spinnerStartTime) {
-            const elapsed = Date.now() - spinnerStartTime;
-            const remaining = MIN_SPINNER_TIME - elapsed;
-            if (remaining > 0) {
-                await new Promise(resolve => setTimeout(resolve, remaining));
-            }
+        if (!this.userId) {
+            panelManager.showError('User ID not available');
+            return;
         }
 
-        this.currentLogs = logs;
-        panelManager.updateLogList(logs);
-        logger.success(`Loaded ${logs.length} logs`);
-      } catch (error) {
-        logger.error('Failed to fetch logs', error);
-        panelManager.showError('Erreur de chargement des logs');
+        try {
+            // Affichage rapide avec spinner
+            const SPINNER_DELAY = 300;
+            const MIN_SPINNER_TIME = 600;
+            let showSpinner = false;
+            let spinnerStartTime = null;
+
+            const spinnerTimeout = setTimeout(() => {
+                showSpinner = true;
+                spinnerStartTime = Date.now();
+                panelManager.showLoading();
+            }, SPINNER_DELAY);
+
+            // 1️⃣ Charger les métadonnées rapidement
+            const logs = await salesforceAPI.fetchLogs(this.userId);
+            
+            clearTimeout(spinnerTimeout);
+
+            if (showSpinner && spinnerStartTime) {
+                const elapsed = Date.now() - spinnerStartTime;
+                const remaining = MIN_SPINNER_TIME - elapsed;
+                if (remaining > 0) {
+                    await new Promise(resolve => setTimeout(resolve, remaining));
+                }
+            }
+
+            this.currentLogs = logs;
+            
+            // Charger du cache si disponible
+            this._loadErrorCountsFromCache(logs);
+            
+            // Afficher immédiatement
+            panelManager.updateLogList(logs);
+            
+            // Scanner en arrière-plan
+            this._startBackgroundErrorScan(logs);
+            
+            logger.success(`Loaded ${logs.length} logs`);
+        } catch (error) {
+            logger.error('Failed to fetch logs', error);
+            panelManager.showError('Erreur de chargement des logs');
+        }
+    }
+
+    // Charger les comptes d'erreurs depuis le cache
+    _loadErrorCountsFromCache(logs) {
+        const { cache } = window.FoxLog;
+        
+        logs.forEach(log => {
+            const cacheKey = `errorCount_${log.Id}`;
+            const cachedCount = cache.get(cacheKey);
+            if (cachedCount !== null) {
+                log._errorCount = cachedCount;
+                log._fromCache = true;
+            }
+        });
+    }
+
+    // 🆕 Scanner les erreurs en arrière-plan par batch
+    async _startBackgroundErrorScan(logs) {
+      const { logger, salesforceAPI, panelManager, cache } = window.FoxLog;
+      
+      // Éviter les scans multiples simultanés
+      if (this.isScanning) return;
+      
+      // Ne scanner que les logs sans cache
+      const logsToScan = logs.filter(log => !log._fromCache);
+      
+      if (logsToScan.length === 0) {
+          logger.log('All logs already cached');
+          return;
       }
+
+      this.isScanning = true;
+      logger.log(`🔍 Background scan: ${logsToScan.length} logs to check`);
+
+      // Scanner par batch de 5 pour ne pas surcharger
+      const BATCH_SIZE = 5;
+      
+      for (let i = 0; i < logsToScan.length; i += BATCH_SIZE) {
+          const batch = logsToScan.slice(i, i + BATCH_SIZE);
+          
+          // Scanner le batch en parallèle
+          await Promise.all(batch.map(async (log) => {
+              try {
+                  const logBody = await salesforceAPI.fetchLogBody(log.Id);
+                  const errorCount = (logBody.match(/EXCEPTION_THROWN|FATAL_ERROR/g) || []).length;
+                  
+                  // Mettre à jour le log
+                  log._errorCount = errorCount;
+                  
+                  // Sauver dans le cache (expire après 1 heure)
+                  const cacheKey = `errorCount_${log.Id}`;
+                  cache.set(cacheKey, errorCount);
+                  
+                  if (errorCount > 0) {
+                      logger.warn(`⚠️ Found ${errorCount} error(s) in log ${log.Id.substring(0, 8)}`);
+                  }
+              } catch (error) {
+                  logger.error(`Failed to scan log ${log.Id}`, error);
+                  log._errorCount = 0;
+              }
+          }));
+
+          // Rafraîchir l'UI après chaque batch
+          panelManager._renderLogsWithPagination();
+          
+          // Petite pause entre les batchs pour ne pas surcharger
+          if (i + BATCH_SIZE < logsToScan.length) {
+              await new Promise(resolve => setTimeout(resolve, 200));
+          }
+      }
+
+      this.isScanning = false;
+      logger.success(`✅ Background scan completed`);
     }
 
     // ✅ Voir les détails d'un log
     async viewLogDetails(logId) {
+      console.log('viewLogDetails called', logId, window.FoxLog.modalManager, window.FoxLog.logParser);
+
       const { logger, salesforceAPI } = window.FoxLog;
       
       try {
-        logger.log(`Fetching details for log ${logId}`);
-        
-        const logMetadata = this.currentLogs.find(log => log.Id === logId);
-        if (!logMetadata) {
-          logger.error('Log metadata not found');
-          return;
-        }
-
-        const logBody = await salesforceAPI.fetchLogBody(logId);
-        
-        // Vérifier si le parser est disponible
-        if (window.FoxLog.logParser && window.FoxLog.modalManager) {
-          const parsedLog = window.FoxLog.logParser.parse(logBody, logMetadata);
-          window.FoxLog.modalManager.showParsedLog(parsedLog, window.FoxLog.logParser);
-        } else {
-          // Fallback : afficher le log brut
-          if (window.FoxLog.modalManager) {
-            window.FoxLog.modalManager.showRawLog(logBody);
-          } else {
-            console.log('Log Body:', logBody);
-            alert('Log chargé ! (voir console)');
+          logger.log(`Fetching details for log ${logId}`);
+          const logMetadata = this.currentLogs.find(log => log.Id === logId);
+          
+          if (!logMetadata) {
+              logger.error('Log metadata not found');
+              return;
           }
-        }
-        
-        logger.success('Log details displayed');
+          
+          const logBody = await salesforceAPI.fetchLogBody(logId);
+          
+          // Vérifier si le parser est disponible
+          if (window.FoxLog.logParser && window.FoxLog.modalManager) {
+              const parsedLog = window.FoxLog.logParser.parse(logBody, logMetadata);
+              
+              // Mettre à jour les métadonnées avec le nombre d'erreurs détectées
+              const errorCount = parsedLog.stats.errors.length;
+              logMetadata._errorCount = errorCount;
+              
+              // Rafraîchir l'affichage du panel pour mettre à jour le badge
+              if (window.FoxLog.panelManager && this.currentLogs) {
+                  window.FoxLog.panelManager.updateLogList(this.currentLogs);
+              }
+              
+              window.FoxLog.modalManager.showParsedLog(parsedLog, window.FoxLog.logParser);
+          } else {
+              // Fallback : afficher le log brut
+              if (window.FoxLog.modalManager) {
+                  window.FoxLog.modalManager.showRawLog(logBody);
+              } else {
+                  console.log('Log Body:', logBody);
+                  alert('Log chargé ! (voir console)');
+              }
+          }
+          
+          logger.success('Log details displayed');
       } catch (error) {
-        logger.error('Failed to fetch log details', error);
+          logger.error('Failed to fetch log details:', error);
       }
     }
 
