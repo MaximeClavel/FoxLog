@@ -9,7 +9,7 @@
       this.panel = null;
       this.isOpen = false;
       this.currentPage = 1;
-      this.logsPerPage = 5;
+      this.logsPerPage = 3;
       this.allLogs = [];
       this.logAnalysis = new Map(); // Map de logId -> {hasError, errorCount, errorTypes}
     }
