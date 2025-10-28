@@ -157,7 +157,7 @@
       `;
 
       const queryFlag = `
-        SELECT TracedEntityId, TracedEntity.Name
+        SELECT TracedEntityId, TracedEntity.Name, DebugLevel.DeveloperName
         FROM TraceFlag 
         WHERE LogType = 'USER_DEBUG'
         AND ExpirationDate >= TODAY
@@ -191,18 +191,6 @@
       const dataLog = await responseLog.json();
       const dataFlag = await responseFlag.json();
 
-      // Créer une Map avec les données des trace flags
-      const flagMap = new Map(
-        (dataFlag.records || []).map(flag => [
-          flag.TracedEntityId,
-          {
-            hasActiveTraceFlag: true,
-            userId: flag.TracedEntityId,
-            userName: flag.TracedEntity?.Name || 'Unknown User'
-          }
-        ])
-      );
-
       // Créer une Map avec les données des logs
       const logMap = new Map(
         (dataLog.records || []).map(log => [
@@ -219,7 +207,8 @@
       return (dataFlag.records || []).map(record => ({
         id: record.TracedEntityId,
         logCount: logMap.get(record.TracedEntityId)?.logCount !== undefined ? logMap.get(record.TracedEntityId).logCount : 0,
-        name : record.TracedEntity?.Name
+        name : record.TracedEntity?.Name,
+        debugLevel : record.DebugLevel?.DeveloperName
       }));
     }
 

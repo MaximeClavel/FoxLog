@@ -70,7 +70,7 @@
         const options = users.map(user => {
           const selected = user.id === currentUserId ? 'selected' : '';
           return `<option value="${user.id}" ${selected}>
-            ${user.name} (${user.logCount} log${user.logCount > 1 ? 's' : ''})
+          👤 ${user.name} (${user.logCount} log${user.logCount > 1 ? 's' : ''}) [${user.debugLevel}]
           </option>`;
         }).join('');
 
