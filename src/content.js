@@ -1,4 +1,4 @@
-// src/content.js
+// src/content.js (VERSION AVEC ANALYSE D'ERREURS)
 (function() {
   'use strict';
   
@@ -16,10 +16,8 @@
         return;
       }
 
-      // ✅ Attendre que toutes les dépendances soient chargées
       await this._waitForDependencies();
       
-      // Maintenant on peut accéder aux dépendances
       const { logger } = window.FoxLog;
 
       if (!this._isSalesforcePage()) {
@@ -36,25 +34,17 @@
       }
     }
     
-    // ✅ MÉTHODE MANQUANTE : _setup()
     async _setup() {
       const { logger, salesforceAPI, panelManager } = window.FoxLog;
       
       logger.log('Setting up FoxLog...');
       
-      // 1. Injecter le script dans la page
       await this._injectScript();
-      
-      // 2. Initialiser l'API Salesforce
       await salesforceAPI.initialize();
       
-      // 3. Créer l'interface utilisateur
       this._createUI();
-      
-      // 4. Attacher les event listeners
       this._attachEventListeners();
       
-      // 5. Récupérer l'User ID
       this.userId = await this._getUserId();
       
       if (this.userId) {
@@ -63,13 +53,11 @@
         logger.warn('User ID not found');
       }
       
-      // 6. Démarrer l'auto-refresh
       this._startAutoRefresh();
       
       logger.success('Setup complete');
     }
     
-    // ✅ Attendre que les dépendances soient chargées
     _waitForDependencies() {
       return new Promise((resolve) => {
         const check = () => {
@@ -79,6 +67,7 @@
               deps?.sessionManager && 
               deps?.salesforceAPI && 
               deps?.panelManager &&
+              deps?.logPreviewService &&
               deps?.LOG_TYPES) {
             resolve();
           } else {
@@ -89,7 +78,6 @@
       });
     }
     
-    // ✅ Vérifier si on est sur une page Salesforce
     _isSalesforcePage() {
       const { hostname } = window.location;
       return hostname.includes('salesforce.com') || 
@@ -97,7 +85,6 @@
              hostname.includes('visualforce.com');
     }
     
-    // ✅ Injecter le script dans le contexte de la page
     _injectScript() {
       const { logger } = window.FoxLog;
       return new Promise((resolve, reject) => {
@@ -107,7 +94,7 @@
           script.onload = () => {
             logger.success('Injected script loaded');
             script.remove();
-            resolve();  // ✅ Résoudre la promesse
+            resolve();
           };
           script.onerror = () => {
             logger.error('Failed to load injected script');
@@ -122,23 +109,17 @@
       });
     }
     
-    // ✅ Créer l'interface utilisateur
     _createUI() {
       const { panelManager } = window.FoxLog;
-      
-      // Créer le bouton flottant
       this._createFloatingButton();
-      
-      // Créer le panel
       panelManager.create();
     }
     
-    // ✅ Créer le bouton flottant
     _createFloatingButton() {
       const { panelManager } = window.FoxLog;
       
       if (document.getElementById('sf-debug-toggle')) {
-        return; // Le bouton existe déjà
+        return;
       }
       
       const button = document.createElement('div');
@@ -151,7 +132,6 @@
       button.addEventListener('click', () => {
         panelManager.toggle();
         
-        // Charger les logs si le panel s'ouvre
         if (panelManager.isOpen && this.userId) {
           this.refreshLogs();
         }
@@ -160,7 +140,6 @@
       document.body.appendChild(button);
     }
     
-    // ✅ Attacher les event listeners
     _attachEventListeners() {
       document.addEventListener('foxlog:refresh', () => this.refreshLogs());
       document.addEventListener('foxlog:clear', () => this.clearLogs());
@@ -169,7 +148,6 @@
       });
     }
 
-    // ✅ Récupérer l'User ID via le script injecté
     async _getUserId() {
       return new Promise((resolve) => {
         const timeout = setTimeout(() => {
@@ -186,9 +164,12 @@
       });
     }
 
-    // ✅ Rafraîchir les logs
-    async refreshLogs() {
-      const { logger, salesforceAPI, panelManager } = window.FoxLog;
+    /**
+     * Rafraîchir les logs avec analyse d'erreurs
+     * @param {boolean} isAutoRefresh - True si appelé par l'auto-refresh
+     */
+    async refreshLogs(isAutoRefresh = false) {
+      const { logger, salesforceAPI, panelManager, logPreviewService } = window.FoxLog;
       
       if (!this.userId) {
         panelManager.showError('User ID not available');
@@ -196,43 +177,91 @@
       }
 
       try {
-        const SPINNER_DELAY = 300; // Délai avant d'afficher le spinner
-        const MIN_SPINNER_TIME = 600; // Durée minimum d'affichage du spinner
+        const SPINNER_DELAY = 300;
+        const MIN_SPINNER_TIME = 600;
 
         let showSpinner = false;
         let spinnerStartTime = null;
+        let spinnerTimeout;
 
-        // Afficher le spinner seulement si le chargement prend plus de 300ms
-        const spinnerTimeout = setTimeout(() => {
+        // Ne pas afficher le spinner en auto-refresh
+        if (!isAutoRefresh) {
+          spinnerTimeout = setTimeout(() => {
             showSpinner = true;
             spinnerStartTime = Date.now();
             panelManager.showLoading();
-        }, SPINNER_DELAY);
+          }, SPINNER_DELAY);
+        }
 
+        // 1. Fetch les métadonnées des logs
         const logs = await salesforceAPI.fetchLogs(this.userId);
         
-        // Annuler l'affichage du spinner s'il n'a pas encore été montré
-        clearTimeout(spinnerTimeout);
+        if (!isAutoRefresh && spinnerTimeout) {
+          clearTimeout(spinnerTimeout);
 
-        // Si le spinner a été montré, attendre le temps minimum
-        if (showSpinner && spinnerStartTime) {
+          if (showSpinner && spinnerStartTime) {
             const elapsed = Date.now() - spinnerStartTime;
             const remaining = MIN_SPINNER_TIME - elapsed;
             if (remaining > 0) {
-                await new Promise(resolve => setTimeout(resolve, remaining));
+              await new Promise(resolve => setTimeout(resolve, remaining));
             }
+          }
         }
 
+        // Détecter si les logs ont changé
+        const hasChanged = this._hasLogsChanged(this.currentLogs, logs);
         this.currentLogs = logs;
-        panelManager.updateLogList(logs);
-        logger.success(`Loaded ${logs.length} logs`);
+
+        // 2. Afficher les logs immédiatement
+        // preservePage = true en auto-refresh si les logs n'ont pas changé
+        const preservePage = isAutoRefresh && !hasChanged;
+        panelManager.updateLogList(logs, null, preservePage);
+        
+        logger.success(`Loaded ${logs.length} logs${isAutoRefresh ? ' (auto-refresh)' : ''}`);
+
+        // 3. Analyser les erreurs en arrière-plan seulement si logs ont changé
+        if (hasChanged) {
+          logger.log('Starting error analysis in background...');
+          const analysisResults = await logPreviewService.analyzeBatch(logs);
+          
+          // 4. Mettre à jour l'affichage avec les badges d'erreur
+          panelManager.updateLogList(logs, analysisResults, preservePage);
+          logger.success('Error analysis complete');
+        } else {
+          logger.log('Logs unchanged, skipping analysis');
+        }
+
+        // TOUJOURS masquer le spinner à la fin
+        if (!isAutoRefresh) {
+            panelManager.hideLoading();
+        }
+
       } catch (error) {
         logger.error('Failed to fetch logs', error);
         panelManager.showError('Erreur de chargement des logs');
+        // Masquer aussi en cas d'erreur
+        if (!isAutoRefresh) {
+            panelManager.hideLoading();
+        }
       }
     }
 
-    // ✅ Voir les détails d'un log
+    /**
+     * Vérifie si les logs ont changé
+     * @private
+     */
+    _hasLogsChanged(oldLogs, newLogs) {
+      if (oldLogs.length !== newLogs.length) return true;
+      
+      // Comparer les IDs des 5 premiers logs (plus rapide)
+      const compareCount = Math.min(5, oldLogs.length);
+      for (let i = 0; i < compareCount; i++) {
+        if (oldLogs[i]?.Id !== newLogs[i]?.Id) return true;
+      }
+      
+      return false;
+    }
+    
     async viewLogDetails(logId) {
       const { logger, salesforceAPI } = window.FoxLog;
       
@@ -247,12 +276,10 @@
 
         const logBody = await salesforceAPI.fetchLogBody(logId);
         
-        // Vérifier si le parser est disponible
         if (window.FoxLog.logParser && window.FoxLog.modalManager) {
           const parsedLog = window.FoxLog.logParser.parse(logBody, logMetadata);
           window.FoxLog.modalManager.showParsedLog(parsedLog, window.FoxLog.logParser);
         } else {
-          // Fallback : afficher le log brut
           if (window.FoxLog.modalManager) {
             window.FoxLog.modalManager.showRawLog(logBody);
           } else {
@@ -267,18 +294,17 @@
       }
     }
 
-    // ✅ Effacer les logs
     clearLogs() {
-      const { cache, sessionManager, panelManager, logger } = window.FoxLog;
+      const { cache, sessionManager, panelManager, logger, logPreviewService } = window.FoxLog;
       
       cache.clear();
       sessionManager.clearCache();
+      logPreviewService.clearCache();
       this.currentLogs = [];
       panelManager.updateLogList([]);
       logger.success('Cache cleared');
     }
 
-    // ✅ Démarrer l'auto-refresh
     _startAutoRefresh() {
       const { CONFIG, logger, panelManager } = window.FoxLog;
       
@@ -296,7 +322,6 @@
       logger.log('Auto-refresh started');
     }
 
-    // ✅ Détruire l'instance
     destroy() {
       const { cache, logger } = window.FoxLog;
       
@@ -311,10 +336,8 @@
     }
   }
 
-  // ✅ Initialiser l'app
   const app = new FoxLogApp();
   
-  // Attendre que le DOM soit prêt
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       console.log('[FoxLog] DOM ready, initializing...');
@@ -325,7 +348,6 @@
     app.init();
   }
   
-  // Exposer l'app globalement (pour debug)
   window.FoxLogApp = app;
   
   console.log('[FoxLog] Content script loaded');

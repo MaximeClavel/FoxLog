@@ -95,7 +95,9 @@
   background: var(--sf-bg) !important;
   padding: 12px !important;
   max-height: 56vh !important;
+  min-height: 250px !important;
   overflow-y: auto !important;
+  position: relative !important;
 }
 .sf-empty-state {
   background: #f5f7fb !important; border: 1px solid var(--sf-border) !important;
@@ -282,18 +284,6 @@
   margin-bottom: 8px;
   padding: 12px;
   transition: all 0.2s ease;
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .sf-log-entry:hover {
@@ -591,3 +581,270 @@
     transform: scale(1.1);
   }
 }
+
+/* ============================================
+   PAGINATION
+   ============================================ */
+
+.sf-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  gap: 12px;
+}
+
+.sf-pagination-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  color: #374151;
+}
+
+.sf-pagination-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.sf-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sf-pagination-info {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.sf-pagination-count {
+  color: #6b7280;
+  font-weight: 400;
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+/* ============================================
+   BADGES D'ERREUR
+   ============================================ */
+
+.sf-log-error-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  color: #991b1b;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: auto;
+  border: 1px solid #fca5a5;
+  transition: all 0.2s ease;
+}
+
+.sf-log-error-badge svg {
+  flex-shrink: 0;
+}
+
+.sf-log-has-error {
+  border-left-color: #ef4444 !important;
+  background: linear-gradient(to right, #fef2f2 0%, #ffffff 100%) !important;
+}
+
+.sf-log-has-error:hover {
+  border-left-color: #dc2626 !important;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.15) !important;
+}
+
+.sf-log-has-error .sf-log-error-badge {
+  animation: errorPulse 2s ease-in-out infinite;
+}
+
+@keyframes errorPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+  }
+}
+
+/* Badge au survol */
+.sf-log-item:hover .sf-log-error-badge {
+  background: linear-gradient(135deg, #fca5a5 0%, #f87171 100%);
+  color: #7f1d1d;
+  border-color: #f87171;
+  transform: scale(1.05);
+}
+
+/* ============================================
+   AMÉLIORATIONS RESPONSIVE
+   ============================================ */
+
+@media (max-width: 480px) {
+  .sf-pagination {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .sf-pagination-info {
+    order: -1;
+    margin-bottom: 8px;
+  }
+
+  .sf-pagination-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .sf-log-error-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+}
+
+/* ============================================
+   LOADING STATE POUR ANALYSE
+   ============================================ */
+
+.sf-analyzing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #e0e7ff;
+  color: #3730a3;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 500;
+  margin-left: auto;
+  border: 1px solid #c7d2fe;
+}
+
+.sf-analyzing-badge::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border: 2px solid #c7d2fe;
+  border-top-color: #4f46e5;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   PAGINATION AVEC NUMÉROS (OPTIONNEL)
+   ============================================ */
+
+.sf-pagination-pages {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.sf-pagination-page {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.sf-pagination-page:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.sf-pagination-page.active {
+  background: #0176d3;
+  border-color: #0176d3;
+  color: white;
+  font-weight: 600;
+}
+
+.sf-pagination-ellipsis {
+  padding: 0 4px;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* ============================================
+   ACCESSIBILITÉ
+   ============================================ */
+
+.sf-pagination-btn:focus-visible,
+.sf-pagination-page:focus-visible {
+  outline: 2px solid #0176d3;
+  outline-offset: 2px;
+}
+
+/* Screen reader only */
+.sf-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ============================================
+   ANIMATIONS D'ENTRÉE (DÉSACTIVÉES PAR DÉFAUT)
+   ============================================ */
+
+/* Animation désactivée pour éviter les "sauts" visuels lors du refresh */
+.sf-log-item {
+  /* animation: logFadeIn 0.3s ease; */
+}
+
+/* Animation disponible uniquement au premier chargement */
+.sf-logs-first-load .sf-log-item {
+  animation: logFadeIn 0.3s ease;
+}
+
+@keyframes logFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Délai d'animation pour effet cascade (seulement au premier chargement) */
+.sf-logs-first-load .sf-log-item:nth-child(1) { animation-delay: 0s; }
+.sf-logs-first-load .sf-log-item:nth-child(2) { animation-delay: 0.05s; }
+.sf-logs-first-load .sf-log-item:nth-child(3) { animation-delay: 0.1s; }
+.sf-logs-first-load .sf-log-item:nth-child(4) { animation-delay: 0.15s; }
+.sf-logs-first-load .sf-log-item:nth-child(5) { animation-delay: 0.2s; }
