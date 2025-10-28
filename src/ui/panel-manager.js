@@ -302,12 +302,6 @@
           <select id="sf-user-select" class="sf-user-picklist">
             <option value="">Chargement...</option>
           </select>
-          <select id="sf-log-level">
-            <option value="all">Tous</option>
-            <option value="ERROR">ERROR</option>
-            <option value="WARN">WARN</option>
-            <option value="INFO">INFO</option>
-          </select>
         </div>
         <div class="sf-panel-content" id="sf-logs-list">
           <div class="sf-empty-state">
@@ -346,11 +340,6 @@
         }));
       });
       
-      // filtre niveau
-      this.panel.querySelector('#sf-log-level')?.addEventListener('change', (e) => {
-        this.filterLogs('', e.target.value);
-      });
-      
       // Click sur un log
       this.panel.querySelector('#sf-logs-list')?.addEventListener('click', (e) => {
         const logItem = e.target.closest('.sf-log-item');
@@ -363,18 +352,6 @@
           }
         }
       });
-    }
-
-    filterLogs(searchText, level) {
-      const filtered = this.allLogs.filter(log => {
-        const status = log.Status || '';
-        const matchesLevel = level === 'all' || status === level;
-        return matchesLevel;
-      });
-
-      this.allLogs = filtered;
-      this.currentPage = 1;
-      this._renderPaginatedLogs();
     }
 
     _showEmptyState() {

@@ -225,16 +225,6 @@
   box-shadow: 0 0 0 2px rgba(0, 112, 210, 0.1);
 }
 
-#sf-log-level {
-  padding: 8px 12px;
-  border: 1px solid #d0d0d0;
-  border-radius: 6px;
-  font-size: 14px;
-  background: white;
-  cursor: pointer;
-  outline: none;
-}
-
 /* Contenu du panel */
 .sf-panel-content {
   flex: 1;
@@ -854,7 +844,7 @@
 /* Ajustement de la barre de filtres pour accommoder la picklist */
 .sf-panel-filters {
   display: grid !important;
-  grid-template-columns: 1fr 100px !important; /* Picklist + Select niveau */
+  grid-template-columns: 1fr !important; /* Picklist */
   gap: 8px !important;
   padding: 12px !important;
   border-bottom: 1px solid var(--sf-border) !important;
@@ -927,11 +917,4 @@
   background: white;
   cursor: pointer;
   outline: none;
-}
-
-/* Responsive : sur petits écrans, empiler verticalement */
-@media (max-width: 480px) {
-  .sf-panel-filters {
-    grid-template-columns: 1fr !important;
-  }
 }
