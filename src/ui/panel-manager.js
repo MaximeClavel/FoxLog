@@ -1,4 +1,4 @@
-// src/ui/panel-manager.js (VERSION AVEC PAGINATION)
+// src/ui/panel-manager.js (VERSION AVEC PAGINATION ET PICKLIST UTILISATEURS)
 (function() {
   'use strict';
   
@@ -11,7 +11,9 @@
       this.currentPage = 1;
       this.logsPerPage = 3;
       this.allLogs = [];
-      this.logAnalysis = new Map(); // Map de logId -> {hasError, errorCount, errorTypes}
+      this.logAnalysis = new Map();
+      this.usersCache = [];
+      this.selectedUserId = null;
     }
 
     create() {
@@ -35,6 +37,67 @@
       this.isOpen = !this.isOpen;
       this.panel.className = this.isOpen ? 'sf-panel-open' : 'sf-panel-closed';
       console.log(`[FoxLog] Panel ${this.isOpen ? 'opened' : 'closed'}`);
+    }
+
+    /**
+     * Charger les utilisateurs dans la picklist
+     */
+    async loadUsers(currentUserId = null) {
+      const { salesforceAPI, logger } = window.FoxLog;
+      const userSelect = this.panel.querySelector('#sf-user-select');
+      
+      if (!userSelect) {
+        logger.error('User select not found');
+        return;
+      }
+
+      try {
+        userSelect.disabled = true;
+        userSelect.innerHTML = '<option>Chargement...</option>';
+        this.showLoading();
+        const users = await salesforceAPI.fetchUsersWithLogs();
+        this.usersCache = users;
+
+        if (users.length === 0) {
+          userSelect.innerHTML = '<option value="">Aucun log trouvé</option>';
+          this.hideLoading();
+          logger.warn('No users with logs found');
+          return;
+        }
+
+        this.hideLoading();
+
+        const options = users.map(user => {
+          const selected = user.id === currentUserId ? 'selected' : '';
+          return `<option value="${user.id}" ${selected}>
+            ${user.name} (${user.logCount} log${user.logCount > 1 ? 's' : ''})
+          </option>`;
+        }).join('');
+
+        userSelect.innerHTML = options;
+        userSelect.disabled = false;
+
+        if (!currentUserId && users.length > 0) {
+          this.selectedUserId = users[0].id;
+          userSelect.value = users[0].id;
+        } else {
+          this.selectedUserId = currentUserId;
+        }
+
+        logger.success(`Loaded ${users.length} users with logs`);
+      } catch (error) {
+        logger.error('Failed to load users', error);
+        userSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+        userSelect.disabled = true;
+      }
+    }
+
+    /**
+     * Obtenir l'utilisateur sélectionné
+     */
+    getSelectedUserId() {
+      const userSelect = this.panel.querySelector('#sf-user-select');
+      return userSelect?.value || this.selectedUserId;
     }
 
     /**
@@ -196,7 +259,7 @@
       // Retirer l'overlay de chargement s'il existe
       const loadingOverlay = container.querySelector('.sf-loading-overlay');
       if (loadingOverlay) {
-          loadingOverlay.remove();
+        loadingOverlay.remove();
       }
     }
 
@@ -236,7 +299,9 @@
           <span id="sf-status-text">Prêt</span>
         </div>
         <div class="sf-panel-filters">
-          <input type="text" id="sf-log-filter" placeholder="Filtrer les logs...">
+          <select id="sf-user-select" class="sf-user-picklist">
+            <option value="">Chargement...</option>
+          </select>
           <select id="sf-log-level">
             <option value="all">Tous</option>
             <option value="ERROR">ERROR</option>
@@ -247,7 +312,7 @@
         <div class="sf-panel-content" id="sf-logs-list">
           <div class="sf-empty-state">
             <p>👋 Bienvenue dans FoxLog !</p>
-            <p class="sf-hint">Les logs apparaîtront ici</p>
+            <p class="sf-hint">Sélectionnez un utilisateur pour voir ses logs</p>
           </div>
         </div>
         <div class="sf-panel-footer">
@@ -273,14 +338,17 @@
         this.toggle();
       });
 
-      // filtre texte
-      this.panel.querySelector('#sf-log-filter')?.addEventListener('input', (e) => {
-        this.filterLogs(e.target.value, this.panel.querySelector('#sf-log-level').value);
+      // Changement d'utilisateur
+      this.panel.querySelector('#sf-user-select')?.addEventListener('change', (e) => {
+        this.selectedUserId = e.target.value;
+        document.dispatchEvent(new CustomEvent('foxlog:userChanged', {
+          detail: { userId: this.selectedUserId }
+        }));
       });
       
       // filtre niveau
       this.panel.querySelector('#sf-log-level')?.addEventListener('change', (e) => {
-        this.filterLogs(this.panel.querySelector('#sf-log-filter').value, e.target.value);
+        this.filterLogs('', e.target.value);
       });
       
       // Click sur un log
@@ -298,23 +366,12 @@
     }
 
     filterLogs(searchText, level) {
-      const searchLower = searchText.toLowerCase();
-      
-      // Filtrer les logs
       const filtered = this.allLogs.filter(log => {
-        const operation = (log.Operation || '').toLowerCase();
         const status = log.Status || '';
-        
-        // Filtre par texte
-        const matchesSearch = searchText === '' || operation.includes(searchLower);
-        
-        // Filtre par niveau
         const matchesLevel = level === 'all' || status === level;
-        
-        return matchesSearch && matchesLevel;
+        return matchesLevel;
       });
 
-      // Réinitialiser à la page 1 et afficher les logs filtrés
       this.allLogs = filtered;
       this.currentPage = 1;
       this._renderPaginatedLogs();
@@ -322,10 +379,13 @@
 
     _showEmptyState() {
       const container = this.panel.querySelector('#sf-logs-list');
+      const selectedUser = this.usersCache.find(u => u.id === this.selectedUserId);
+      const userName = selectedUser?.name || 'cet utilisateur';
+      
       container.innerHTML = `
         <div class="sf-empty-state">
-          <p>Aucun log disponible</p>
-          <p class="sf-hint">Cliquez sur Actualiser pour charger les logs</p>
+          <p>Aucun log disponible pour ${userName}</p>
+          <p class="sf-hint">Cliquez sur Actualiser pour recharger</p>
         </div>
       `;
 
@@ -393,7 +453,6 @@
         lastUpdateElement.textContent = `Dernière mise à jour: ${timeString}`;
       }
     }
-
   }
 
   window.FoxLog.panelManager = new PanelManager();
