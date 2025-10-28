@@ -1,4 +1,4 @@
-// src/content.js (VERSION AVEC ANALYSE D'ERREURS)
+// src/content.js (VERSION AVEC ANALYSE D'ERREURS ET PICKLIST UTILISATEURS)
 (function() {
   'use strict';
   
@@ -6,7 +6,8 @@
     constructor() {
       this.initialized = false;
       this.refreshInterval = null;
-      this.userId = null;
+      this.currentUserId = null;  // Utilisateur connecté
+      this.selectedUserId = null; // Utilisateur sélectionné dans la picklist
       this.currentLogs = [];
     }
 
@@ -45,10 +46,11 @@
       this._createUI();
       this._attachEventListeners();
       
-      this.userId = await this._getUserId();
+      this.currentUserId = await this._getUserId();
       
-      if (this.userId) {
-        logger.success('User ID obtained', this.userId);
+      if (this.currentUserId) {
+        logger.success('User ID obtained', this.currentUserId);
+        this.selectedUserId = this.currentUserId;
       } else {
         logger.warn('User ID not found');
       }
@@ -129,11 +131,19 @@
       button.innerHTML = `<img src="${iconUrl}" alt="FoxLog" style="width:32px;height:32px;">`;
       button.title = 'FoxLog - Ouvrir les logs';
       
-      button.addEventListener('click', () => {
+      button.addEventListener('click', async () => {
         panelManager.toggle();
         
-        if (panelManager.isOpen && this.userId) {
-          this.refreshLogs();
+        if (panelManager.isOpen) {
+          // Charger les utilisateurs
+          await panelManager.loadUsers(this.currentUserId);
+          
+          // Charger les logs de l'utilisateur sélectionné
+          const userId = panelManager.getSelectedUserId();
+          if (userId) {
+            this.selectedUserId = userId;
+            await this.refreshLogs();
+          }
         }
       });
       
@@ -145,6 +155,12 @@
       document.addEventListener('foxlog:clear', () => this.clearLogs());
       document.addEventListener('foxlog:viewLog', (e) => {
         this.viewLogDetails(e.detail.logId);
+      });
+      
+      // Changement d'utilisateur
+      document.addEventListener('foxlog:userChanged', async (e) => {
+        this.selectedUserId = e.detail.userId;
+        await this.refreshLogs();
       });
     }
 
@@ -171,7 +187,9 @@
     async refreshLogs(isAutoRefresh = false) {
       const { logger, salesforceAPI, panelManager, logPreviewService } = window.FoxLog;
       
-      if (!this.userId) {
+      const userId = this.selectedUserId || this.currentUserId;
+      
+      if (!userId) {
         panelManager.showError('User ID not available');
         return;
       }
@@ -193,8 +211,7 @@
           }, SPINNER_DELAY);
         }
 
-        // 1. Fetch les métadonnées des logs
-        const logs = await salesforceAPI.fetchLogs(this.userId);
+        const logs = await salesforceAPI.fetchLogs(userId);
         
         if (!isAutoRefresh && spinnerTimeout) {
           clearTimeout(spinnerTimeout);
@@ -217,7 +234,7 @@
         const preservePage = isAutoRefresh && !hasChanged;
         panelManager.updateLogList(logs, null, preservePage);
         
-        logger.success(`Loaded ${logs.length} logs${isAutoRefresh ? ' (auto-refresh)' : ''}`);
+        logger.success(`Loaded ${logs.length} logs for user ${userId}${isAutoRefresh ? ' (auto-refresh)' : ''}`);
 
         // 3. Analyser les erreurs en arrière-plan seulement si logs ont changé
         if (hasChanged) {
