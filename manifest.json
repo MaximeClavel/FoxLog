@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FoxLog",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Display Salesforce debug logs in a user-friendly format with error detection and pagination.",
   
   "permissions": [
@@ -39,8 +39,10 @@
         "src/services/session-manager.js",
         "src/services/salesforce-api.js",
         "src/services/log-preview-service.js",
+        "src/services/call-tree-builder.js",
         "src/parsers/log-parser.js",
         "src/ui/filter-manager.js",
+        "src/ui/call-tree-view.js",
         "src/ui/modal-manager.js",
         "src/ui/panel-manager.js",
         "src/content.js"
@@ -59,6 +61,7 @@
     {
       "resources": [
         "src/assets/*.png",
+        "src/workers/call-tree-worker.js",
         "src/injected.js"
       ],
       "matches": [
