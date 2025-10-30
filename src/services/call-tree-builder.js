@@ -27,8 +27,17 @@
       }
 
       try {
+        // Charger le code du worker
         const workerUrl = chrome.runtime.getURL('src/workers/call-tree-worker.js');
-        this.worker = new Worker(workerUrl);
+        const response = await fetch(workerUrl);
+        const workerCode = await response.text();
+        
+        // Créer un blob avec le code
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Créer le worker depuis le blob
+        this.worker = new Worker(blobUrl);
         
         this.worker.addEventListener('message', (event) => {
           this._handleWorkerMessage(event.data);
@@ -39,7 +48,7 @@
         });
         
         this.workerReady = true;
-        logger.success('CallTreeBuilder initialized with Worker');
+        logger.success('CallTreeBuilder initialized with Worker (blob)');
       } catch (error) {
         logger.error('Failed to initialize Worker', error);
         this.workerReady = false;

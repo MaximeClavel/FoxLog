@@ -147,6 +147,8 @@ class CallTreeBuilder {
       depth: parent.depth + 1,
       startTime: line.timestamp,
       startTimeMs: line.timestampMs || 0,
+      // Utiliser le compteur nanosecondes entre parenthèses pour un calcul précis
+      startTimeNs: typeof line.duration === 'number' ? line.duration : null,
       duration: 0, // Sera calculé à la fermeture
       exclusiveDuration: 0,
       children: [],
@@ -174,10 +176,13 @@ class CallTreeBuilder {
     const node = this.stack.pop();
     
     // Calculer la durée
-    if (line.timestampMs && node.startTimeMs) {
-      node.duration = line.timestampMs - node.startTimeMs;
-    } else if (line.duration) {
-      node.duration = line.duration / 1000; // Convertir ns en ms
+    // 1) Précision maximale: différence du compteur nanosecondes entre parenthèses
+    if (typeof line.duration === 'number' && typeof node.startTimeNs === 'number') {
+      // duration est un compteur depuis le début, en nanosecondes → convertir en ms
+      node.duration = Math.max(0, (line.duration - node.startTimeNs) / 1e6);
+    } else if (line.timestampMs && node.startTimeMs) {
+      // 2) Secours: horodatage au format HH:mm:ss.SSS (résolution ms, peut donner 0)
+      node.duration = Math.max(0, line.timestampMs - node.startTimeMs);
     }
     
     // Mettre à jour les détails (ex: nombre de rows pour SOQL_END)
