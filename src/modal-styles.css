@@ -1522,3 +1522,624 @@ ONGLET TIMELINE
     transform: translateX(-50%) translateY(0);
   }
 }
+
+/* ============================================
+   STYLES POUR L'ONGLET APPELS - CALLTREE
+   À ajouter à la fin de src/modal-styles.css
+   ============================================ */
+
+/* Container principal */
+.sf-call-tree {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #f9fafb;
+}
+
+/* Toolbar */
+.sf-call-tree-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: white;
+  border-bottom: 2px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.sf-call-tree-search {
+  flex: 1;
+  position: relative;
+  max-width: 400px;
+}
+
+.sf-call-tree-search .sf-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.sf-call-tree-search-input {
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.sf-call-tree-search-input:focus {
+  border-color: #0176d3;
+  box-shadow: 0 0 0 3px rgba(1, 118, 211, 0.1);
+}
+
+.sf-call-tree-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.sf-call-tree-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.sf-call-tree-btn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.sf-call-tree-btn svg {
+  width: 16px;
+  height: 16px;
+  color: #6b7280;
+}
+
+.sf-call-tree-btn:hover svg {
+  color: #374151;
+}
+
+/* Top 5 nodes */
+.sf-call-tree-top-nodes {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-bottom: 2px solid #f59e0b;
+  padding: 12px 16px;
+}
+
+.sf-top-nodes-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 8px;
+}
+
+.sf-top-nodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-top-node-item {
+  display: grid;
+  grid-template-columns: 32px 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sf-top-node-item:hover {
+  background: #fffbeb;
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+}
+
+.sf-top-node-rank {
+  font-weight: 700;
+  color: #d97706;
+  font-size: 12px;
+  text-align: center;
+}
+
+.sf-top-node-name {
+  font-size: 12px;
+  color: #1f2937;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sf-top-node-type {
+  font-size: 10px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.sf-top-node-duration {
+  font-size: 12px;
+  font-weight: 600;
+  color: #dc2626;
+  font-family: monospace;
+}
+
+/* Scroll container (virtualisation) */
+.sf-call-tree-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.sf-call-tree-spacer {
+  width: 100%;
+  pointer-events: none;
+}
+
+.sf-call-tree-viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+}
+
+/* Nœud de l'arbre */
+.sf-call-tree-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: white;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  position: relative;
+}
+
+.sf-call-tree-node:hover {
+  background: #f9fafb;
+}
+
+.sf-call-tree-node:active {
+  background: #f3f4f6;
+}
+
+/* Nœud avec erreur */
+.sf-call-tree-node.sf-node-error {
+  background: linear-gradient(to right, #fef2f2 0%, #ffffff 100%);
+  border-left: 3px solid #ef4444;
+}
+
+.sf-call-tree-node.sf-node-error:hover {
+  background: #fef2f2;
+}
+
+/* Bouton toggle */
+.sf-node-toggle {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sf-node-toggle:hover {
+  background: #e5e7eb;
+}
+
+.sf-toggle-icon {
+  width: 14px;
+  height: 14px;
+  color: #6b7280;
+  transition: transform 0.2s ease;
+}
+
+.sf-toggle-icon.sf-expanded {
+  transform: rotate(90deg);
+}
+
+.sf-node-spacer {
+  width: 20px;
+  flex-shrink: 0;
+}
+
+/* Icône du nœud */
+.sf-node-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+/* Nom du nœud */
+.sf-node-name {
+  flex: 1;
+  font-size: 13px;
+  color: #1f2937;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+/* Badges */
+.sf-node-badges {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sf-node-badge {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.sf-badge-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.sf-badge-soql {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.sf-badge-dml {
+  background: #ddd6fe;
+  color: #5b21b6;
+}
+
+/* Durée */
+.sf-node-duration {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  font-family: monospace;
+  flex-shrink: 0;
+  min-width: 70px;
+  text-align: right;
+}
+
+.sf-node-duration.sf-duration-warning {
+  color: #d97706;
+}
+
+.sf-node-duration.sf-duration-critical {
+  color: #dc2626;
+}
+
+/* État vide */
+.sf-call-tree-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.sf-call-tree-empty p {
+  margin: 8px 0;
+  color: #6b7280;
+}
+
+.sf-call-tree-empty p:first-child {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* Loading state */
+.sf-calls-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+}
+
+/* Container pour l'arbre */
+.sf-call-tree-container {
+  height: 100%;
+  width: 100%;
+}
+
+/* Scrollbar personnalisée */
+.sf-call-tree-scroll-container::-webkit-scrollbar {
+  width: 10px;
+}
+
+.sf-call-tree-scroll-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.sf-call-tree-scroll-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.sf-call-tree-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Animation de highlight pour navigation */
+@keyframes sf-highlight-fade {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sf-call-tree-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .sf-call-tree-search {
+    max-width: none;
+  }
+  
+  .sf-call-tree-actions {
+    justify-content: flex-end;
+  }
+  
+  .sf-top-node-item {
+    grid-template-columns: 24px 1fr;
+    gap: 8px;
+  }
+  
+  .sf-top-node-type,
+  .sf-top-node-duration {
+    grid-column: 2;
+  }
+  
+  .sf-node-name {
+    font-size: 12px;
+  }
+  
+  .sf-node-badges {
+    display: none; /* Cacher sur mobile */
+  }
+}
+
+/* Dark mode support (optionnel) */
+@media (prefers-color-scheme: dark) {
+  .sf-call-tree {
+    background: #111827;
+  }
+  
+  .sf-call-tree-toolbar {
+    background: #1f2937;
+    border-bottom-color: #374151;
+  }
+  
+  .sf-call-tree-node {
+    background: #1f2937;
+    border-bottom-color: #374151;
+  }
+  
+  .sf-call-tree-node:hover {
+    background: #374151;
+  }
+  
+  .sf-node-name {
+    color: #e5e7eb;
+  }
+  
+  .sf-node-duration {
+    color: #9ca3af;
+  }
+}
+
+/* Accessibilité */
+.sf-call-tree-node:focus-visible {
+  outline: 2px solid #0176d3;
+  outline-offset: -2px;
+}
+
+.sf-node-toggle:focus-visible {
+  outline: 2px solid #0176d3;
+  outline-offset: 2px;
+}
+
+/* Performance optimizations */
+.sf-call-tree-viewport {
+  contain: layout style paint;
+}
+
+.sf-call-tree-node {
+  contain: layout style;
+}
+
+/* ============================================
+   HIGHLIGHT DU NŒUD CIBLE - À AJOUTER À modal-styles.css
+   ============================================ */
+
+/* Nœud mis en évidence après navigation */
+.sf-call-tree-node.sf-node-highlighted {
+  background: linear-gradient(90deg, #fef3c7 0%, #ffffff 100%) !important;
+  border-left: 3px solid #f59e0b;
+  animation: nodeHighlightPulse 2s ease-in-out;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+}
+
+/* Animation de pulse pour le highlight */
+@keyframes nodeHighlightPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+  }
+}
+
+/* Survol du nœud highlighté */
+.sf-call-tree-node.sf-node-highlighted:hover {
+  background: linear-gradient(90deg, #fde68a 0%, #fef3c7 100%) !important;
+}
+
+/* Amélioration visuelle des top nodes pour indiquer la cliquabilité */
+.sf-top-node-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.sf-top-node-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+  transition: width 0.3s ease;
+}
+
+.sf-top-node-item:hover::before {
+  width: 8px;
+}
+
+/* Indicateur visuel de scroll */
+.sf-top-node-item::after {
+  content: '→';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%) translateX(20px);
+  opacity: 0;
+  transition: all 0.3s ease;
+  font-size: 16px;
+  font-weight: bold;
+  color: #d97706;
+}
+
+.sf-top-node-item:hover::after {
+  transform: translateY(-50%) translateX(0);
+  opacity: 1;
+}
+
+/* État actif lors du clic */
+.sf-top-node-item:active {
+  transform: translateX(2px);
+  background: #fef3c7 !important;
+}
+
+/* Feedback visuel pendant le scroll (optionnel) */
+@keyframes scrolling {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.sf-call-tree-scroll-container.scrolling {
+  animation: scrolling 0.5s ease;
+}
+
+/* Amélioration du curseur pour indiquer la cliquabilité */
+.sf-top-node-item {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sf-top-node-item:hover .sf-top-node-name {
+  color: #0176d3;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+/* Animation smooth scroll */
+.sf-call-tree-scroll-container {
+  scroll-behavior: smooth;
+}
+
+/* Focus visible pour accessibilité */
+.sf-top-node-item:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+
+/* Responsive - ajustements mobile */
+@media (max-width: 768px) {
+  .sf-top-node-item::after {
+    display: none; /* Masquer la flèche sur mobile */
+  }
+  
+  .sf-call-tree-node.sf-node-highlighted {
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+  }
+}
+
+/* Reduced motion pour accessibilité */
+@media (prefers-reduced-motion: reduce) {
+  .sf-call-tree-node.sf-node-highlighted {
+    animation: none;
+    transition: none;
+  }
+  
+  .sf-call-tree-scroll-container {
+    scroll-behavior: auto;
+  }
+  
+  .sf-top-node-item::before,
+  .sf-top-node-item::after {
+    transition: none;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .sf-call-tree-node.sf-node-highlighted {
+    background: linear-gradient(90deg, #78350f 0%, #1f2937 100%) !important;
+    border-left-color: #f59e0b;
+  }
+  
+  .sf-top-node-item:hover {
+    background: #451a03 !important;
+  }
+}

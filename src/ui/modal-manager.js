@@ -51,6 +51,7 @@
           <div class="sf-modal-tabs">
             <button class="sf-tab-btn active" data-tab="summary">Résumé</button>
             <button class="sf-tab-btn" data-tab="timeline">Timeline</button>
+            <button class="sf-tab-btn" data-tab="calls">Appels</button>
             <button class="sf-tab-btn" data-tab="raw">Log brut</button>
           </div>
           
@@ -84,6 +85,13 @@
               ${this._renderTimelineTab(parsedLog)}
             </div>
             
+            <div id="tab-calls" class="sf-tab-content">
+              <div class="sf-calls-loading">
+                <div class="sf-spinner"></div>
+                <div class="sf-loading-text">Construction de l'arbre d'appels...</div>
+              </div>
+            </div>
+
             <div id="tab-raw" class="sf-tab-content">
               ${this._renderRawTab(parsedLog)}
             </div>
@@ -93,6 +101,7 @@
       
       this._attachModal(modal);
       this._setupTabs(modal);
+      this._setupCallsTab(modal, parsedLog);
       
       // Insert search bar
       const searchWrapper = modal.querySelector('.sf-search-container-wrapper');
@@ -330,6 +339,13 @@
         }
       };
       document.addEventListener('keydown', escapeHandler);
+
+      // Écouter les demandes de scroll vers une ligne
+      document.addEventListener('foxlog:scrollToLine', (e) => {
+        if (this.currentModal) {
+          this.scrollToLogLine(e.detail.lineIndex);
+        }
+      });
     }
 
     _setupTabs(modal) {
@@ -350,6 +366,68 @@
             content.classList.add('active');
           }
         });
+      });
+    }
+
+    /**
+     * Configure le lazy-loading de l'onglet Appels
+     * @private
+     */
+    async _setupCallsTab(modal, parsedLog) {
+      const { callTreeBuilder, CallTreeView } = window.FoxLog;
+      
+      if (!callTreeBuilder || !CallTreeView) {
+        console.warn('[ModalManager] CallTree components not available');
+        return;
+      }
+
+      // Écouter le changement vers l'onglet Appels
+      const callsBtn = modal.querySelector('[data-tab="calls"]');
+      if (!callsBtn) return;
+
+      let callTreeView = null;
+      let callTreeBuilt = false;
+
+      callsBtn.addEventListener('click', async () => {
+        if (callTreeBuilt) return; // Déjà construit
+
+        const callsContainer = modal.querySelector('#tab-calls');
+        if (!callsContainer) return;
+
+        try {
+          // Afficher le loading
+          callsContainer.innerHTML = `
+            <div class="sf-calls-loading">
+              <div class="sf-spinner"></div>
+              <div class="sf-loading-text">Construction de l'arbre d'appels...</div>
+              <div class="sf-loading-subtext">Analyse de ${parsedLog.lines.length} lignes</div>
+            </div>
+          `;
+
+          // Construire l'arbre (via Web Worker)
+          const callTree = await callTreeBuilder.buildTree(parsedLog);
+
+          // Créer la vue
+          callsContainer.innerHTML = '<div class="sf-call-tree-container"></div>';
+          const container = callsContainer.querySelector('.sf-call-tree-container');
+
+          callTreeView = new CallTreeView(container, callTree, parsedLog);
+          callTreeView.init();
+
+          callTreeBuilt = true;
+
+          this.logger.success('CallTree view initialized');
+        } catch (error) {
+          this.logger.error('Failed to build call tree', error);
+          
+          callsContainer.innerHTML = `
+            <div class="sf-empty-state">
+              <p style="color: #ef4444; font-weight: 600;">⚠️ Erreur</p>
+              <p style="color: #666;">Impossible de construire l'arbre d'appels</p>
+              <p class="sf-hint">${error.message}</p>
+            </div>
+          `;
+        }
       });
     }
 
@@ -555,6 +633,66 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+    }
+
+    /**
+     * Scroll vers une ligne spécifique dans l'onglet Log brut
+     * @param {number} lineIndex - Index de la ligne
+     */
+    scrollToLogLine(lineIndex) {
+      if (!this.currentModal) return;
+
+      // Activer l'onglet "Log brut"
+      const rawBtn = this.currentModal.querySelector('[data-tab="raw"]');
+      if (rawBtn) {
+        rawBtn.click();
+      }
+
+      // Attendre que le DOM soit mis à jour
+      setTimeout(() => {
+        const rawContent = this.currentModal.querySelector('.sf-raw-log-content');
+        if (!rawContent) return;
+
+        // Trouver la ligne (approximation)
+        const lines = rawContent.textContent.split('\n');
+        if (lineIndex < 0 || lineIndex >= lines.length) return;
+
+        // Calculer la position
+        const lineHeight = 19.2; // 1.6 * 12px
+        const scrollTop = lineIndex * lineHeight;
+
+        // Scroll
+        rawContent.scrollTop = scrollTop;
+
+        // Highlight temporaire (optionnel)
+        this._highlightLine(rawContent, lineIndex);
+      }, 100);
+    }
+
+    /**
+     * Highlight une ligne temporairement
+     * @private
+     */
+    _highlightLine(container, lineIndex) {
+      // Créer un overlay pour highlighter
+      const overlay = document.createElement('div');
+      overlay.style.position = 'absolute';
+      overlay.style.left = '0';
+      overlay.style.right = '0';
+      overlay.style.height = '19.2px';
+      overlay.style.top = `${lineIndex * 19.2}px`;
+      overlay.style.background = 'rgba(251, 146, 60, 0.3)';
+      overlay.style.pointerEvents = 'none';
+      overlay.style.animation = 'sf-highlight-fade 2s ease-out';
+
+      const parent = container.parentElement;
+      if (parent.style.position !== 'relative') {
+        parent.style.position = 'relative';
+      }
+
+      parent.appendChild(overlay);
+
+      setTimeout(() => overlay.remove(), 2000);
     }
   }
 
