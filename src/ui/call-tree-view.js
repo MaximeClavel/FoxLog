@@ -18,6 +18,7 @@
       this.visibleNodes = [];
       this.filteredNodes = [];
       this.searchQuery = '';
+      this.highlightedNodeId = null;
       this.filters = {
         types: [],
         errorsOnly: false,
@@ -190,6 +191,110 @@
       `;
     }
 
+      /**
+     * Navigue vers un nœud spécifique et le met en évidence
+     * @param {string} nodeId - ID du nœud cible
+     */
+    scrollToNode(nodeId) {
+      const { logger } = window.FoxLog;
+      
+      // 1. Trouver le nœud dans l'arbre
+      const node = this._findNodeById(this.callTree.root, nodeId);
+      if (!node) {
+        logger.warn(`Node ${nodeId} not found`);
+        return;
+      }
+      
+      // 2. Développer tous les parents pour rendre le nœud visible
+      this._expandPathToNode(node);
+      
+      // 3. Reconstruire la liste des nœuds visibles
+      this._buildVisibleNodes();
+      this._applyFilters();
+      
+      // 4. Trouver l'index du nœud dans filteredNodes
+      const index = this.filteredNodes.findIndex(n => n.id === nodeId);
+      if (index === -1) {
+        logger.warn(`Node ${nodeId} not in filtered list`);
+        return;
+      }
+      
+      // 5. Scroller vers le nœud
+      const scrollTop = index * this.nodeHeight;
+      this.scrollContainer.scrollTop = scrollTop;
+      
+      // 6. Highlight temporaire
+      setTimeout(() => {
+        this._highlightNode(nodeId);
+        this._renderVisibleNodes();
+      }, 100);
+      
+      logger.success(`Scrolled to node: ${node.name}`);
+    }
+
+    /**
+     * Trouve un nœud par son ID (récursif)
+     * @private
+     */
+    _findNodeById(node, targetId) {
+      if (node.id === targetId) return node;
+      
+      for (const child of node.children) {
+        const found = this._findNodeById(child, targetId);
+        if (found) return found;
+      }
+      
+      return null;
+    }
+
+    /**
+     * Développe tous les parents d'un nœud pour le rendre visible
+     * @private
+     */
+    _expandPathToNode(node) {
+      // Trouver le chemin complet vers le nœud
+      const path = this._findPathToNode(this.callTree.root, node.id);
+      
+      // Développer tous les nœuds du chemin (sauf le dernier)
+      path.slice(0, -1).forEach(pathNode => {
+        this.expandedNodes.add(pathNode.id);
+      });
+    }
+
+    /**
+     * Trouve le chemin vers un nœud (liste des nœuds parents)
+     * @private
+     */
+    _findPathToNode(current, targetId, path = []) {
+      path.push(current);
+      
+      if (current.id === targetId) {
+        return path;
+      }
+      
+      for (const child of current.children) {
+        const result = this._findPathToNode(child, targetId, [...path]);
+        if (result) return result;
+      }
+      
+      return null;
+    }
+
+    /**
+     * Met en évidence un nœud temporairement
+     * @private
+     */
+    _highlightNode(nodeId) {
+      // Marquer le nœud pour highlight
+      this.highlightedNodeId = nodeId;
+      
+      // Retirer le highlight après 2 secondes
+      setTimeout(() => {
+        this.highlightedNodeId = null;
+        this._renderVisibleNodes();
+      }, 2000);
+    }
+
     /**
      * Rend l'état vide
      * @private
@@ -245,8 +350,12 @@
       const hasChildren = node.children.length > 0;
       const indent = node.depth * 24;
       
+      // Ajouter la classe de highlight si c'est le nœud cible
+      const isHighlighted = this.highlightedNodeId === node.id;
+      const highlightClass = isHighlighted ? 'sf-node-highlighted' : '';
+      
       const div = document.createElement('div');
-      div.className = `sf-call-tree-node ${node.hasError ? 'sf-node-error' : ''} ${isExpanded ? 'sf-node-expanded' : ''}`;
+      div.className = `sf-call-tree-node ${node.hasError ? 'sf-node-error' : ''} ${isExpanded ? 'sf-node-expanded' : ''} ${highlightClass}`;
       div.dataset.nodeId = node.id;
       div.dataset.depth = node.depth;
       div.style.height = `${this.nodeHeight}px`;
@@ -338,7 +447,9 @@
       topNodesContainer?.addEventListener('click', (e) => {
         const item = e.target.closest('.sf-top-node-item');
         if (item) {
-          this._selectNode(item.dataset.nodeId);
+          const nodeId = item.dataset.nodeId;
+          // Au lieu de _selectNode, utiliser scrollToNode
+          this.scrollToNode(nodeId);
         }
       });
       
