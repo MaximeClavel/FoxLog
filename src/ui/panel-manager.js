@@ -1,4 +1,4 @@
-// src/ui/panel-manager.js (VERSION AVEC PICKLIST AMÉLIORÉE)
+// src/ui/panel-manager.js (CORRECTION DES EMOJIS)
 (function() {
   'use strict';
   
@@ -40,7 +40,7 @@
     }
 
     /**
-     * Charger les utilisateurs dans la picklist (AMÉLIORÉ)
+     * ✅ CORRIGÉ : Charger les utilisateurs dans la picklist
      */
     async loadUsers(currentUserId = null) {
       const { salesforceAPI, logger } = window.FoxLog;
@@ -53,21 +53,20 @@
 
       try {
         userSelect.disabled = true;
-        userSelect.innerHTML = '<option>⏳ Chargement des utilisateurs...</option>';
+        userSelect.innerHTML = '<option>⏳ Chargement...</option>';
         this.showLoading();
         
-        logger.log('Fetching users with logs...');
+        logger.log('Fetching users...');
         const users = await salesforceAPI.fetchUsersWithLogs();
         
-        logger.log(`Received ${users.length} users from API`);
+        logger.log(`Received ${users.length} users`);
         this.usersCache = users;
 
         if (users.length === 0) {
-          userSelect.innerHTML = '<option value="">❌ Aucun utilisateur avec logs trouvé</option>';
+          userSelect.innerHTML = '<option value="">❌ Aucun utilisateur trouvé</option>';
           this.hideLoading();
-          logger.warn('No users found - check if you have ApexLogs');
+          logger.warn('No users found');
           
-          // Afficher un message d'aide
           const container = this.panel.querySelector('#sf-logs-list');
           if (container) {
             container.innerHTML = `
@@ -77,8 +76,8 @@
                 <p class="sf-hint">💡 Assurez-vous d'avoir :</p>
                 <ul style="text-align: left; color: #666; font-size: 13px; margin: 12px 0;">
                   <li>Des logs Apex</li>
-                  <li>Ou un TraceFlag actif sur un utilisateur</li>
-                  <li>Les permissions pour accéder aux ApexLogs</li>
+                  <li>Ou un TraceFlag actif</li>
+                  <li>Les permissions nécessaires</li>
                 </ul>
               </div>
             `;
@@ -88,18 +87,18 @@
 
         this.hideLoading();
 
-        // Créer les options avec indicateurs visuels
+        // ✅ CORRECTION : Utiliser des emojis Unicode valides
         const options = users.map(user => {
           const selected = user.id === currentUserId ? 'selected' : '';
           
-          // Emoji selon le statut
+          // Emoji selon le statut (Unicode natif)
           let emoji = '';
           if (user.hasTraceFlag && user.logCount > 0) {
-            emoji = '🟢'; // TraceFlag actif ET logs
+            emoji = '🟢'; // Vert : TraceFlag actif + logs
           } else if (user.hasTraceFlag) {
-            emoji = '🟡'; // TraceFlag actif mais pas de logs récents
+            emoji = '🟡'; // Jaune : TraceFlag actif mais pas de logs
           } else {
-            emoji = '📝'; // Seulement des logs
+            emoji = '📋'; // Clipboard : Seulement des logs
           }
           
           // Formatage du label
@@ -137,17 +136,11 @@
       }
     }
 
-    /**
-     * Obtenir l'utilisateur sélectionné
-     */
     getSelectedUserId() {
       const userSelect = this.panel.querySelector('#sf-user-select');
       return userSelect?.value || this.selectedUserId;
     }
 
-    /**
-     * Met à jour la liste des logs avec analyse d'erreurs
-     */
     async updateLogList(logs, analysisResults = null, preservePage = false) {
       const previousLogsCount = this.allLogs.length;
       const previousPage = this.currentPage;
@@ -183,9 +176,6 @@
       this.updateLastRefreshTime();
     }
 
-    /**
-     * Affiche les logs de la page courante
-     */
     _renderPaginatedLogs() {
       const container = this.panel.querySelector('#sf-logs-list');
       const start = (this.currentPage - 1) * this.logsPerPage;
@@ -196,9 +186,6 @@
       this._renderPagination();
     }
 
-    /**
-     * Affiche les contrôles de pagination
-     */
     _renderPagination() {
       const totalPages = Math.ceil(this.allLogs.length / this.logsPerPage);
       
@@ -249,9 +236,6 @@
       });
     }
 
-    /**
-     * Navigation vers une page spécifique
-     */
     goToPage(page) {
       const totalPages = Math.ceil(this.allLogs.length / this.logsPerPage);
       
@@ -277,7 +261,7 @@
         container.innerHTML = `
           <div class="sf-loading-overlay">
             <div class="sf-spinner"></div>
-            <div class="sf-loading-text">Chargement des logs...</div>
+            <div class="sf-loading-text">Chargement...</div>
           </div>
         `;
       }
@@ -329,14 +313,14 @@
           <span id="sf-status-text">Prêt</span>
         </div>
         <div class="sf-panel-filters">
-          <select id="sf-user-select" class="sf-user-picklist" title="Légende: 🟢 = TraceFlag actif + logs | 🟡 = TraceFlag actif | 📝 = Logs uniquement">
+          <select id="sf-user-select" class="sf-user-picklist" title="🟢 = TraceFlag + logs | 🟡 = TraceFlag | 📋 = Logs">
             <option value="">⏳ Chargement...</option>
           </select>
         </div>
         <div class="sf-panel-content" id="sf-logs-list">
           <div class="sf-empty-state">
             <p>👋 Bienvenue dans FoxLog !</p>
-            <p class="sf-hint">Sélectionnez un utilisateur pour voir ses logs</p>
+            <p class="sf-hint">Sélectionnez un utilisateur</p>
           </div>
         </div>
         <div class="sf-panel-footer">
@@ -384,16 +368,15 @@
       const selectedUser = this.usersCache.find(u => u.id === this.selectedUserId);
       const userName = selectedUser?.name || 'cet utilisateur';
       
-      let hint = 'Cliquez sur Actualiser pour recharger';
+      let hint = 'Cliquez sur Actualiser';
       
-      // Message personnalisé selon le statut de l'utilisateur
       if (selectedUser?.hasTraceFlag && selectedUser?.logCount === 0) {
-        hint = '🟡 TraceFlag actif mais aucun log récent. Exécutez du code Apex pour générer des logs.';
+        hint = '🟡 TraceFlag actif mais aucun log. Exécutez du code Apex.';
       }
       
       container.innerHTML = `
         <div class="sf-empty-state">
-          <p>Aucun log disponible pour ${userName}</p>
+          <p>Aucun log pour ${userName}</p>
           <p class="sf-hint">${hint}</p>
         </div>
       `;
@@ -413,7 +396,7 @@
       const errorCount = analysis?.errorCount || 0;
       
       const errorBadge = hasError 
-        ? `<span class="sf-log-error-badge" title="${errorCount} erreur(s) détectée(s)">
+        ? `<span class="sf-log-error-badge" title="${errorCount} erreur(s)">
              <svg viewBox="0 0 20 20" fill="currentColor" style="width: 14px; height: 14px;">
                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
              </svg>
@@ -456,7 +439,7 @@
           minute: '2-digit',
           second: '2-digit'
         });
-        lastUpdateElement.textContent = `Dernière mise à jour: ${timeString}`;
+        lastUpdateElement.textContent = `Dernière MAJ: ${timeString}`;
       }
     }
   }
