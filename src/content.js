@@ -330,13 +330,14 @@
       }
       
       this.refreshInterval = setInterval(() => {
-        if (panelManager.isOpen && this.userId) {
+        const userId = this.selectedUserId || this.currentUserId;
+        if (panelManager.isOpen && userId) {
           logger.log('Auto-refresh triggered');
-          this.refreshLogs();
+          this.refreshLogs(true);
         }
-      }, CONFIG.AUTO_REFRESH_INTERVAL);
+      }, CONFIG.REFRESH_INTERVAL);
       
-      logger.log('Auto-refresh started');
+      logger.log(`Auto-refresh started (interval: ${CONFIG.REFRESH_INTERVAL}ms)`);
     }
 
     destroy() {
