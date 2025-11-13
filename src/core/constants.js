@@ -54,6 +54,10 @@
     refresh: isFrench ? 'Actualiser' : 'Refresh',
     clear: isFrench ? 'Effacer' : 'Clear',
     close: isFrench ? 'Fermer' : 'Close',
+    openLogs: isFrench ? 'FoxLog - Ouvrir les logs' : 'FoxLog - Open logs',
+    userIdUnavailable: isFrench ? 'ID utilisateur indisponible' : 'User ID not available',
+    logLoadedConsole: isFrench ? 'Log chargé ! (voir console)' : 'Log loaded! (see console)',
+    thisUser: isFrench ? 'cet utilisateur' : 'this user',
     
     // Status
     traceFlagActive: isFrench ? 'TraceFlag actif mais aucun log. Exécutez du code Apex.' : 'TraceFlag active but no logs. Execute Apex code.',
@@ -109,12 +113,37 @@
     errorsOnly: isFrench ? 'Erreurs uniquement' : 'Errors Only',
     noNodeFound: isFrench ? 'Aucun nœud trouvé' : 'No node found',
     adjustFilters: isFrench ? 'Ajustez les filtres ou la recherche' : 'Adjust filters or search',
+    callTreeError: isFrench ? 'Impossible de construire l\'arbre d\'appels' : 'Unable to build the call tree',
     
     // Toasts
     exportSuccess: isFrench ? 'Exporté avec succès !' : 'Exported successfully!',
     copySuccess: isFrench ? 'Copié dans le presse-papier !' : 'Copied to clipboard!',
     exportError: isFrench ? 'Erreur lors de l\'export' : 'Export error',
-    copyError: isFrench ? 'Erreur lors de la copie' : 'Copy error'
+    copyError: isFrench ? 'Erreur lors de la copie' : 'Copy error',
+    
+    // Filters
+    eventTypesLabel: isFrench ? 'Types d\'événements:' : 'Event types:',
+    minDurationLabel: isFrench ? 'Durée minimale (ms):' : 'Minimum duration (ms):',
+    namespaceLabel: isFrench ? 'Namespace :' : 'Namespace:',
+    namespaceAll: isFrench ? 'Tous' : 'All',
+    namespaceUser: isFrench ? 'Code utilisateur' : 'User code',
+    namespaceSystem: isFrench ? 'Code système' : 'System code',
+    reset: isFrench ? 'Réinitialiser' : 'Reset',
+    searchLogsPlaceholder: isFrench ? 'Rechercher dans les logs...' : 'Search in logs...',
+    searchPlaceholder: isFrench ? 'Rechercher...' : 'Search...',
+    results: isFrench ? 'résultats' : 'results',
+    methodFilterLabel: isFrench ? 'Filtrer par classe/méthode:' : 'Filter by class/method:',
+    allMethods: isFrench ? 'Toutes les méthodes' : 'All methods',
+    methodsSelected: isFrench ? 'méthode(s) sélectionnée(s)' : 'method(s) selected',
+    
+    // Misc
+    callsSuffix: isFrench ? 'appel(s)' : 'call(s)',
+    andOthers: isFrench ? '...et {count} autres' : '...and {count} more',
+    location: isFrench ? 'Emplacement' : 'Location',
+    limitSoql: isFrench ? 'Requêtes SOQL' : 'SOQL Queries',
+    limitDml: isFrench ? 'Instructions DML' : 'DML Statements',
+    limitCpu: isFrench ? 'Temps CPU' : 'CPU Time',
+    limitHeap: isFrench ? 'Taille du heap' : 'Heap Size'
   };
   
   console.log('[FoxLog] Constants loaded');

@@ -1,8 +1,9 @@
-// src/ui/modal-manager.js (VERSION COMPLÈTE)
+// src/ui/modal-manager.js (Full version)
 (function() {
   'use strict';
   
   window.FoxLog = window.FoxLog || {};
+  const i18n = window.FoxLog.i18n || {};
   
   class ModalManager {
     constructor() {
@@ -11,7 +12,7 @@
     }
 
     /**
-     * Affiche une modal avec le contenu brut du log
+     * Display a modal with the raw log content
      */
     showRawLog(content) {
       this.close();
@@ -19,7 +20,7 @@
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
-            <h3>📄 Log brut</h3>
+            <h3>📄 ${i18n.rawLog || 'Raw Log'}</h3>
             <button class="sf-modal-close-btn">✕</button>
           </div>
           <div class="sf-modal-body">
@@ -32,7 +33,7 @@
     }
 
     /**
-     * Affiche une modal avec le log parsé (avec tabs et filtres)
+     * Display a modal with the parsed log (tabs and filters)
      */
     showParsedLog(parsedLog, parser) {
       this.close();
@@ -44,15 +45,15 @@
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
-            <h3>📊 Analyse du log</h3>
+            <h3>📊 ${i18n.logAnalysis || 'Log Analysis'}</h3>
             <button class="sf-modal-close-btn">×</button>
           </div>
           
           <div class="sf-modal-tabs">
-            <button class="sf-tab-btn active" data-tab="summary">Résumé</button>
-            <button class="sf-tab-btn" data-tab="timeline">Timeline</button>
-            <button class="sf-tab-btn" data-tab="calls">Appels</button>
-            <button class="sf-tab-btn" data-tab="raw">Log brut</button>
+            <button class="sf-tab-btn active" data-tab="summary">${i18n.summary || 'Summary'}</button>
+            <button class="sf-tab-btn" data-tab="timeline">${i18n.timeline || 'Timeline'}</button>
+            <button class="sf-tab-btn" data-tab="calls">${i18n.calls || 'Calls'}</button>
+            <button class="sf-tab-btn" data-tab="raw">${i18n.rawLog || 'Raw Log'}</button>
           </div>
           
           <div class="sf-modal-body-tabs">
@@ -71,7 +72,7 @@
                   <svg viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
                   </svg>
-                  Exporter stats (.json)
+                  ${i18n.exportStats || 'Export stats (.json)'}
                 </button>
                 
               </div>
@@ -88,7 +89,7 @@
             <div id="tab-calls" class="sf-tab-content">
               <div class="sf-calls-loading">
                 <div class="sf-spinner"></div>
-                <div class="sf-loading-text">Construction de l'arbre d'appels...</div>
+                <div class="sf-loading-text">${i18n.buildingCallTree || 'Building call tree...'}</div>
               </div>
             </div>
 
@@ -140,7 +141,7 @@
       setTimeout(() => {
         const searchInput = this.currentModal?.querySelector('.sf-search-input');
         if (searchInput && searchInput.value) {
-          // Créer et déclencher un événement input manuellement
+          // Create and dispatch an input event manually
           const event = new Event('input', { bubbles: true });
           searchInput.dispatchEvent(event);
         }
@@ -193,10 +194,10 @@
         const blob = new Blob([parsedLog.rawContent], { type: 'text/plain' });
         this._downloadFile(blob, filename);
         this.logger.success('Raw log exported');
-        this._showToast('✅ Log exporté avec succès !');
+        this._showToast(`✅ ${i18n.exportSuccess || 'Exported successfully!'}`);
       } catch (error) {
         this.logger.error('Export failed', error);
-        this._showToast('❌ Erreur lors de l\'export', 'error');
+        this._showToast(`❌ ${i18n.exportError || 'Export error'}`, 'error');
       }
     }
 
@@ -222,10 +223,10 @@
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         this._downloadFile(blob, filename);
         this.logger.success('Stats exported');
-        this._showToast('✅ Statistiques exportées !');
+        this._showToast(`✅ ${i18n.exportSuccess || 'Exported successfully!'}`);
       } catch (error) {
         this.logger.error('Export failed', error);
-        this._showToast('❌ Erreur lors de l\'export', 'error');
+        this._showToast(`❌ ${i18n.exportError || 'Export error'}`, 'error');
       }
     }
 
@@ -239,7 +240,7 @@
           <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px;">
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
           </svg>
-          Copié !
+          ${i18n.copied || 'Copied!'}
         `;
         button.classList.add('sf-export-btn-success');
         
@@ -249,10 +250,10 @@
         }, 2000);
 
         this.logger.success('Copied to clipboard');
-        this._showToast('✅ Copié dans le presse-papier !');
+        this._showToast(`✅ ${i18n.copySuccess || 'Copied to clipboard!'}`);
       } catch (error) {
         this.logger.error('Copy failed', error);
-        this._showToast('❌ Erreur lors de la copie', 'error');
+        this._showToast(`❌ ${i18n.copyError || 'Copy error'}`, 'error');
       }
     }
 
@@ -340,7 +341,7 @@
       };
       document.addEventListener('keydown', escapeHandler);
 
-      // Écouter les demandes de scroll vers une ligne
+      // Listen for requests to scroll to a specific line
       document.addEventListener('foxlog:scrollToLine', (e) => {
         if (this.currentModal) {
           this.scrollToLogLine(e.detail.lineIndex);
@@ -381,7 +382,7 @@
         return;
       }
 
-      // Écouter le changement vers l'onglet Appels
+      // Listen for the Calls tab activation
       const callsBtn = modal.querySelector('[data-tab="calls"]');
       if (!callsBtn) return;
 
@@ -389,7 +390,7 @@
       let callTreeBuilt = false;
 
       callsBtn.addEventListener('click', async () => {
-        if (callTreeBuilt) return; // Déjà construit
+        if (callTreeBuilt) return; // Already built
 
         const callsContainer = modal.querySelector('#tab-calls');
         if (!callsContainer) return;
@@ -399,15 +400,15 @@
           callsContainer.innerHTML = `
             <div class="sf-calls-loading">
               <div class="sf-spinner"></div>
-              <div class="sf-loading-text">Construction de l'arbre d'appels...</div>
-              <div class="sf-loading-subtext">Analyse de ${parsedLog.lines.length} lignes</div>
+              <div class="sf-loading-text">${i18n.buildingCallTree || 'Building call tree...'}</div>
+              <div class="sf-loading-subtext">${(i18n.analyzing || 'Analyzing')} ${parsedLog.lines.length} ${(i18n.lines || 'Lines').toLowerCase()}</div>
             </div>
           `;
 
           // Construire l'arbre (via Web Worker)
           const callTree = await callTreeBuilder.buildTree(parsedLog);
 
-          // Créer la vue
+          // Create the view
           callsContainer.innerHTML = '<div class="sf-call-tree-container"></div>';
           const container = callsContainer.querySelector('.sf-call-tree-container');
 
@@ -422,8 +423,8 @@
           
           callsContainer.innerHTML = `
             <div class="sf-empty-state">
-              <p style="color: #ef4444; font-weight: 600;">⚠️ Erreur</p>
-              <p style="color: #666;">Impossible de construire l'arbre d'appels</p>
+              <p style="color: #ef4444; font-weight: 600;">⚠️ ${i18n.error || 'Error'}</p>
+              <p style="color: #666;">${i18n.callTreeError || 'Unable to build the call tree'}</p>
               <p class="sf-hint">${error.message}</p>
             </div>
           `;
@@ -432,17 +433,21 @@
     }
 
     _renderSummaryTab(summary, parsedLog) {
+      const extraCount = parsedLog.stats.methods.length > 10 ? parsedLog.stats.methods.length - 10 : 0;
+      const extraHint = extraCount > 0
+        ? (i18n.andOthers || '...and {count} more').replace('{count}', extraCount)
+        : '';
       const errorsSection = parsedLog.stats.errors.length > 0
         ? `
           <div class="sf-summary-section sf-summary-errors">
-            <h4>❌ Erreurs (${parsedLog.stats.errors.length})</h4>
+            <h4>❌ ${(i18n.errors || 'Errors')} (${parsedLog.stats.errors.length})</h4>
             <div class="sf-errors-list">
               ${parsedLog.stats.errors.map(error => `
                 <div class="sf-error-item">
                   <div class="sf-error-type">${error.type}</div>
                   <div class="sf-error-details">
                     <div class="sf-error-message">${error.exceptionType || 'Exception'}: ${error.message}</div>
-                    ${error.method ? `<div class="sf-error-location">📍 Location: <code>${error.method}</code></div>` : ''}
+                    ${error.method ? `<div class="sf-error-location">📍 ${(i18n.location || 'Location')}: <code>${error.method}</code></div>` : ''}
                     <div class="sf-error-time">${error.timestamp}</div>
                   </div>
                 </div>
@@ -455,49 +460,49 @@
       return `
         <div class="sf-summary-container">
           <div class="sf-summary-section">
-            <h4>ℹ️ Informations générales</h4>
+            <h4>ℹ️ ${i18n.generalInfo || 'General Information'}</h4>
             <div class="sf-summary-grid">
               <div class="sf-summary-item">
-                <span class="sf-label">Opération</span>
+                <span class="sf-label">${i18n.operation || 'Operation'}</span>
                 <span class="sf-value">${summary.metadata.operation}</span>
               </div>
               <div class="sf-summary-item">
-                <span class="sf-label">Statut</span>
+                <span class="sf-label">${i18n.status || 'Status'}</span>
                 <span class="sf-value sf-status-${summary.metadata.status.toLowerCase()}">${summary.metadata.status}</span>
               </div>
               <div class="sf-summary-item">
-                <span class="sf-label">Durée</span>
+                <span class="sf-label">${i18n.duration || 'Duration'}</span>
                 <span class="sf-value">${summary.duration}ms</span>
               </div>
               <div class="sf-summary-item">
-                <span class="sf-label">Lignes</span>
+                <span class="sf-label">${i18n.lines || 'Lines'}</span>
                 <span class="sf-value">${summary.totalLines}</span>
               </div>
             </div>
           </div>
 
           <div class="sf-summary-section">
-            <h4>📊 Limites Salesforce</h4>
+            <h4>📊 ${i18n.salesforceLimits || 'Salesforce Limits'}</h4>
             <div class="sf-limits-grid">
-              ${this._renderLimitBar('SOQL Queries', parsedLog.stats.limits.soqlQueries, parsedLog.stats.limits.maxSoqlQueries, summary.limits.soql)}
-              ${this._renderLimitBar('DML Statements', parsedLog.stats.limits.dmlStatements, parsedLog.stats.limits.maxDmlStatements, summary.limits.dml)}
-              ${this._renderLimitBar('CPU Time', parsedLog.stats.limits.cpuTime, parsedLog.stats.limits.maxCpuTime, summary.limits.cpu)}
-              ${this._renderLimitBar('Heap Size', parsedLog.stats.limits.heapSize, parsedLog.stats.limits.maxHeapSize, summary.limits.heap)}
+              ${this._renderLimitBar(i18n.limitSoql || 'SOQL Queries', parsedLog.stats.limits.soqlQueries, parsedLog.stats.limits.maxSoqlQueries, summary.limits.soql)}
+              ${this._renderLimitBar(i18n.limitDml || 'DML Statements', parsedLog.stats.limits.dmlStatements, parsedLog.stats.limits.maxDmlStatements, summary.limits.dml)}
+              ${this._renderLimitBar(i18n.limitCpu || 'CPU Time', parsedLog.stats.limits.cpuTime, parsedLog.stats.limits.maxCpuTime, summary.limits.cpu)}
+              ${this._renderLimitBar(i18n.limitHeap || 'Heap Size', parsedLog.stats.limits.heapSize, parsedLog.stats.limits.maxHeapSize, summary.limits.heap)}
             </div>
           </div>
 
           ${errorsSection}
 
           <div class="sf-summary-section">
-            <h4>🔧 Méthodes (${summary.methods})</h4>
+            <h4>🔧 ${(i18n.methods || 'Methods')} (${summary.methods})</h4>
             <div class="sf-methods-list">
               ${parsedLog.stats.methods.slice(0, 10).map(m => `
                 <div class="sf-method-item">
                   <span class="sf-method-name">${m.class}.${m.method}</span>
-                  <span class="sf-method-calls">${m.calls} appel${m.calls > 1 ? 's' : ''}</span>
+                  <span class="sf-method-calls">${m.calls} ${i18n.callsSuffix || 'call(s)'}</span>
                 </div>
               `).join('')}
-              ${parsedLog.stats.methods.length > 10 ? `<div class="sf-hint">...et ${parsedLog.stats.methods.length - 10} autres</div>` : ''}
+              ${extraHint ? `<div class="sf-hint">${extraHint}</div>` : ''}
             </div>
           </div>
         </div>
@@ -601,17 +606,17 @@
                 <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/>
                 <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/>
               </svg>
-              Copier
+              ${i18n.copy || 'Copy'}
             </button>
             <button id="export-raw-btn" class="sf-export-btn">
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
               </svg>
-              Exporter (.txt)
+              ${i18n.exportRaw || 'Export (.txt)'}
             </button>
             <div class="sf-export-info">
               <span class="sf-export-size">${this._formatBytes(parsedLog.rawContent.length)}</span>
-              <span class="sf-export-lines">${parsedLog.lines.length} lignes</span>
+              <span class="sf-export-lines">${parsedLog.lines.length} ${(i18n.lines || 'Lines').toLowerCase()}</span>
             </div>
           </div>
           <pre class="sf-raw-log-content">${this._escapeHtml(parsedLog.rawContent)}</pre>
@@ -636,45 +641,45 @@
     }
 
     /**
-     * Scroll vers une ligne spécifique dans l'onglet Log brut
-     * @param {number} lineIndex - Index de la ligne
+     * Scroll to a specific line inside the Raw Log tab
+     * @param {number} lineIndex - Line index
      */
     scrollToLogLine(lineIndex) {
       if (!this.currentModal) return;
 
-      // Activer l'onglet "Log brut"
+      // Activate the Raw Log tab
       const rawBtn = this.currentModal.querySelector('[data-tab="raw"]');
       if (rawBtn) {
         rawBtn.click();
       }
 
-      // Attendre que le DOM soit mis à jour
+      // Wait for the DOM to update
       setTimeout(() => {
         const rawContent = this.currentModal.querySelector('.sf-raw-log-content');
         if (!rawContent) return;
 
-        // Trouver la ligne (approximation)
+        // Find the line (approximation)
         const lines = rawContent.textContent.split('\n');
         if (lineIndex < 0 || lineIndex >= lines.length) return;
 
-        // Calculer la position
+        // Compute the position
         const lineHeight = 19.2; // 1.6 * 12px
         const scrollTop = lineIndex * lineHeight;
 
         // Scroll
         rawContent.scrollTop = scrollTop;
 
-        // Highlight temporaire (optionnel)
+        // Optional temporary highlight
         this._highlightLine(rawContent, lineIndex);
       }, 100);
     }
 
     /**
-     * Highlight une ligne temporairement
+     * Highlight a line temporarily
      * @private
      */
     _highlightLine(container, lineIndex) {
-      // Créer un overlay pour highlighter
+      // Create an overlay used for highlighting
       const overlay = document.createElement('div');
       overlay.style.position = 'absolute';
       overlay.style.left = '0';

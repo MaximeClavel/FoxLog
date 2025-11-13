@@ -3,12 +3,13 @@
   'use strict';
 
   window.FoxLog = window.FoxLog || {};
+  const i18n = window.FoxLog.i18n || {};
 
   class FilterManager {
     constructor() {
       this.activeFilters = this._loadFilters();
       this.logger = window.FoxLog.logger;
-      this.onFilterChange = null; // Callback pour notifier les changements
+      this.onFilterChange = null; // Callback to notify about changes
     }
 
     _loadFilters() {
@@ -73,16 +74,16 @@
 
     applyFilters(lines) {
       return lines.filter(line => {
-        // Filtre par type d'événement
+        // Filter by event type
         if (!this._matchesEventType(line)) return false;
         
-        // Filtre par durée
+        // Filter by duration
         if (line.duration < this.activeFilters.minDuration) return false;
         
-        // Filtre par namespace
+        // Filter by namespace
         if (!this._matchesNamespace(line)) return false;
         
-        // Filtre par recherche textuelle
+        // Filter by text search
         if (!this._matchesSearch(line)) return false;
         
         return true;
@@ -140,7 +141,7 @@
       filterBar.innerHTML = `
         <div class="sf-filter-section">
           <div class="sf-filter-group">
-            <label class="sf-filter-label">Types d'événements:</label>
+            <label class="sf-filter-label">${i18n.eventTypesLabel || 'Event types:'}</label>
             <div class="sf-filter-checkboxes">
               ${this._createCheckbox('methods', 'Methods')}
               ${this._createCheckbox('database', 'Database')}
@@ -152,20 +153,20 @@
           </div>
           
           <div class="sf-filter-group">
-            <label class="sf-filter-label">Durée minimale (ms):</label>
+            <label class="sf-filter-label">${i18n.minDurationLabel || 'Minimum duration (ms):'}</label>
             <input type="number" class="sf-filter-duration" min="0" value="${this.activeFilters.minDuration}" />
           </div>
           
           <div class="sf-filter-group">
-            <label class="sf-filter-label">Namespace:</label>
+            <label class="sf-filter-label">${i18n.namespaceLabel || 'Namespace:'}</label>
             <select class="sf-filter-namespace">
-              <option value="all" ${this.activeFilters.namespace === 'all' ? 'selected' : ''}>Tous</option>
-              <option value="user" ${this.activeFilters.namespace === 'user' ? 'selected' : ''}>Code utilisateur</option>
-              <option value="system" ${this.activeFilters.namespace === 'system' ? 'selected' : ''}>Code système</option>
+              <option value="all" ${this.activeFilters.namespace === 'all' ? 'selected' : ''}>${i18n.namespaceAll || 'All'}</option>
+              <option value="user" ${this.activeFilters.namespace === 'user' ? 'selected' : ''}>${i18n.namespaceUser || 'User code'}</option>
+              <option value="system" ${this.activeFilters.namespace === 'system' ? 'selected' : ''}>${i18n.namespaceSystem || 'System code'}</option>
             </select>
           </div>
           <div class="sf-filter-group">
-            <button class="sf-filter-reset">Réinitialiser</button>
+            <button class="sf-filter-reset">${i18n.reset || 'Reset'}</button>
           </div>
         </div>
       `;
@@ -229,7 +230,7 @@
                     <svg class="sf-search-icon" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
                     </svg>
-                    <input type="text" class="sf-search-input" placeholder="Rechercher dans les logs..." value="${this.activeFilters.searchText}" />
+                    <input type="text" class="sf-search-input" placeholder="${i18n.searchLogsPlaceholder || 'Search in logs...'}" value="${this.activeFilters.searchText}" />
                     <button class="sf-search-clear" style="display: none;">
                         <svg viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -237,7 +238,7 @@
                     </button>
                 </div>
                 <div class="sf-search-results" style="display: none;">
-                    <span class="sf-search-count">0 résultats</span>
+                    <span class="sf-search-count">0 ${i18n.results || 'results'}</span>
                     <button class="sf-search-nav sf-search-prev" disabled>
                     <svg viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
@@ -270,7 +271,7 @@
 
         if (this.activeFilters.searchText) {
             clearBtn.style.display = 'block';
-            // Attendre que le DOM soit rendu
+            // Wait for the DOM to render
             setTimeout(() => {
             matches = this.findMatches(this.activeFilters.searchText);
             if (matches.length > 0) {
@@ -383,17 +384,17 @@
         dropdown.className = 'sf-method-filter';
         dropdown.innerHTML = `
             <div class="sf-filter-group">
-            <label class="sf-filter-label">Filtrer par classe/méthode:</label>
+            <label class="sf-filter-label">${i18n.methodFilterLabel || 'Filter by class/method:'}</label>
             <div class="sf-method-dropdown">
                 <button class="sf-method-dropdown-btn">
-                <span>Toutes les méthodes</span>
+                <span>${i18n.allMethods || 'All methods'}</span>
                 <svg viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
                 </svg>
                 </button>
                 <div class="sf-method-dropdown-menu" style="display: none;">
                 <div class="sf-method-search">
-                    <input type="text" placeholder="Rechercher..." class="sf-method-search-input" />
+                    <input type="text" placeholder="${i18n.searchPlaceholder || 'Search...'}" class="sf-method-search-input" />
                 </div>
                 <div class="sf-method-list">
                     ${this._renderMethodOptions(methods)}
@@ -485,11 +486,11 @@
         const btn = dropdown.querySelector('.sf-method-dropdown-btn span');
         
         if (selected.length === 0) {
-            btn.textContent = 'Toutes les méthodes';
+            btn.textContent = i18n.allMethods || 'All methods';
             selectedContainer.innerHTML = '';
             this.updateFilter('selectedMethods', []);
         } else {
-            btn.textContent = `${selected.length} méthode(s) sélectionnée(s)`;
+            btn.textContent = `${selected.length} ${i18n.methodsSelected || 'method(s) selected'}`;
             selectedContainer.innerHTML = selected.map(method => `
             <span class="sf-selected-tag">
                 ${method}

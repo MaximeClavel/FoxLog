@@ -1,8 +1,9 @@
-// src/ui/panel-manager.js (CORRECTION DES EMOJIS)
+// src/ui/panel-manager.js (Emoji corrections applied)
 (function() {
   'use strict';
   
   window.FoxLog = window.FoxLog || {};
+  const i18n = window.FoxLog.i18n || {};
 
   class PanelManager {
     constructor() {
@@ -14,6 +15,7 @@
       this.logAnalysis = new Map();
       this.usersCache = [];
       this.selectedUserId = null;
+      this.locale = navigator.language || 'en-US';
     }
 
     create() {
@@ -40,7 +42,7 @@
     }
 
     /**
-     * ✅ CORRIGÉ : Charger les utilisateurs dans la picklist
+     * ✅ Fixed: load users into the picklist
      */
     async loadUsers(currentUserId = null) {
       const { salesforceAPI, logger } = window.FoxLog;
@@ -53,7 +55,7 @@
 
       try {
         userSelect.disabled = true;
-        userSelect.innerHTML = '<option>⏳ Chargement...</option>';
+        userSelect.innerHTML = `<option>${i18n.loading || 'Loading...'}</option>`;
         this.showLoading();
         
         logger.log('Fetching users...');
@@ -63,7 +65,7 @@
         this.usersCache = users;
 
         if (users.length === 0) {
-          userSelect.innerHTML = '<option value="">❌ Aucun utilisateur trouvé</option>';
+          userSelect.innerHTML = `<option value="">❌ ${i18n.noUsersFound || 'No users found'}</option>`;
           this.hideLoading();
           logger.warn('No users found');
           
@@ -71,13 +73,13 @@
           if (container) {
             container.innerHTML = `
               <div class="sf-empty-state">
-                <p style="color: #f59e0b; font-weight: 600;">⚠️ Aucun utilisateur trouvé</p>
-                <p style="color: #666;">Aucun log Apex trouvé.</p>
-                <p class="sf-hint">💡 Assurez-vous d'avoir :</p>
+                <p style="color: #f59e0b; font-weight: 600;">⚠️ ${i18n.noUsersFound || 'No users found'}</p>
+                <p style="color: #666;">${i18n.noApexLogs || 'No Apex logs found.'}</p>
+                <p class="sf-hint">💡 ${i18n.ensureYouHave || 'Make sure you have:'}</p>
                 <ul style="text-align: left; color: #666; font-size: 13px; margin: 12px 0;">
-                  <li>Des logs Apex</li>
-                  <li>Ou un TraceFlag actif</li>
-                  <li>Les permissions nécessaires</li>
+                  <li>${i18n.apexLogs || 'Apex logs'}</li>
+                  <li>${i18n.activeTraceFlag || 'Or an active TraceFlag'}</li>
+                  <li>${i18n.requiredPermissions || 'Required permissions'}</li>
                 </ul>
               </div>
             `;
@@ -130,7 +132,7 @@
         logger.success(`Loaded ${users.length} users`);
       } catch (error) {
         logger.error('Failed to load users', error);
-        userSelect.innerHTML = '<option value="">❌ Erreur de chargement</option>';
+        userSelect.innerHTML = `<option value="">❌ ${i18n.loadingError || 'Error loading logs'}</option>`;
         userSelect.disabled = true;
         this.hideLoading();
       }
@@ -208,6 +210,8 @@
       }
 
       paginationContainer.style.display = 'flex';
+      const pageLabel = i18n.page || 'Page';
+      const logsLabel = i18n.logs || 'logs';
       paginationContainer.innerHTML = `
         <button class="sf-pagination-btn sf-pagination-prev" ${this.currentPage === 1 ? 'disabled' : ''}>
           <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px;">
@@ -216,8 +220,8 @@
         </button>
         
         <span class="sf-pagination-info">
-          Page ${this.currentPage} / ${totalPages}
-          <span class="sf-pagination-count">(${this.allLogs.length} logs)</span>
+          ${pageLabel} ${this.currentPage} / ${totalPages}
+          <span class="sf-pagination-count">(${this.allLogs.length} ${logsLabel})</span>
         </span>
         
         <button class="sf-pagination-btn sf-pagination-next" ${this.currentPage === totalPages ? 'disabled' : ''}>
@@ -261,7 +265,7 @@
         container.innerHTML = `
           <div class="sf-loading-overlay">
             <div class="sf-spinner"></div>
-            <div class="sf-loading-text">Chargement...</div>
+            <div class="sf-loading-text">${i18n.loading || 'Loading...'}</div>
           </div>
         `;
       }
@@ -282,7 +286,7 @@
       if (container) {
         container.innerHTML = `
           <div class="sf-empty-state">
-            <p style="color: #ef4444; font-weight: 600;">⚠️ Erreur</p>
+            <p style="color: #ef4444; font-weight: 600;">⚠️ ${i18n.error || 'Error'}</p>
             <p style="color: #666;">${message}</p>
           </div>
         `;
@@ -299,33 +303,33 @@
             FoxLog
           </h3>
           <div class="sf-panel-controls">
-            <button id="sf-refresh-btn" title="Actualiser">
+            <button id="sf-refresh-btn" title="${i18n.refresh || 'Refresh'}">
               <img src="${ICONS.REFRESH || ''}" alt="Refresh" style="width:18px;height:18px;">
             </button>
-            <button id="sf-clear-logs-btn" title="Effacer">
+            <button id="sf-clear-logs-btn" title="${i18n.clear || 'Clear'}">
               <img src="${ICONS.TRASH || ''}" alt="Clear" style="width:18px;height:18px;">
             </button>
-            <button id="sf-close-panel" title="Fermer">×</button>
+            <button id="sf-close-panel" title="${i18n.close || 'Close'}">×</button>
           </div>
         </div>
         <div class="sf-panel-status">
           <span id="sf-status-indicator" class="sf-status-disconnected">●</span>
-          <span id="sf-status-text">Prêt</span>
+          <span id="sf-status-text">${i18n.ready || 'Ready'}</span>
         </div>
         <div class="sf-panel-filters">
           <select id="sf-user-select" class="sf-user-picklist" title="🟢 = TraceFlag + logs | 🟡 = TraceFlag | 📋 = Logs">
-            <option value="">⏳ Chargement...</option>
+            <option value="">${i18n.loading || 'Loading...'}</option>
           </select>
         </div>
         <div class="sf-panel-content" id="sf-logs-list">
           <div class="sf-empty-state">
-            <p>👋 Bienvenue dans FoxLog !</p>
-            <p class="sf-hint">Sélectionnez un utilisateur</p>
+            <p>👋 ${i18n.welcome || 'Welcome to FoxLog!'}</p>
+            <p class="sf-hint">${i18n.selectUser || 'Select a user'}</p>
           </div>
         </div>
         <div class="sf-panel-footer">
           <span id="sf-version-display">v1.0.8</span>
-          <span id="sf-last-update">Jamais mis à jour</span>
+          <span id="sf-last-update">${i18n.neverUpdated || 'Never updated'}</span>
         </div>
       `;
     }
@@ -366,17 +370,18 @@
     _showEmptyState() {
       const container = this.panel.querySelector('#sf-logs-list');
       const selectedUser = this.usersCache.find(u => u.id === this.selectedUserId);
-      const userName = selectedUser?.name || 'cet utilisateur';
+      const userName = selectedUser?.name || (i18n.thisUser || 'this user');
       
-      let hint = 'Cliquez sur Actualiser';
+      let hint = i18n.clickRefresh || 'Click Refresh';
       
       if (selectedUser?.hasTraceFlag && selectedUser?.logCount === 0) {
-        hint = '🟡 TraceFlag actif mais aucun log. Exécutez du code Apex.';
+        const traceMessage = i18n.traceFlagActive || 'TraceFlag active but no logs. Execute Apex code.';
+        hint = `🟡 ${traceMessage}`;
       }
       
       container.innerHTML = `
         <div class="sf-empty-state">
-          <p>Aucun log pour ${userName}</p>
+          <p>${(i18n.noLogsFor || 'No logs for')} ${userName}</p>
           <p class="sf-hint">${hint}</p>
         </div>
       `;
@@ -395,8 +400,9 @@
       const hasError = analysis?.hasError || false;
       const errorCount = analysis?.errorCount || 0;
       
+      const errorLabel = errorCount === 1 ? (i18n.error || 'Error') : (i18n.errors || 'Errors');
       const errorBadge = hasError 
-        ? `<span class="sf-log-error-badge" title="${errorCount} erreur(s)">
+        ? `<span class="sf-log-error-badge" title="${errorCount} ${errorLabel}">
              <svg viewBox="0 0 20 20" fill="currentColor" style="width: 14px; height: 14px;">
                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
              </svg>
@@ -422,7 +428,7 @@
     }
 
     _formatTime(timestamp) {
-      return new Date(timestamp).toLocaleTimeString('fr-FR');
+      return new Date(timestamp).toLocaleTimeString(this.locale);
     }
 
     _formatSize(bytes) {
@@ -434,12 +440,12 @@
       const lastUpdateElement = this.panel.querySelector('#sf-last-update');
       if (lastUpdateElement) {
         const now = new Date();
-        const timeString = now.toLocaleTimeString('fr-FR', {
+        const timeString = now.toLocaleTimeString(this.locale, {
           hour: '2-digit',
           minute: '2-digit',
           second: '2-digit'
         });
-        lastUpdateElement.textContent = `Dernière MAJ: ${timeString}`;
+        lastUpdateElement.textContent = `${i18n.lastUpdate || 'Last update:'} ${timeString}`;
       }
     }
   }

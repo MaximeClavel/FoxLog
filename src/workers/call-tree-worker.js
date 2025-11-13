@@ -1,26 +1,26 @@
 // src/workers/call-tree-worker.js
-// Web Worker pour construire l'arbre d'appels à partir d'un log parsé
-// Évite de bloquer le thread UI sur les gros logs
+// Web Worker that builds the call tree from a parsed log
+// Prevents blocking the UI thread on large logs
 
 'use strict';
 
 /**
- * Structure d'un nœud de l'arbre
+ * Call tree node structure
  * @typedef {Object} CallTreeNode
- * @property {string} id - Identifiant unique du nœud
- * @property {string} type - Type d'événement (METHOD_ENTRY, SOQL_EXECUTE_BEGIN, etc.)
- * @property {string} name - Nom lisible (classe.méthode, query, etc.)
- * @property {number} depth - Profondeur dans l'arbre (0 = racine)
- * @property {string} startTime - Timestamp de début
- * @property {number} startTimeMs - Timestamp en millisecondes
- * @property {number} duration - Durée totale (ms)
- * @property {number} exclusiveDuration - Durée sans les enfants (ms)
- * @property {CallTreeNode[]} children - Nœuds enfants
- * @property {boolean} hasError - Contient une erreur ou un enfant avec erreur
- * @property {number} soqlCount - Nombre de SOQL dans ce nœud + enfants
- * @property {number} dmlCount - Nombre de DML dans ce nœud + enfants
- * @property {number} logLineIndex - Index de la ligne dans le log original
- * @property {Object} details - Détails spécifiques au type
+ * @property {string} id - Unique node identifier
+ * @property {string} type - Event type (METHOD_ENTRY, SOQL_EXECUTE_BEGIN, etc.)
+ * @property {string} name - Human readable name (class.method, query, etc.)
+ * @property {number} depth - Depth within the tree (0 = root)
+ * @property {string} startTime - Start timestamp
+ * @property {number} startTimeMs - Start timestamp in milliseconds
+ * @property {number} duration - Total duration (ms)
+ * @property {number} exclusiveDuration - Duration without children (ms)
+ * @property {CallTreeNode[]} children - Child nodes
+ * @property {boolean} hasError - True when this node or a child contains an error
+ * @property {number} soqlCount - Number of SOQL calls in this node and its children
+ * @property {number} dmlCount - Number of DML operations in this node and its children
+ * @property {number} logLineIndex - Line index within the original log
+ * @property {Object} details - Additional data specific to the event type
  */
 
 class CallTreeBuilder {
@@ -30,36 +30,36 @@ class CallTreeBuilder {
   }
 
   /**
-   * Construit l'arbre d'appels depuis un log parsé
-   * @param {Object} parsedLog - Log parsé par log-parser.js
-   * @returns {Object} Arbre d'appels avec métadonnées
+   * Build the call tree from a parsed log
+   * @param {Object} parsedLog - Log parsed by log-parser.js
+   * @returns {Object} Call tree with metadata
    */
   buildTree(parsedLog) {
     const startBuild = performance.now();
     
-    // Initialisation
+    // Initialization
     this.nodeCounter = 0;
     this.stack = [];
     
-    // Créer le nœud racine
+    // Create the root node
     const root = this._createRootNode(parsedLog);
     this.stack.push(root);
     
-    // Parser toutes les lignes
+    // Process every line
     parsedLog.lines.forEach((line, index) => {
       this._processLine(line, index);
     });
     
-    // Finaliser les nœuds non fermés (logs incomplets)
+    // Close nodes left open (incomplete logs)
     this._closeIncompleteNodes();
     
-    // Calculer les durées exclusives
+    // Calculate exclusive durations
     this._calculateExclusiveDurations(root);
     
-    // Propager les compteurs et erreurs
+    // Propagate counters and errors
     this._propagateMetrics(root);
     
-    // Collecter les métadonnées
+    // Collect metadata
     const metadata = this._collectMetadata(root, parsedLog);
     
     const buildDuration = performance.now() - startBuild;
@@ -73,7 +73,7 @@ class CallTreeBuilder {
   }
 
   /**
-   * Crée le nœud racine
+   * Create the root node
    * @private
    */
   _createRootNode(parsedLog) {
@@ -99,13 +99,13 @@ class CallTreeBuilder {
   }
 
   /**
-   * Traite une ligne du log
+   * Process a log line
    * @private
    */
   _processLine(line, index) {
     const { type } = line;
     
-    // Types qui ouvrent un nouveau nœud
+    // Event types that open a new node
     const openingTypes = [
       'CODE_UNIT_STARTED',
       'METHOD_ENTRY',
@@ -113,7 +113,7 @@ class CallTreeBuilder {
       'DML_BEGIN'
     ];
     
-    // Types qui ferment un nœud
+    // Event types that close a node
     const closingTypes = [
       'CODE_UNIT_FINISHED',
       'METHOD_EXIT',
@@ -128,13 +128,13 @@ class CallTreeBuilder {
     } else if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR') {
       this._markError(line, index);
     } else if (type === 'USER_DEBUG') {
-      // Ajouter les USER_DEBUG comme nœuds feuilles
+      // Add USER_DEBUG entries as leaf nodes
       this._addLeafNode(line, index);
     }
   }
 
   /**
-   * Ouvre un nouveau nœud et l'ajoute à la pile
+   * Open a new node and push it on the stack
    * @private
    */
   _openNode(line, index) {
@@ -147,9 +147,9 @@ class CallTreeBuilder {
       depth: parent.depth + 1,
       startTime: line.timestamp,
       startTimeMs: line.timestampMs || 0,
-      // Utiliser le compteur nanosecondes entre parenthèses pour un calcul précis
+      // Use the nanosecond counter (when present) for accurate duration
       startTimeNs: typeof line.duration === 'number' ? line.duration : null,
-      duration: 0, // Sera calculé à la fermeture
+      duration: 0, // Calculated when the node closes
       exclusiveDuration: 0,
       children: [],
       hasError: false,
@@ -164,28 +164,28 @@ class CallTreeBuilder {
   }
 
   /**
-   * Ferme le nœud en haut de la pile
+   * Close the node at the top of the stack
    * @private
    */
   _closeNode(line, index) {
     if (this.stack.length <= 1) {
-      // Éviter de fermer la racine
+      // Avoid closing the root node
       return;
     }
     
     const node = this.stack.pop();
     
-    // Calculer la durée
-    // 1) Précision maximale: différence du compteur nanosecondes entre parenthèses
+    // Compute the duration
+    // 1) Highest precision: difference of the nanosecond counter
     if (typeof line.duration === 'number' && typeof node.startTimeNs === 'number') {
-      // duration est un compteur depuis le début, en nanosecondes → convertir en ms
+      // Duration is a counter since the beginning, in nanoseconds → convert to ms
       node.duration = Math.max(0, (line.duration - node.startTimeNs) / 1e6);
     } else if (line.timestampMs && node.startTimeMs) {
-      // 2) Secours: horodatage au format HH:mm:ss.SSS (résolution ms, peut donner 0)
+      // 2) Fallback: timestamp in HH:mm:ss.SSS (ms resolution, can yield 0)
       node.duration = Math.max(0, line.timestampMs - node.startTimeMs);
     }
     
-    // Mettre à jour les détails (ex: nombre de rows pour SOQL_END)
+    // Update details (e.g., number of rows for SOQL_END)
     if (line.type === 'SOQL_EXECUTE_END' && line.details.rows !== undefined) {
       node.details.rows = line.details.rows;
     }
@@ -200,7 +200,7 @@ class CallTreeBuilder {
     
     const currentNode = this.stack[this.stack.length - 1];
     
-    // Créer un nœud enfant pour l'exception
+    // Create a child node for the exception
     const errorNode = {
       id: `node_${this.nodeCounter++}`,
       type: line.type,
@@ -258,14 +258,14 @@ class CallTreeBuilder {
   }
 
   /**
-   * Ferme les nœuds non fermés (logs incomplets)
+   * Close any nodes left open (incomplete logs)
    * @private
    */
   _closeIncompleteNodes() {
     // Ne garder que la racine
     while (this.stack.length > 1) {
       const node = this.stack.pop();
-      // Estimer la durée si possible
+      // Estimate the duration when possible
       if (node.children.length > 0) {
         const lastChild = node.children[node.children.length - 1];
         node.duration = (lastChild.startTimeMs + lastChild.duration) - node.startTimeMs;
@@ -274,7 +274,7 @@ class CallTreeBuilder {
   }
 
   /**
-   * Calcule les durées exclusives (sans enfants)
+   * Calculate exclusive durations (without children)
    * @private
    */
   _calculateExclusiveDurations(node) {
@@ -283,27 +283,27 @@ class CallTreeBuilder {
       return;
     }
     
-    // Récursif sur les enfants
+      // Recurse through children
     node.children.forEach(child => {
       this._calculateExclusiveDurations(child);
     });
     
-    // Durée exclusive = durée totale - somme des durées des enfants
+      // Exclusive duration = total duration - sum of child durations
     const childrenDuration = node.children.reduce((sum, child) => sum + child.duration, 0);
     node.exclusiveDuration = Math.max(0, node.duration - childrenDuration);
   }
 
   /**
-   * Propage les métriques (erreurs, SOQL, DML) vers les parents
+   * Propagate metrics (errors, SOQL, DML) up to the parents
    * @private
    */
   _propagateMetrics(node) {
-    // Récursif sur les enfants d'abord
+      // Recurse over children first
     node.children.forEach(child => {
       this._propagateMetrics(child);
     });
     
-    // Agréger les métriques des enfants
+      // Aggregate metrics from the children
     node.children.forEach(child => {
       if (child.hasError) {
         node.hasError = true;
@@ -314,7 +314,7 @@ class CallTreeBuilder {
   }
 
   /**
-   * Collecte les métadonnées de l'arbre
+   * Collect metadata from the tree
    * @private
    */
   _collectMetadata(root, parsedLog) {
@@ -392,7 +392,7 @@ class CallTreeBuilder {
   }
 
   /**
-   * Extrait les détails d'un nœud
+   * Extract node-specific details
    * @private
    */
   _extractDetails(line) {
@@ -403,7 +403,7 @@ class CallTreeBuilder {
       ...details
     };
     
-    // Ajouter des infos spécifiques
+      // Add specifics details
     if (type === 'SOQL_EXECUTE_BEGIN') {
       baseDetails.fullQuery = details.query;
     }

@@ -1,10 +1,11 @@
 // src/ui/call-tree-view.js
-// Composant UI pour afficher l'arbre d'appels avec virtualisation
+// UI component to display the call tree with virtualization
 
 (function() {
   'use strict';
   
   window.FoxLog = window.FoxLog || {};
+  const i18n = window.FoxLog.i18n || {};
   const { logger, callTreeBuilder } = window.FoxLog;
 
   class CallTreeView {
@@ -13,7 +14,7 @@
       this.callTree = callTree;
       this.parsedLog = parsedLog;
       
-      // État du composant
+      // Component state
       this.expandedNodes = new Set();
       this.visibleNodes = [];
       this.filteredNodes = [];
@@ -26,20 +27,20 @@
         maxDepth: null
       };
       
-      // Virtualisation
-      this.nodeHeight = 36; // Hauteur d'un nœud en pixels
+      // Virtualization
+      this.nodeHeight = 36; // Node height in pixels
       this.viewportHeight = 0;
       this.scrollTop = 0;
-      this.renderBuffer = 10; // Nombre de nœuds supplémentaires à rendre
+      this.renderBuffer = 10; // Additional nodes to render
       
-      // Refs DOM
+      // DOM references
       this.toolbarEl = null;
       this.treeContainer = null;
       this.scrollContainer = null;
       this.topSentinel = null;
       this.bottomSentinel = null;
       
-      // Observer pour scroll infini
+      // Infinite scroll observer
       this.intersectionObserver = null;
       
       // Debounce timers
@@ -47,7 +48,7 @@
     }
 
     /**
-     * Initialise la vue
+     * Initialize the view
      */
     init() {
       this._initExpandedState();
@@ -60,7 +61,7 @@
     }
 
     /**
-     * Initialise l'état expanded (niveau 0-2 par défaut)
+     * Initialize expanded state (levels 0-2 by default)
      * @private
      */
     _initExpandedState() {
@@ -75,7 +76,7 @@
     }
 
     /**
-     * Construit la liste des nœuds visibles (aplati)
+     * Build the list of visible nodes (flattened)
      * @private
      */
     _buildVisibleNodes() {
@@ -85,7 +86,7 @@
     }
 
     /**
-     * Traverse l'arbre et collecte les nœuds visibles
+     * Traverse the tree and collect visible nodes
      * @private
      */
     _traverseVisible(node) {
@@ -97,7 +98,7 @@
     }
 
     /**
-     * Rend le composant
+     * Render the component
      * @private
      */
     _render() {
@@ -113,20 +114,20 @@
         </div>
       `;
       
-      // Récupérer les refs
+      // Retrieve references
       this.toolbarEl = this.container.querySelector('.sf-call-tree-toolbar');
       this.scrollContainer = this.container.querySelector('.sf-call-tree-scroll-container');
       this.treeContainer = this.container.querySelector('.sf-call-tree-viewport');
       
-      // Calculer hauteur viewport
+      // Compute viewport height
       this.viewportHeight = this.scrollContainer.clientHeight;
       
-      // Render initial
+      // Initial render
       this._renderVisibleNodes();
     }
 
     /**
-     * Rend la barre d'outils
+     * Render the toolbar
      * @private
      */
     _renderToolbar() {
@@ -139,23 +140,23 @@
             <input 
               type="text" 
               class="sf-call-tree-search-input" 
-              placeholder="Rechercher dans l'arbre..."
+              placeholder="${i18n.searchInTree || 'Search in tree...'}"
               value="${this.searchQuery}"
             />
           </div>
           
           <div class="sf-call-tree-actions">
-            <button class="sf-call-tree-btn" data-action="expand-all" title="Développer tout">
+            <button class="sf-call-tree-btn" data-action="expand-all" title="${i18n.expandAll || 'Expand All'}">
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
               </svg>
             </button>
-            <button class="sf-call-tree-btn" data-action="collapse-all" title="Tout replier">
+            <button class="sf-call-tree-btn" data-action="collapse-all" title="${i18n.collapseAll || 'Collapse All'}">
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
               </svg>
             </button>
-            <button class="sf-call-tree-btn" data-action="errors-only" title="Erreurs uniquement">
+            <button class="sf-call-tree-btn" data-action="errors-only" title="${i18n.errorsOnly || 'Errors Only'}">
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
               </svg>
@@ -166,7 +167,7 @@
     }
 
     /**
-     * Rend le bandeau des top 5 nœuds lents
+     * Render the banner for the top 5 slowest nodes
      * @private
      */
     _renderTopNodes() {
@@ -176,7 +177,7 @@
       
       return `
         <div class="sf-call-tree-top-nodes">
-          <div class="sf-top-nodes-title">⚡ Top 5 des nœuds les plus lents</div>
+          <div class="sf-top-nodes-title">⚡ ${i18n.topSlowestNodes || 'Top 5 Slowest Nodes'}</div>
           <div class="sf-top-nodes-list">
             ${this.callTree.metadata.topSlowNodes.map((node, i) => `
               <div class="sf-top-node-item" data-node-id="${node.id}">
@@ -191,39 +192,39 @@
       `;
     }
 
-      /**
-     * Navigue vers un nœud spécifique et le met en évidence
-     * @param {string} nodeId - ID du nœud cible
+    /**
+     * Scroll to a specific node and highlight it
+     * @param {string} nodeId - Target node ID
      */
     scrollToNode(nodeId) {
       const { logger } = window.FoxLog;
       
-      // 1. Trouver le nœud dans l'arbre
+      // 1. Find the node in the tree
       const node = this._findNodeById(this.callTree.root, nodeId);
       if (!node) {
         logger.warn(`Node ${nodeId} not found`);
         return;
       }
       
-      // 2. Développer tous les parents pour rendre le nœud visible
+      // 2. Expand all parents to make the node visible
       this._expandPathToNode(node);
       
-      // 3. Reconstruire la liste des nœuds visibles
+      // 3. Rebuild the list of visible nodes
       this._buildVisibleNodes();
       this._applyFilters();
       
-      // 4. Trouver l'index du nœud dans filteredNodes
+      // 4. Find the node index in filteredNodes
       const index = this.filteredNodes.findIndex(n => n.id === nodeId);
       if (index === -1) {
         logger.warn(`Node ${nodeId} not in filtered list`);
         return;
       }
       
-      // 5. Scroller vers le nœud
+      // 5. Scroll to the node
       const scrollTop = index * this.nodeHeight;
       this.scrollContainer.scrollTop = scrollTop;
       
-      // 6. Highlight temporaire
+      // 6. Temporary highlight
       setTimeout(() => {
         this._highlightNode(nodeId);
         this._renderVisibleNodes();
@@ -233,7 +234,7 @@
     }
 
     /**
-     * Trouve un nœud par son ID (récursif)
+     * Find a node by ID (recursive)
      * @private
      */
     _findNodeById(node, targetId) {
@@ -248,21 +249,21 @@
     }
 
     /**
-     * Développe tous les parents d'un nœud pour le rendre visible
+     * Expand every parent node to make the target visible
      * @private
      */
     _expandPathToNode(node) {
-      // Trouver le chemin complet vers le nœud
+      // Find the complete path to the node
       const path = this._findPathToNode(this.callTree.root, node.id);
       
-      // Développer tous les nœuds du chemin (sauf le dernier)
+      // Expand every node on the path (except the last one)
       path.slice(0, -1).forEach(pathNode => {
         this.expandedNodes.add(pathNode.id);
       });
     }
 
     /**
-     * Trouve le chemin vers un nœud (liste des nœuds parents)
+     * Find the path to a node (list of parent nodes)
      * @private
      */
     _findPathToNode(current, targetId, path = []) {
@@ -281,14 +282,14 @@
     }
 
     /**
-     * Met en évidence un nœud temporairement
+     * Highlight a node temporarily
      * @private
      */
     _highlightNode(nodeId) {
-      // Marquer le nœud pour highlight
+      // Flag the node for highlighting
       this.highlightedNodeId = nodeId;
       
-      // Retirer le highlight après 2 secondes
+      // Remove highlight after 2 seconds
       setTimeout(() => {
         this.highlightedNodeId = null;
         this._renderVisibleNodes();
@@ -296,7 +297,7 @@
     }
 
     /**
-     * Rend l'état vide
+     * Render the empty state
      * @private
      */
     _renderEmptyState() {
@@ -304,8 +305,8 @@
       
       return `
         <div class="sf-call-tree-empty">
-          <p>Aucun nœud trouvé</p>
-          <p class="sf-hint">Ajustez les filtres ou la recherche</p>
+          <p>${i18n.noNodeFound || 'No node found'}</p>
+          <p class="sf-hint">${i18n.adjustFilters || 'Adjust filters or search'}</p>
         </div>
       `;
     }
@@ -342,7 +343,7 @@
     }
 
     /**
-     * Crée un élément DOM pour un nœud
+     * Create a DOM element for a node
      * @private
      */
     _createNodeElement(node, index) {
@@ -350,7 +351,7 @@
       const hasChildren = node.children.length > 0;
       const indent = node.depth * 24;
       
-      // Ajouter la classe de highlight si c'est le nœud cible
+      // Add the highlight class if this is the target node
       const isHighlighted = this.highlightedNodeId === node.id;
       const highlightClass = isHighlighted ? 'sf-node-highlighted' : '';
       
@@ -379,7 +380,7 @@
         </span>
         
         <span class="sf-node-badges">
-          ${node.hasError ? '<span class="sf-node-badge sf-badge-error">ERROR</span>' : ''}
+          ${node.hasError ? `<span class="sf-node-badge sf-badge-error">${(i18n.error || 'Error').toUpperCase()}</span>` : ''}
           ${node.soqlCount > 0 ? `<span class="sf-node-badge sf-badge-soql">${node.soqlCount} SOQL</span>` : ''}
           ${node.dmlCount > 0 ? `<span class="sf-node-badge sf-badge-dml">${node.dmlCount} DML</span>` : ''}
         </span>
@@ -393,11 +394,11 @@
     }
 
     /**
-     * Configure les event listeners
+     * Set up event listeners
      * @private
      */
     _setupEventListeners() {
-      // Recherche
+      // Search
       const searchInput = this.container.querySelector('.sf-call-tree-search-input');
       searchInput?.addEventListener('input', (e) => {
         clearTimeout(this.searchDebounce);
@@ -407,7 +408,7 @@
         }, 200);
       });
       
-      // Actions toolbar
+      // Toolbar actions
       this.toolbarEl?.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action]');
         if (!btn) return;
@@ -435,7 +436,7 @@
           return;
         }
         
-        // Clic sur un nœud
+        // Node click
         const nodeEl = e.target.closest('.sf-call-tree-node');
         if (nodeEl) {
           this._selectNode(nodeEl.dataset.nodeId);
@@ -448,7 +449,7 @@
         const item = e.target.closest('.sf-top-node-item');
         if (item) {
           const nodeId = item.dataset.nodeId;
-          // Au lieu de _selectNode, utiliser scrollToNode
+          // Use scrollToNode instead of _selectNode
           this.scrollToNode(nodeId);
         }
       });
@@ -461,16 +462,16 @@
     }
 
     /**
-     * Configure l'intersection observer pour scroll infini
+     * Configure the intersection observer for infinite scroll
      * @private
      */
     _setupIntersectionObserver() {
-      // Pas nécessaire avec virtualisation complète
-      // Mais on peut l'utiliser pour lazy-load si besoin
+      // Not required with full virtualization
+      // Could be used for lazy-loading if needed
     }
 
     /**
-     * Toggle un nœud
+     * Toggle a node
      * @private
      */
     _toggleNode(nodeId) {
@@ -485,7 +486,7 @@
     }
 
     /**
-     * Expand tous les nœuds
+     * Expand all nodes
      * @private
      */
     _expandAll() {
@@ -500,18 +501,18 @@
     }
 
     /**
-     * Collapse tous les nœuds
+     * Collapse all nodes
      * @private
      */
     _collapseAll() {
       this.expandedNodes.clear();
-      this._initExpandedState(); // Retour à l'état par défaut (niveau 0-2)
+      this._initExpandedState(); // Reset to default state (levels 0-2)
       this._buildVisibleNodes();
       this._applyFilters();
     }
 
     /**
-     * Toggle filtre erreurs uniquement
+     * Toggle the errors-only filter
      * @private
      */
     _toggleErrorsOnly() {
@@ -520,7 +521,7 @@
     }
 
     /**
-     * Applique la recherche
+     * Apply the search filter
      * @private
      */
     _applySearch() {
@@ -538,7 +539,7 @@
     }
 
     /**
-     * Applique les filtres
+     * Apply additional filters
      * @private
      */
     _applyFilters() {
@@ -553,11 +554,11 @@
     }
 
     /**
-     * Met à jour la vue
+     * Update the view
      * @private
      */
     _updateView() {
-      // Mettre à jour le spacer
+      // Update spacer height
       const spacer = this.container.querySelector('.sf-call-tree-spacer');
       if (spacer) {
         spacer.style.height = `${this.filteredNodes.length * this.nodeHeight}px`;
@@ -568,7 +569,7 @@
     }
 
     /**
-     * Sélectionne un nœud et scroll vers lui dans le log brut
+     * Select a node and scroll to it inside the raw log
      * @private
      */
     _selectNode(nodeId) {
@@ -577,14 +578,14 @@
       
       logger.log(`Node selected: ${node.name} (line ${node.logLineIndex})`);
       
-      // Dispatcher un événement pour synchroniser avec le log brut
+      // Dispatch an event to synchronize with the raw log
       document.dispatchEvent(new CustomEvent('foxlog:scrollToLine', {
         detail: { lineIndex: node.logLineIndex }
       }));
     }
 
     /**
-     * Obtient l'icône d'un type de nœud
+     * Get the icon for a node type
      * @private
      */
     _getNodeIcon(type) {
@@ -601,7 +602,7 @@
     }
 
     /**
-     * Obtient la classe CSS pour l'icône
+     * Get the CSS class for the icon
      * @private
      */
     _getNodeIconClass(type) {
@@ -609,7 +610,7 @@
     }
 
     /**
-     * Obtient la classe CSS pour la durée
+     * Get the CSS class for the duration
      * @private
      */
     _getDurationClass(duration) {
@@ -619,7 +620,7 @@
     }
 
     /**
-     * Échappe le HTML
+     * Escape HTML content
      * @private
      */
     _escapeHtml(unsafe) {
@@ -633,7 +634,7 @@
     }
 
     /**
-     * Détruit la vue
+     * Destroy the view
      */
     destroy() {
       if (this.intersectionObserver) {
