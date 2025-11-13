@@ -1,4 +1,4 @@
-// src/parsers/log-parser.js (VERSION CORRIGÉE)
+// src/parsers/log-parser.js
 (function() {
   'use strict';
   
@@ -6,7 +6,6 @@
   
   class LogParser {
     constructor() {
-
       this.LOG_TYPES = window.FoxLog.LOG_TYPES || {};
 
       this.patterns = {
@@ -78,7 +77,6 @@
     }
 
     _parseDetails(type, content) {
-      // ✅ Accéder à LOG_TYPES depuis le namespace global
       const parsers = {
         [this.LOG_TYPES.METHOD_ENTRY]: () => this._parseMethod(content),
         [this.LOG_TYPES.METHOD_EXIT]: () => this._parseMethod(content),
@@ -318,7 +316,6 @@
     }
   }
 
-// Exposer globalement
   window.FoxLog.LogParser = LogParser;
   window.FoxLog.logParser = new LogParser();
   console.log('[FoxLog] Log Parser loaded');

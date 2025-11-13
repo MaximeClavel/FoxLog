@@ -1,65 +1,65 @@
 <div align="center">
   <img src="src/assets/icon128.png" alt="FoxLog Logo" width="128" height="128">
   <h1>FoxLog 🦊</h1>
-  <p>Extension Chrome pour visualiser et analyser les logs de debug Salesforce avec une interface moderne et des fonctionnalités avancées.</p>
+  <p>Chrome extension to visualize and analyze Salesforce debug logs with a modern interface and advanced features.</p>
 </div>
 
-## 🚀 Fonctionnalités principales
+## 🚀 Key Features
 
-### 📊 Visualisation et analyse
-- **Affichage en temps réel** des logs Apex avec rafraîchissement automatique
-- **Parser intelligent** analysant 15+ types de lignes (METHOD_ENTRY, SOQL, DML, USER_DEBUG, EXCEPTION, etc.)
-- **Détection automatique d'erreurs** avec badges visuels et compteurs
-- **Statistiques détaillées** : SOQL queries, DML statements, CPU time, Heap size avec barres de progression
-- **Analyse des limites Salesforce** avec alertes visuelles
+### 📊 Visualization and Analysis
+- **Real-time display** of Apex logs with automatic refresh
+- **Intelligent parser** analyzing 15+ line types (METHOD_ENTRY, SOQL, DML, USER_DEBUG, EXCEPTION, etc.)
+- **Automatic error detection** with visual badges and counters
+- **Detailed statistics**: SOQL queries, DML statements, CPU time, Heap size with progress bars
+- **Salesforce limits analysis** with visual alerts
 
-### 👥 Gestion multi-utilisateurs
-- **Sélection d'utilisateur** via picklist avec indicateurs visuels
-- **Affichage des TraceFlags** actifs par utilisateur
-- **Compteur de logs** par utilisateur
+### 👥 Multi-user Management
+- **User selection** via picklist with visual indicators
+- **Active TraceFlags display** per user
+- **Log counter** per user
 
-### 🔍 Visualisation avancée
-- **4 vues complémentaires** :
-  - **Résumé** : Vue d'ensemble avec statistiques et métadonnées
-  - **Timeline** : Chronologie d'exécution avec indentation et couleurs
-  - **Arbre d'appels** : Visualisation hiérarchique des méthodes (construit via Web Worker)
-  - **Log brut** : Contenu original du log
-- **Filtrage avancé** : par type de log, erreurs uniquement, durée, profondeur
-- **Recherche** dans les logs avec surbrillance
-- **Pagination** pour gérer de grandes listes de logs
+### 🔍 Advanced Visualization
+- **4 complementary views**:
+  - **Summary**: Overview with statistics and metadata
+  - **Timeline**: Execution timeline with indentation and colors
+  - **Call Tree**: Hierarchical method visualization (built via Web Worker)
+  - **Raw Log**: Original log content
+- **Advanced filtering**: by log type, errors only, duration, depth
+- **Search** in logs with highlighting
+- **Pagination** to handle large log lists
 
 ### ⚡ Performance
-- **Cache intelligent** pour éviter les requêtes redondantes
-- **Analyse en arrière-plan** pour ne pas bloquer l'interface
-- **Web Workers** pour la construction d'arbres d'appels
-- **Virtualisation** pour les grandes listes
+- **Smart caching** to avoid redundant requests
+- **Background analysis** to avoid blocking the UI
+- **Web Workers** for call tree construction
+- **Virtualization** for large lists
 
-### 🎨 Interface utilisateur
-- **Panel latéral** avec bouton flottant
-- **Modal moderne** avec onglets
-- **Design responsive** et intuitif
-- **Export des statistiques** au format JSON
+### 🎨 User Interface
+- **Side panel** with floating button
+- **Modern modal** with tabs
+- **Responsive design** and intuitive
+- **Statistics export** in JSON format
 
 ## 📦 Installation
 
-1. Clonez le repository
-2. Ouvrez Chrome et allez dans `chrome://extensions/`
-3. Activez le "Mode développeur"
-4. Cliquez "Charger l'extension non empaquetée"
-5. Sélectionnez le dossier du projet
+1. Clone the repository
+2. Open Chrome and go to `chrome://extensions/`
+3. Enable "Developer mode"
+4. Click "Load unpacked extension"
+5. Select the project folder
 
-## 🎯 Utilisation
+## 🎯 Usage
 
-1. Naviguez vers une page Salesforce (Lightning ou Classic)
-2. Cliquez sur l'icône 🦊 en bas à droite de l'écran
-3. Le panel s'ouvre avec vos logs récents
-4. Sélectionnez un utilisateur dans la liste déroulante si nécessaire
-5. Cliquez sur "Détails" pour analyser un log en profondeur
-6. Explorez les différents onglets : Résumé, Timeline, Appels, Log brut
+1. Navigate to a Salesforce page (Lightning or Classic)
+2. Click on the 🦊 icon in the bottom right of the screen
+3. The panel opens with your recent logs
+4. Select a user from the dropdown list if needed
+5. Click "Details" to analyze a log in depth
+6. Explore the different tabs: Summary, Timeline, Calls, Raw Log
 
 ## 🤝 Contributing
 
-Les contributions sont les bienvenues !
+Contributions are welcome!
 
 ## ℹ️ About
 
@@ -67,4 +67,4 @@ By Claude Sonnet 4.5 and occasionally Maxime Clavel
 
 ## 📄 License
 
-MIT License - voir [LICENSE](LICENSE)
+MIT License - see [LICENSE](LICENSE)

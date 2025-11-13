@@ -1,4 +1,4 @@
-// src/content.js (VERSION AVEC ANALYSE D'ERREURS ET PICKLIST UTILISATEURS)
+// src/content.js (Version with error analysis and user picklist)
 (function() {
   'use strict';
   
@@ -6,8 +6,8 @@
     constructor() {
       this.initialized = false;
       this.refreshInterval = null;
-      this.currentUserId = null;  // Utilisateur connecté
-      this.selectedUserId = null; // Utilisateur sélectionné dans la picklist
+      this.currentUserId = null;  // Logged-in user
+      this.selectedUserId = null; // User selected in the picklist
       this.currentLogs = [];
     }
 
@@ -118,7 +118,7 @@
     }
     
     _createFloatingButton() {
-      const { panelManager } = window.FoxLog;
+      const { panelManager, i18n } = window.FoxLog;
       
       if (document.getElementById('sf-debug-toggle')) {
         return;
@@ -129,16 +129,16 @@
       
       const iconUrl = chrome.runtime.getURL('src/assets/tail128.png');
       button.innerHTML = `<img src="${iconUrl}" alt="FoxLog" style="width:32px;height:32px;">`;
-      button.title = 'FoxLog - Ouvrir les logs';
+      button.title = (i18n?.openLogs) || 'FoxLog - Open logs';
       
       button.addEventListener('click', async () => {
         panelManager.toggle();
         
         if (panelManager.isOpen) {
-          // Charger les utilisateurs
+          // Load users
           await panelManager.loadUsers(this.currentUserId);
           
-          // Charger les logs de l'utilisateur sélectionné
+          // Load logs for the selected user
           const userId = panelManager.getSelectedUserId();
           if (userId) {
             this.selectedUserId = userId;
@@ -157,7 +157,7 @@
         this.viewLogDetails(e.detail.logId);
       });
       
-      // Changement d'utilisateur
+      // User selection change
       document.addEventListener('foxlog:userChanged', async (e) => {
         this.selectedUserId = e.detail.userId;
         await this.refreshLogs();
@@ -181,16 +181,16 @@
     }
 
     /**
-     * Rafraîchir les logs avec analyse d'erreurs
-     * @param {boolean} isAutoRefresh - True si appelé par l'auto-refresh
+     * Refresh logs with error analysis
+     * @param {boolean} isAutoRefresh - True when called by the auto-refresh loop
      */
     async refreshLogs(isAutoRefresh = false) {
-      const { logger, salesforceAPI, panelManager, logPreviewService } = window.FoxLog;
+      const { logger, salesforceAPI, panelManager, logPreviewService, i18n } = window.FoxLog;
       
       const userId = this.selectedUserId || this.currentUserId;
       
       if (!userId) {
-        panelManager.showError('User ID not available');
+        panelManager.showError((i18n?.userIdUnavailable) || 'User ID not available');
         return;
       }
 
@@ -202,7 +202,7 @@
         let spinnerStartTime = null;
         let spinnerTimeout;
 
-        // Ne pas afficher le spinner en auto-refresh
+        // Do not display the spinner during auto-refresh
         if (!isAutoRefresh) {
           spinnerTimeout = setTimeout(() => {
             showSpinner = true;
@@ -225,38 +225,38 @@
           }
         }
 
-        // Détecter si les logs ont changé
+        // Detect whether logs changed
         const hasChanged = this._hasLogsChanged(this.currentLogs, logs);
         this.currentLogs = logs;
 
-        // 2. Afficher les logs immédiatement
-        // preservePage = true en auto-refresh si les logs n'ont pas changé
+        // Display logs immediately
+        // preservePage = true during auto-refresh when logs are unchanged
         const preservePage = isAutoRefresh && !hasChanged;
         panelManager.updateLogList(logs, null, preservePage);
         
         logger.success(`Loaded ${logs.length} logs for user ${userId}${isAutoRefresh ? ' (auto-refresh)' : ''}`);
 
-        // 3. Analyser les erreurs en arrière-plan seulement si logs ont changé
+        // Analyze errors in the background only if logs changed
         if (hasChanged) {
           logger.log('Starting error analysis in background...');
           const analysisResults = await logPreviewService.analyzeBatch(logs);
           
-          // 4. Mettre à jour l'affichage avec les badges d'erreur
+          // Update the list with error badges
           panelManager.updateLogList(logs, analysisResults, preservePage);
           logger.success('Error analysis complete');
         } else {
           logger.log('Logs unchanged, skipping analysis');
         }
 
-        // TOUJOURS masquer le spinner à la fin
+        // Always hide the spinner at the end
         if (!isAutoRefresh) {
             panelManager.hideLoading();
         }
 
       } catch (error) {
         logger.error('Failed to fetch logs', error);
-        panelManager.showError('Erreur de chargement des logs');
-        // Masquer aussi en cas d'erreur
+        panelManager.showError((i18n?.loadingError) || 'Error loading logs');
+        // Also hide the spinner when an error occurs
         if (!isAutoRefresh) {
             panelManager.hideLoading();
         }
@@ -264,13 +264,13 @@
     }
 
     /**
-     * Vérifie si les logs ont changé
+     * Check whether logs changed
      * @private
      */
     _hasLogsChanged(oldLogs, newLogs) {
       if (oldLogs.length !== newLogs.length) return true;
       
-      // Comparer les IDs des 5 premiers logs (plus rapide)
+      // Compare the IDs of the first 5 logs (faster)
       const compareCount = Math.min(5, oldLogs.length);
       for (let i = 0; i < compareCount; i++) {
         if (oldLogs[i]?.Id !== newLogs[i]?.Id) return true;
@@ -301,7 +301,8 @@
             window.FoxLog.modalManager.showRawLog(logBody);
           } else {
             console.log('Log Body:', logBody);
-            alert('Log chargé ! (voir console)');
+            const message = (window.FoxLog.i18n?.logLoadedConsole) || 'Log loaded! (see console)';
+            alert(message);
           }
         }
         

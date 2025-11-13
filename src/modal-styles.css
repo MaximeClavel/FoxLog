@@ -1,5 +1,5 @@
 /* ============================================
-   STYLES POUR LA MODAL PARSÉE - PHASE 1
+   STYLES FOR PARSED MODAL - PHASE 1
    ============================================ */
 
 /* Tabs de la modal */
@@ -54,7 +54,7 @@
 }
 
 /* ============================================
-   ONGLET RÉSUMÉ
+   SUMMARY TAB
    ============================================ */
 
 .sf-summary-container {
@@ -118,7 +118,7 @@
   color: #f59e0b;
 }
 
-/* Barres de limites */
+/* Limit bars */
 .sf-limits-grid {
   display: flex;
   flex-direction: column;
@@ -164,7 +164,7 @@
   text-align: right;
 }
 
-/* Section Erreurs améliorée */
+/* Improved error section */
 .sf-summary-errors {
     background: #fef2f2 !important;
     border-left: 4px solid #ef4444 !important;
@@ -229,7 +229,7 @@
     font-family: monospace;
 }
 
-/* Liste des méthodes */
+/* Method list */
 .sf-methods-list {
   display: flex;
   flex-direction: column;
@@ -274,7 +274,7 @@ ONGLET TIMELINE
 ============================================ */
 
 .sf-timeline-container {
-    display: block; /* Changé de flex à block */
+    display: block; /* Changed from flex to block */
     font-family: 'Courier New', monospace;
     font-size: 12px;
     background: #f9fafb;
@@ -290,12 +290,12 @@ ONGLET TIMELINE
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-width: 1200px; /* Force une largeur minimum pour déclencher le scroll */
+    min-width: 1200px; /* Forces a minimum width to trigger scrolling */
 }
 
 .sf-timeline-item {
     display: grid;
-    grid-template-columns: 100px 160px 1fr; /* Simplifié */
+    grid-template-columns: 100px 160px 1fr; /* Simplified */
     gap: 12px;
     padding: 8px 12px;
     background: #ffffff;
@@ -337,11 +337,11 @@ ONGLET TIMELINE
 
 .sf-timeline-content {
     color: #1f2937;
-    white-space: nowrap; /* Pas de retour à la ligne */
-    overflow: visible; /* Laisse déborder */
+    white-space: nowrap; /* Prevent line wrapping */
+    overflow: visible; /* Allow overflow */
 }
 
-/* Scrollbar personnalisée pour le container */
+/* Custom scrollbar for the container */
 .sf-timeline-container::-webkit-scrollbar {
     height: 8px;
     width: 8px;
@@ -422,7 +422,7 @@ ONGLET TIMELINE
     color: #991b1b;
 }
 
-/* Scrollbar personnalisée */
+/* Custom scrollbar */
 .sf-timeline-container::-webkit-scrollbar,
 .sf-methods-list::-webkit-scrollbar,
 .sf-modal-body-tabs::-webkit-scrollbar {
@@ -606,13 +606,13 @@ ONGLET TIMELINE
   border-bottom: 1px solid #e5e7eb;
 }
 
-/* Barre de recherche sticky sous les tabs */
+/* Sticky search bar below the tabs */
 .sf-search-bar-sticky {
     position: sticky;
     top: 0px;
     z-index: 10;
     display: grid;
-    grid-template-columns: 1fr auto; /* Colonne flexible pour la recherche, colonne auto pour le bouton */
+    grid-template-columns: 1fr auto; /* Flexible column for the search input, auto column for the button */
     gap: 16px;
     background: #ffffff;
     padding: 0px 16px;
@@ -621,12 +621,12 @@ ONGLET TIMELINE
 
 .sf-search-container-wrapper {
     flex: 1;
-    min-width: 0; /* Permet au conteneur de rétrécir si nécessaire */
+    min-width: 0; /* Allow the container to shrink if needed */
 }
 
 #export-stats-btn {
-    flex-shrink: 0; /* Empêche le bouton de rétrécir */
-    margin-left: auto; /* Pousse le bouton vers la droite */
+    flex-shrink: 0; /* Prevent the button from shrinking */
+    margin-left: auto; /* Push the button to the right */
 }
 
 .sf-search-container {
@@ -726,7 +726,7 @@ ONGLET TIMELINE
   color: #374151;
 }
 
-/* Highlight des résultats */
+/* Highlight search results */
 .sf-search-highlight {
   background: #fef3c7 !important;
   border-left-color: #f59e0b !important;
@@ -739,7 +739,7 @@ ONGLET TIMELINE
 }
 
 /* ============================================
-   FILTRE PAR MÉTHODE
+   METHOD FILTER
    ============================================ */
 
 .sf-method-filter {
@@ -976,7 +976,7 @@ ONGLET TIMELINE
   border-color: #0369b3;
 }
 
-/* État succès (après copie) */
+/* Success state (after copy) */
 .sf-export-btn-success {
   background: #10b981 !important;
   border-color: #10b981 !important;
@@ -987,7 +987,7 @@ ONGLET TIMELINE
   color: white !important;
 }
 
-/* État disabled pour les boutons */
+/* Disabled state for buttons */
 .sf-export-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -1040,7 +1040,7 @@ ONGLET TIMELINE
   word-wrap: break-word;
 }
 
-/* Scrollbar personnalisée pour le log brut */
+/* Custom scrollbar for the raw log */
 .sf-raw-log-content::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -1083,7 +1083,7 @@ ONGLET TIMELINE
   opacity: 1;
 }
 
-/* Animation de téléchargement */
+/* Download animation */
 @keyframes downloadPulse {
   0%, 100% {
     transform: translateY(0);
@@ -1221,7 +1221,7 @@ ONGLET TIMELINE
   }
 }
 
-/* Petits écrans */
+/* Small screens */
 @media (max-width: 480px) {
   .sf-export-toolbar {
     padding: 12px;
@@ -1308,22 +1308,22 @@ ONGLET TIMELINE
 }
 
 /* ============================================
-   AMÉLIORATIONS VISUELLES
+   VISUAL ENHANCEMENTS
    ============================================ */
 
-/* Badge de taille de fichier avec couleur selon la taille */
+/* File size badge with color based on size */
 .sf-export-size {
   position: relative;
 }
 
-/* Fichier > 1MB = rouge */
+/* File > 1MB = red */
 .sf-export-size[data-large="true"] {
   color: #ef4444;
   border-color: #fecaca;
   background: #fef2f2;
 }
 
-/* Transition smooth pour les boutons */
+/* Smooth transitions for buttons */
 .sf-export-btn,
 .sf-export-btn svg,
 .sf-export-info,
@@ -1331,7 +1331,7 @@ ONGLET TIMELINE
   will-change: transform, opacity, background-color;
 }
 
-/* Focus visible pour accessibilité */
+/* Visible focus for accessibility */
 .sf-export-btn:focus-visible {
   outline: 2px solid #0176d3;
   outline-offset: 2px;
@@ -1360,10 +1360,10 @@ ONGLET TIMELINE
 }
 
 /* ============================================
-   ÉTATS SPÉCIAUX
+   SPECIAL STATES
    ============================================ */
 
-/* État de chargement */
+/* Loading state */
 .sf-export-btn.loading {
   pointer-events: none;
   opacity: 0.7;
@@ -1373,7 +1373,7 @@ ONGLET TIMELINE
   animation: spinExport 0.8s linear infinite;
 }
 
-/* État d'erreur */
+/* Error state */
 .sf-export-btn.error {
   background: #fef2f2;
   border-color: #fecaca;
@@ -1384,7 +1384,7 @@ ONGLET TIMELINE
   color: #dc2626;
 }
 
-/* Animation de succès */
+/* Success animation */
 @keyframes successPulse {
   0%, 100% {
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
@@ -1399,24 +1399,24 @@ ONGLET TIMELINE
 }
 
 /* ============================================
-   AMÉLIORATIONS DE PERFORMANCE
+   PERFORMANCE IMPROVEMENTS
    ============================================ */
 
-/* Utiliser GPU acceleration pour les animations */
+/* Use GPU acceleration for animations */
 .sf-toast,
 .sf-export-btn svg {
   transform: translateZ(0);
   backface-visibility: hidden;
 }
 
-/* Optimiser le repaint */
+/* Optimize repaint */
 .sf-export-toolbar,
 .sf-raw-log-content {
   contain: layout style paint;
 }
 
 /* ============================================
-   PRINT STYLES (pour impression)
+   PRINT STYLES (for printing)
    ============================================ */
 
 @media print {
@@ -1435,7 +1435,7 @@ ONGLET TIMELINE
 }
 
 /* ============================================
-   ACCESSIBILITÉ
+   ACCESSIBILITY
    ============================================ */
 
 /* High contrast mode */
@@ -1524,11 +1524,11 @@ ONGLET TIMELINE
 }
 
 /* ============================================
-   STYLES POUR L'ONGLET APPELS - CALLTREE
-   À ajouter à la fin de src/modal-styles.css
+   STYLES FOR THE CALLS TAB - CALLTREE
+   To add at the end of src/modal-styles.css
    ============================================ */
 
-/* Container principal */
+/* Main container */
 .sf-call-tree {
   display: flex;
   flex-direction: column;
@@ -1774,7 +1774,7 @@ ONGLET TIMELINE
   flex-shrink: 0;
 }
 
-/* Icône du nœud */
+/* Node icon */
 .sf-node-icon {
   font-size: 18px;
   flex-shrink: 0;
@@ -1825,7 +1825,7 @@ ONGLET TIMELINE
   color: #5b21b6;
 }
 
-/* Durée */
+/* Duration */
 .sf-node-duration {
   font-size: 12px;
   font-weight: 600;
@@ -1844,7 +1844,7 @@ ONGLET TIMELINE
   color: #dc2626;
 }
 
-/* État vide */
+/* Empty state */
 .sf-call-tree-empty {
   display: flex;
   flex-direction: column;
@@ -1881,7 +1881,7 @@ ONGLET TIMELINE
   width: 100%;
 }
 
-/* Scrollbar personnalisée */
+/* Custom scrollbar */
 .sf-call-tree-scroll-container::-webkit-scrollbar {
   width: 10px;
 }
@@ -1973,7 +1973,7 @@ ONGLET TIMELINE
   }
 }
 
-/* Accessibilité */
+/* Accessibility */
 .sf-call-tree-node:focus-visible {
   outline: 2px solid #0176d3;
   outline-offset: -2px;
@@ -1994,10 +1994,10 @@ ONGLET TIMELINE
 }
 
 /* ============================================
-   HIGHLIGHT DU NŒUD CIBLE - À AJOUTER À modal-styles.css
+   TARGET NODE HIGHLIGHT - TO ADD TO modal-styles.css
    ============================================ */
 
-/* Nœud mis en évidence après navigation */
+/* Node highlighted after navigation */
 .sf-call-tree-node.sf-node-highlighted {
   background: linear-gradient(90deg, #fef3c7 0%, #ffffff 100%) !important;
   border-left: 3px solid #f59e0b;
@@ -2015,12 +2015,12 @@ ONGLET TIMELINE
   }
 }
 
-/* Survol du nœud highlighté */
+/* Hover state for highlighted node */
 .sf-call-tree-node.sf-node-highlighted:hover {
   background: linear-gradient(90deg, #fde68a 0%, #fef3c7 100%) !important;
 }
 
-/* Amélioration visuelle des top nodes pour indiquer la cliquabilité */
+/* Visual improvement of top nodes to indicate clickability */
 .sf-top-node-item {
   position: relative;
   overflow: hidden;
@@ -2060,7 +2060,7 @@ ONGLET TIMELINE
   opacity: 1;
 }
 
-/* État actif lors du clic */
+/* Active state on click */
 .sf-top-node-item:active {
   transform: translateX(2px);
   background: #fef3c7 !important;
@@ -2080,7 +2080,7 @@ ONGLET TIMELINE
   animation: scrolling 0.5s ease;
 }
 
-/* Amélioration du curseur pour indiquer la cliquabilité */
+/* Cursor change to indicate clickability */
 .sf-top-node-item {
   cursor: pointer;
   user-select: none;
@@ -2098,7 +2098,7 @@ ONGLET TIMELINE
   scroll-behavior: smooth;
 }
 
-/* Focus visible pour accessibilité */
+/* Visible focus for accessibility */
 .sf-top-node-item:focus-visible {
   outline: 2px solid #f59e0b;
   outline-offset: 2px;
@@ -2107,7 +2107,7 @@ ONGLET TIMELINE
 /* Responsive - ajustements mobile */
 @media (max-width: 768px) {
   .sf-top-node-item::after {
-    display: none; /* Masquer la flèche sur mobile */
+    display: none; /* Hide the arrow on mobile */
   }
   
   .sf-call-tree-node.sf-node-highlighted {
@@ -2115,7 +2115,7 @@ ONGLET TIMELINE
   }
 }
 
-/* Reduced motion pour accessibilité */
+/* Reduced motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
   .sf-call-tree-node.sf-node-highlighted {
     animation: none;
