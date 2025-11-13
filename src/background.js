@@ -4,7 +4,7 @@
 console.log('[FoxLog Background] Service worker started');
 
 // ============================================
-// CONSTANTES (copiées localement)
+// CONSTANTS
 // ============================================
 const COOKIE_PRIORITY = [
   'my.salesforce.com',
@@ -14,7 +14,7 @@ const COOKIE_PRIORITY = [
 ];
 
 // ============================================
-// LOGGER SIMPLE (pas d'import)
+// SIMPLE LOGGER
 // ============================================
 const logger = {
   log: (msg, data) => console.log(`[FoxLog BG] ${msg}`, data || ''),
@@ -30,11 +30,11 @@ class CookieService {
   async findSessionCookie(url) {
     logger.log('Starting cookie search', url);
     
-    // Essayer d'abord le domaine direct
+    // Try direct domain first
     const directCookie = await this._tryDirectCookie(url);
     if (directCookie) return directCookie;
 
-    // Fallback : chercher dans tous les cookies
+    // Fallback: search all cookies
     return this._tryAllCookies();
   }
 
@@ -73,10 +73,10 @@ class CookieService {
     logger.log('Searching all cookies...');
     
     try {
-      // Récupérer TOUS les cookies
+      // Get ALL cookies
       const allCookies = await chrome.cookies.getAll({});
       
-      // Filtrer les cookies 'sid' de Salesforce
+      // Filter Salesforce 'sid' cookies
       const sidCookies = allCookies.filter(c =>
         c.name === 'sid' &&
         (c.domain.includes('salesforce') || c.domain.includes('force.com'))
@@ -89,7 +89,7 @@ class CookieService {
         return null;
       }
 
-      // Essayer dans l'ordre de priorité
+      // Try in priority order
       for (const priority of COOKIE_PRIORITY) {
         const cookie = sidCookies.find(c => c.domain.includes(priority));
         if (cookie && cookie.value) {
@@ -99,7 +99,7 @@ class CookieService {
         }
       }
 
-      // Si aucun cookie prioritaire, prendre le premier disponible
+      // If no priority cookie, take the first available
       if (sidCookies.length > 0) {
         const fallbackCookie = sidCookies[0];
         logger.warn(`Using fallback cookie from: ${fallbackCookie.domain}`);
@@ -118,7 +118,7 @@ class CookieService {
 }
 
 // ============================================
-// INITIALISATION
+// INITIALIZATION
 // ============================================
 const cookieService = new CookieService();
 
@@ -145,11 +145,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ sessionId: null });
       });
     
-    // IMPORTANT : return true pour garder le canal ouvert (async)
+    // IMPORTANT: return true to keep channel open (async)
     return true;
   }
   
-  // Autres types de messages
+  // Other message types
   logger.warn(`Unknown message action: ${request.action}`);
   sendResponse({ error: 'Unknown action' });
 });

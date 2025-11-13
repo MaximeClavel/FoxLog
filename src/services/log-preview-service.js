@@ -6,18 +6,18 @@
   const { logger, salesforceAPI, logParser } = window.FoxLog;
 
   /**
-   * Service pour analyser rapidement les logs et détecter les erreurs
-   * Parsing léger sans tout parser le log
+   * Service to quickly analyze logs and detect errors
+   * Lightweight parsing without full log parsing
    */
   class LogPreviewService {
     constructor() {
-      this.cache = new Map(); // Cache des analyses {logId: {hasError, errorCount, errorTypes}}
+      this.cache = new Map(); // Cache: {logId: {hasError, errorCount, errorTypes}}
     }
 
     /**
-     * Analyse un lot de logs pour détecter les erreurs
-     * @param {Array} logs - Liste des métadonnées de logs
-     * @returns {Promise<Map>} Map de logId -> {hasError, errorCount, errorTypes}
+     * Analyze a batch of logs to detect errors
+     * @param {Array} logs - List of log metadata
+     * @returns {Promise<Map>} Map of logId -> {hasError, errorCount, errorTypes}
      */
     async analyzeBatch(logs) {
       logger.log(`Analyzing ${logs.length} logs for errors`);
@@ -25,14 +25,14 @@
       const results = new Map();
       const logsToFetch = logs.filter(log => !this.cache.has(log.Id));
       
-      // Retourner les résultats du cache pour les logs déjà analysés
+      // Return cached results for already analyzed logs
       logs.forEach(log => {
         if (this.cache.has(log.Id)) {
           results.set(log.Id, this.cache.get(log.Id));
         }
       });
 
-      // Analyser les nouveaux logs
+      // Analyze new logs
       if (logsToFetch.length === 0) {
         logger.log('All logs already analyzed (from cache)');
         return results;
@@ -40,7 +40,7 @@
 
       logger.log(`Fetching ${logsToFetch.length} new logs for analysis`);
 
-      // Limiter le nombre de requêtes parallèles (max 3 à la fois)
+      // Limit parallel requests (max 3 at a time)
       const chunks = this._chunkArray(logsToFetch, 3);
       
       for (const chunk of chunks) {
@@ -54,7 +54,7 @@
             this.cache.set(logId, result.value);
           } else {
             logger.error(`Failed to analyze log ${logId}`, result.reason);
-            // Fallback : pas d'erreur détectée
+            // Fallback: no error detected
             const fallback = { hasError: false, errorCount: 0, errorTypes: [] };
             results.set(logId, fallback);
             this.cache.set(logId, fallback);
@@ -67,17 +67,13 @@
     }
 
     /**
-     * Analyse un seul log pour détecter les erreurs
+     * Analyze a single log to detect errors
      * @private
      */
     async _analyzeLog(logMetadata) {
       try {
-        // Fetch le body du log
         const logBody = await salesforceAPI.fetchLogBody(logMetadata.Id);
-        
-        // Analyse rapide via regex (plus rapide que le full parsing)
         const analysis = this._quickErrorDetection(logBody);
-        
         return analysis;
       } catch (error) {
         logger.error(`Error analyzing log ${logMetadata.Id}`, error);
@@ -86,7 +82,7 @@
     }
 
     /**
-     * Détection rapide d'erreurs via regex
+     * Quick error detection via regex
      * @private
      */
     _quickErrorDetection(logContent) {
@@ -100,15 +96,15 @@
       let errorCount = 0;
       const errorTypes = new Set();
 
-      // Détecter les exceptions
+      // Detect exceptions
       let match;
       while ((match = errorPatterns.exception.exec(logContent)) !== null) {
         hasError = true;
         errorCount++;
-        errorTypes.add(match[1]); // Type d'exception
+        errorTypes.add(match[1]);
       }
 
-      // Détecter les erreurs fatales
+      // Detect fatal errors
       errorPatterns.fatal.lastIndex = 0;
       while ((match = errorPatterns.fatal.exec(logContent)) !== null) {
         hasError = true;
@@ -116,7 +112,7 @@
         errorTypes.add('FATAL_ERROR');
       }
 
-      // Détecter les erreurs de validation
+      // Detect validation errors
       errorPatterns.failed.lastIndex = 0;
       if (errorPatterns.failed.test(logContent)) {
         hasError = true;
@@ -132,7 +128,7 @@
     }
 
     /**
-     * Divise un tableau en chunks
+     * Split array into chunks
      * @private
      */
     _chunkArray(array, size) {
@@ -143,17 +139,11 @@
       return chunks;
     }
 
-    /**
-     * Vide le cache
-     */
     clearCache() {
       this.cache.clear();
       logger.log('Log preview cache cleared');
     }
 
-    /**
-     * Obtient l'analyse depuis le cache
-     */
     getCached(logId) {
       return this.cache.get(logId);
     }

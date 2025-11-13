@@ -1,4 +1,4 @@
-// src/services/salesforce-api.js (VERSION CORRIGÉE)
+// src/services/salesforce-api.js
 (function() {
   'use strict';
   
@@ -21,7 +21,7 @@
     }
 
     /**
-     * ✅ CORRIGÉ : Récupérer les utilisateurs avec TraceFlags ET/OU ApexLogs
+     * Fetch users with TraceFlags AND/OR ApexLogs
      */
     async fetchUsersWithLogs() {
       const sessionId = await sessionManager.getSessionId(window.location.href);
@@ -29,7 +29,7 @@
           throw new Error('No session ID available');
       }
   
-      // ✅ MODIFIÉ : Requête 1 - Récupérer uniquement les LogUserId et le count
+      // Query 1: Get LogUserId and count
       const queryLogs = `
           SELECT LogUserId, COUNT(Id) LogCount
           FROM ApexLog
@@ -39,7 +39,7 @@
           LIMIT 50
       `;
   
-      // Query 2 : Utilisateurs avec TraceFlag actif (inchangée)
+      // Query 2: Users with active TraceFlag
       const queryFlag = `
           SELECT TracedEntityId, TracedEntity.Name, DebugLevel.DeveloperName
           FROM TraceFlag
@@ -55,7 +55,7 @@
           let dataLog = { records: [] };
           let dataFlag = { records: [] };
   
-          // Requête 1 : Utilisateurs avec logs
+          // Request 1: Users with logs
           try {
               const responseLog = await fetch(urlLog, {
                   headers: {
@@ -75,7 +75,7 @@
               logger.error('Error fetching users with logs', error);
           }
   
-          // ✅ NOUVEAU : Requête séparée pour récupérer les noms des utilisateurs
+          // Separate query to fetch user names
           let userNames = new Map();
           if (dataLog.records && dataLog.records.length > 0) {
               const userIds = dataLog.records.map(r => r.LogUserId);
@@ -108,7 +108,7 @@
               }
           }
   
-          // Requête 2 : TraceFlags (optionnelle)
+          // Request 2: TraceFlags (optional)
           try {
               const responseFlag = await fetch(urlFlag, {
                   headers: {
@@ -127,14 +127,14 @@
               logger.warn('Error fetching TraceFlags', error);
           }
   
-          // ✅ MODIFIÉ : Construire la Map avec les noms récupérés
+          // Build user map
           const usersMap = new Map();
   
-          // Ajouter les utilisateurs avec des logs
+          // Add users with logs
           logger.log(`Processing ${dataLog.records?.length || 0} users...`);
           (dataLog.records || []).forEach(record => {
               const userId = record.LogUserId;
-              const userName = userNames.get(userId) || 'Unknown User';  // ✅ Utiliser la Map
+              const userName = userNames.get(userId) || 'Unknown User';
               const logCount = record.LogCount || record.expr0 || 0;
   
               logger.log(` - User: ${userName} (${userId}) with ${logCount} logs`);
@@ -148,7 +148,7 @@
               });
           });
   
-          // Ajouter/Mettre à jour avec les utilisateurs ayant un TraceFlag
+          // Add/Update users with TraceFlag
           logger.log(`Processing ${dataFlag.records?.length || 0} TraceFlags...`);
           (dataFlag.records || []).forEach(flag => {
               const userId = flag.TracedEntityId;
@@ -158,12 +158,10 @@
               const existingUser = usersMap.get(userId);
   
               if (existingUser) {
-                  // Utilisateur a déjà des logs : ajouter TraceFlag info
                   existingUser.debugLevel = debugLevel;
                   existingUser.hasTraceFlag = true;
                   logger.log(` - Updated user: ${existingUser.name} with TraceFlag [${debugLevel}]`);
               } else {
-                  // Nouvel utilisateur : TraceFlag mais pas encore de logs
                   usersMap.set(userId, {
                       id: userId,
                       name: userName,
@@ -180,14 +178,14 @@
               return [];
           }
   
-          // Convertir et trier
+          // Convert and sort
           const users = Array.from(usersMap.values()).sort((a, b) => {
-              // Priorité 1: TraceFlag actif
+              // Priority 1: Active TraceFlag
               if (a.hasTraceFlag && !b.hasTraceFlag) return -1;
               if (!a.hasTraceFlag && b.hasTraceFlag) return 1;
-              // Priorité 2: Nombre de logs
+              // Priority 2: Log count
               if (b.logCount !== a.logCount) return b.logCount - a.logCount;
-              // Priorité 3: Nom alphabétique
+              // Priority 3: Alphabetical name
               return a.name.localeCompare(b.name);
           });
   
@@ -199,7 +197,6 @@
           return [];
       }
   }
-  
 
     async getCurrentUser() {
       const sessionId = await sessionManager.getSessionId(window.location.href);

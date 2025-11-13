@@ -1,6 +1,6 @@
 // src/services/call-tree-builder.js
-// Service pour orchestrer la construction d'arbres d'appels via Web Worker
-// Gère le cache et expose une API simple
+// Service to orchestrate call tree construction via Web Worker
+// Manages cache and exposes a simple API
 
 (function() {
   'use strict';
@@ -18,7 +18,7 @@
     }
 
     /**
-     * Initialise le Web Worker
+     * Initialize the Web Worker
      */
     async initialize() {
       if (this.worker) {
@@ -27,16 +27,16 @@
       }
 
       try {
-        // Charger le code du worker
+        // Load worker code
         const workerUrl = chrome.runtime.getURL('src/workers/call-tree-worker.js');
         const response = await fetch(workerUrl);
         const workerCode = await response.text();
         
-        // Créer un blob avec le code
+        // Create blob with code
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         const blobUrl = URL.createObjectURL(blob);
         
-        // Créer le worker depuis le blob
+        // Create worker from blob
         this.worker = new Worker(blobUrl);
         
         this.worker.addEventListener('message', (event) => {
@@ -56,20 +56,20 @@
     }
 
     /**
-     * Construit l'arbre d'appels pour un log parsé
-     * @param {Object} parsedLog - Log parsé par log-parser.js
-     * @returns {Promise<Object>} CallTree avec métadonnées
+     * Build call tree for a parsed log
+     * @param {Object} parsedLog - Parsed log from log-parser.js
+     * @returns {Promise<Object>} CallTree with metadata
      */
     async buildTree(parsedLog) {
       const logId = parsedLog.metadata.id;
       
-      // Vérifier le cache
+      // Check cache
       if (this.cache.has(logId)) {
         logger.log(`CallTree from cache for log ${logId}`);
         return this.cache.get(logId);
       }
 
-      // Vérifier que le worker est prêt
+      // Check worker is ready
       if (!this.workerReady) {
         await this.initialize();
       }
@@ -80,13 +80,13 @@
 
       logger.log(`Building CallTree for log ${logId}...`);
 
-      // Envoyer au worker
+      // Send to worker
       const requestId = `req_${this.requestCounter++}`;
       
       const promise = new Promise((resolve, reject) => {
         this.pendingRequests.set(requestId, { resolve, reject });
         
-        // Timeout de 30 secondes
+        // 30 second timeout
         setTimeout(() => {
           if (this.pendingRequests.has(requestId)) {
             this.pendingRequests.delete(requestId);
@@ -103,7 +103,7 @@
 
       const callTree = await promise;
       
-      // Mettre en cache
+      // Cache result
       this.cache.set(logId, callTree);
       
       logger.success(`CallTree built (${callTree.metadata.totalNodes} nodes, ${callTree.buildDuration.toFixed(0)}ms)`);
@@ -112,10 +112,10 @@
     }
 
     /**
-     * Récupère un nœud par son ID
-     * @param {string} logId - ID du log
-     * @param {string} nodeId - ID du nœud
-     * @returns {Object|null} Nœud trouvé ou null
+     * Get a node by its ID
+     * @param {string} logId - Log ID
+     * @param {string} nodeId - Node ID
+     * @returns {Object|null} Found node or null
      */
     getNode(logId, nodeId) {
       const tree = this.cache.get(logId);
@@ -125,10 +125,10 @@
     }
 
     /**
-     * Recherche des nœuds par nom/type
-     * @param {string} logId - ID du log
-     * @param {string} query - Texte à rechercher
-     * @returns {Array} Liste des nœuds correspondants
+     * Search nodes by name/type
+     * @param {string} logId - Log ID
+     * @param {string} query - Search text
+     * @returns {Array} List of matching nodes
      */
     search(logId, query) {
       const tree = this.cache.get(logId);
@@ -143,10 +143,10 @@
     }
 
     /**
-     * Filtre les nœuds selon des critères
-     * @param {string} logId - ID du log
-     * @param {Object} filters - Critères de filtrage
-     * @returns {Array} Nœuds filtrés (aplatis)
+     * Filter nodes by criteria
+     * @param {string} logId - Log ID
+     * @param {Object} filters - Filter criteria
+     * @returns {Array} Filtered nodes (flattened)
      */
     filter(logId, filters) {
       const tree = this.cache.get(logId);
@@ -155,18 +155,14 @@
       const allNodes = this._flattenTree(tree.root);
       
       return allNodes.filter(node => {
-        // Filtre par type
         if (filters.types && filters.types.length > 0) {
           if (!filters.types.includes(node.type)) return false;
         }
         
-        // Filtre erreurs uniquement
         if (filters.errorsOnly && !node.hasError) return false;
         
-        // Filtre durée minimale
         if (filters.minDuration && node.duration < filters.minDuration) return false;
         
-        // Filtre profondeur maximale
         if (filters.maxDepth !== undefined && node.depth > filters.maxDepth) return false;
         
         return true;
@@ -174,10 +170,10 @@
     }
 
     /**
-     * Obtient le chemin complet d'un nœud (breadcrumb)
-     * @param {string} logId - ID du log
-     * @param {string} nodeId - ID du nœud
-     * @returns {Array} Chemin de la racine au nœud
+     * Get full path to a node (breadcrumb)
+     * @param {string} logId - Log ID
+     * @param {string} nodeId - Node ID
+     * @returns {Array} Path from root to node
      */
     getNodePath(logId, nodeId) {
       const tree = this.cache.get(logId);
@@ -189,8 +185,8 @@
     }
 
     /**
-     * Vide le cache
-     * @param {string} logId - ID du log (optionnel, vide tout si absent)
+     * Clear cache
+     * @param {string} logId - Log ID (optional, clears all if absent)
      */
     clearCache(logId = null) {
       if (logId) {
@@ -203,7 +199,7 @@
     }
 
     /**
-     * Détruit le worker
+     * Destroy worker
      */
     destroy() {
       if (this.worker) {
@@ -219,10 +215,6 @@
     // PRIVATE METHODS
     // ============================================
 
-    /**
-     * Gère les messages du worker
-     * @private
-     */
     _handleWorkerMessage(data) {
       const { id, success, result, error } = data;
       
@@ -238,10 +230,6 @@
       }
     }
 
-    /**
-     * Trouve un nœud par ID (DFS)
-     * @private
-     */
     _findNode(node, nodeId) {
       if (node.id === nodeId) return node;
       
@@ -253,10 +241,6 @@
       return null;
     }
 
-    /**
-     * Recherche dans l'arbre
-     * @private
-     */
     _searchInTree(node, query, results) {
       const searchText = `${node.name} ${node.type}`.toLowerCase();
       
@@ -276,10 +260,6 @@
       });
     }
 
-    /**
-     * Aplatit l'arbre (DFS)
-     * @private
-     */
     _flattenTree(node) {
       const result = [node];
       node.children.forEach(child => {
@@ -288,10 +268,6 @@
       return result;
     }
 
-    /**
-     * Trouve le chemin vers un nœud
-     * @private
-     */
     _findNodePath(node, targetId, path) {
       path.push({
         id: node.id,
@@ -312,7 +288,6 @@
     }
   }
 
-  // Exposer le service
   window.FoxLog.CallTreeBuilderService = CallTreeBuilderService;
   window.FoxLog.callTreeBuilder = new CallTreeBuilderService();
   

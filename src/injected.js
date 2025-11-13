@@ -1,104 +1,104 @@
-// Script injecté dans le contexte de la page Salesforce
-// Ce script a accès aux objets globaux de Salesforce
+// Script injected into the Salesforce page context
+// This script has access to Salesforce global objects
 
 (function() {
 'use strict';
 
 /**
- * Récupérer l'User ID
- * 2 méthodes uniquement
+ * Get User ID
+ * 2 methods only
  */
 function getUserId() {
   let userId = null;
   
-  // MÉTHODE 1: Via window.UserContext (Lightning Experience)
+  // METHOD 1: Via window.UserContext (Lightning Experience)
   if (window.UserContext && window.UserContext.userId) {
     userId = window.UserContext.userId;
-    console.log('[FoxLog Injected] ✅ User ID trouvé via UserContext:', userId);
+    console.log('[FoxLog Injected] ✅ User ID found via UserContext:', userId);
     return userId;
   }
   
-  // MÉTHODE 2: Via $A (Aura Framework)
+  // METHOD 2: Via $A (Aura Framework)
   if (typeof $A !== 'undefined') {
     try {
       userId = $A.get('$SObjectType.CurrentUser.Id');
       if (userId) {
-        console.log('[FoxLog Injected] ✅ User ID trouvé via $A:', userId);
+        console.log('[FoxLog Injected] ✅ User ID found via $A:', userId);
         return userId;
       }
     } catch(e) {
-      console.log('[FoxLog Injected] ❌ Erreur $A:', e);
+      console.log('[FoxLog Injected] ❌ $A error:', e);
     }
   }
   
-  console.log('[FoxLog Injected] ❌ User ID non trouvé');
+  console.log('[FoxLog Injected] ❌ User ID not found');
   return null;
 }
 
 /**
- * Récupérer le Session ID/Token
- * 2 méthodes uniquement (priorité au token Aura)
+ * Get Session ID/Token
+ * 2 methods only (Aura token priority)
  */
 function getSessionToken() {
   let sessionId = null;
   
-  // MÉTHODE 1 (PRIORITAIRE): Token de session Aura (valide pour API REST)
+  // METHOD 1 (PRIORITY): Aura session token (valid for REST API)
   if (typeof $A !== 'undefined') {
     try {
       const token = $A.get('$Token.sessionToken');
       if (token) {
         sessionId = token;
-        console.log('[FoxLog Injected] ✅ Session Token trouvé via $A.sessionToken (valide pour API)');
+        console.log('[FoxLog Injected] ✅ Session Token found via $A.sessionToken (valid for API)');
         return sessionId;
       }
     } catch(e) {
-      console.log('[FoxLog Injected] ❌ Erreur $A.sessionToken:', e);
+      console.log('[FoxLog Injected] ❌ $A.sessionToken error:', e);
     }
   }
   
-  // MÉTHODE 2: Via window.__CACHE__ (fallback)
+  // METHOD 2: Via window.__CACHE__ (fallback)
   if (window.__CACHE__ && window.__CACHE__.sid) {
     sessionId = window.__CACHE__.sid;
-    console.log('[FoxLog Injected] ✅ Session trouvée via __CACHE__.sid');
+    console.log('[FoxLog Injected] ✅ Session found via __CACHE__.sid');
     return sessionId;
   }
   
-  console.log('[FoxLog Injected] ❌ Aucune session trouvée');
+  console.log('[FoxLog Injected] ❌ No session found');
   return null;
 }
 
-// Écouter les demandes de User ID
+// Listen for User ID requests
 window.addEventListener('foxlog_request_userid', function(event) {
   const userId = getUserId();
-  console.log('[FoxLog Injected] 📤 Réponse User ID:', userId || 'null');
+  console.log('[FoxLog Injected] 📤 User ID response:', userId || 'null');
   
   window.dispatchEvent(new CustomEvent('foxlog_userid_response', {
     detail: { userId: userId }
   }));
 });
 
-// Écouter les demandes de session
+// Listen for session requests
 window.addEventListener('foxlog_request_session', function(event) {
   try {
     const sessionId = getSessionToken();
     
-    console.log('[FoxLog Injected] 📤 Réponse Session ID:', sessionId ? sessionId.substring(0, 20) + '...' : 'null');
+    console.log('[FoxLog Injected] 📤 Session ID response:', sessionId ? sessionId.substring(0, 20) + '...' : 'null');
     
     window.dispatchEvent(new CustomEvent('foxlog_session_response', {
       detail: { sessionId: sessionId }
     }));
   } catch(error) {
-    console.error('[FoxLog Injected] ❌ Erreur:', error);
+    console.error('[FoxLog Injected] ❌ Error:', error);
     window.dispatchEvent(new CustomEvent('foxlog_session_response', {
       detail: { sessionId: null }
     }));
   }
 });
 
-console.log('[FoxLog Injected] ✅ Script injecté avec succès');
+console.log('[FoxLog Injected] ✅ Script injected successfully');
 
-// Debug: Afficher les objets disponibles
-console.log('[FoxLog Injected] 🔍 Objets disponibles:', {
+// Debug: Display available objects
+console.log('[FoxLog Injected] 🔍 Available objects:', {
   hasAura: typeof $A !== 'undefined',
   hasUserContext: typeof window.UserContext !== 'undefined',
   hasCache: typeof window.__CACHE__ !== 'undefined'
