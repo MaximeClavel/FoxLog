@@ -3,6 +3,7 @@
   'use strict';
   
   window.FoxLog = window.FoxLog || {};
+  const logger = window.FoxLog.logger || console;
   
   class LogParser {
     constructor() {
@@ -318,5 +319,5 @@
 
   window.FoxLog.LogParser = LogParser;
   window.FoxLog.logParser = new LogParser();
-  console.log('[FoxLog] Log Parser loaded');
+  logger.log('[FoxLog] Log Parser loaded');
 })();

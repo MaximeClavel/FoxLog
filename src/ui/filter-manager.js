@@ -4,6 +4,7 @@
 
   window.FoxLog = window.FoxLog || {};
   const i18n = window.FoxLog.i18n || {};
+  const logger = window.FoxLog.logger || console;
 
   class FilterManager {
     constructor() {
@@ -516,5 +517,5 @@
 
   window.FoxLog.FilterManager = FilterManager;
   window.FoxLog.filterManager = new FilterManager();
-  console.log('[FoxLog] Filter Manager loaded');
+  logger.log('[FoxLog] Filter Manager loaded');
 })();

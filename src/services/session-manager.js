@@ -59,5 +59,5 @@
   }
 
   window.FoxLog.sessionManager = new SessionManager();
-  console.log('[FoxLog] Session Manager loaded');
+  logger.log('[FoxLog] Session Manager loaded');
 })();

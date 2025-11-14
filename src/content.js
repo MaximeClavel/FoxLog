@@ -9,11 +9,12 @@
       this.currentUserId = null;  // Logged-in user
       this.selectedUserId = null; // User selected in the picklist
       this.currentLogs = [];
+      this.logger = null; 
     }
 
     async init() {
       if (this.initialized) {
-        console.warn('[FoxLog] Already initialized');
+        this.logger.warn('[FoxLog] Already initialized');
         return;
       }
 
@@ -22,23 +23,24 @@
       const { logger } = window.FoxLog;
 
       if (!this._isSalesforcePage()) {
-        logger.log('Not a Salesforce page');
+        this.logger.log('Not a Salesforce page');
         return;
       }
 
       try {
         await this._setup();
         this.initialized = true;
-        logger.success('FoxLog initialized');
+        this.logger.success('FoxLog initialized');
       } catch (error) {
-        logger.error('Initialization failed', error);
+        this.logger.error('Initialization failed', error);
       }
     }
     
     async _setup() {
       const { logger, salesforceAPI, panelManager } = window.FoxLog;
+      this.logger = window.FoxLog.logger || console;
       
-      logger.log('Setting up FoxLog...');
+      this.logger.log('Setting up FoxLog...');
       
       await this._injectScript();
       await salesforceAPI.initialize();
@@ -49,15 +51,15 @@
       this.currentUserId = await this._getUserId();
       
       if (this.currentUserId) {
-        logger.success('User ID obtained', this.currentUserId);
+        this.logger.success('User ID obtained', this.currentUserId);
         this.selectedUserId = this.currentUserId;
       } else {
-        logger.warn('User ID not found');
+        this.logger.warn('User ID not found');
       }
       
       this._startAutoRefresh();
       
-      logger.success('Setup complete');
+      this.logger.success('Setup complete');
     }
     
     _waitForDependencies() {
@@ -94,18 +96,18 @@
           const script = document.createElement('script');
           script.src = chrome.runtime.getURL('src/injected.js');
           script.onload = () => {
-            logger.success('Injected script loaded');
+            this.logger.success('Injected script loaded');
             script.remove();
             resolve();
           };
           script.onerror = () => {
-            logger.error('Failed to load injected script');
+            this.logger.error('Failed to load injected script');
             script.remove();
             reject(new Error('Failed to load injected script'));
           };
           (document.head || document.documentElement).appendChild(script);
         } catch (error) {
-          logger.error('Error injecting script', error);
+          this.logger.error('Error injecting script', error);
           reject(error);
         }
       });
@@ -167,7 +169,7 @@
     async _getUserId() {
       return new Promise((resolve) => {
         const timeout = setTimeout(() => {
-          console.warn('[FoxLog] Timeout: User ID not received');
+          this.logger.warn('[FoxLog] Timeout: User ID not received');
           resolve(null);
         }, 3000);
         
@@ -234,18 +236,18 @@
         const preservePage = isAutoRefresh && !hasChanged;
         panelManager.updateLogList(logs, null, preservePage);
         
-        logger.success(`Loaded ${logs.length} logs for user ${userId}${isAutoRefresh ? ' (auto-refresh)' : ''}`);
+        this.logger.success(`Loaded ${logs.length} logs for user ${userId}${isAutoRefresh ? ' (auto-refresh)' : ''}`);
 
         // Analyze errors in the background only if logs changed
         if (hasChanged) {
-          logger.log('Starting error analysis in background...');
+          this.logger.log('Starting error analysis in background...');
           const analysisResults = await logPreviewService.analyzeBatch(logs);
           
           // Update the list with error badges
           panelManager.updateLogList(logs, analysisResults, preservePage);
-          logger.success('Error analysis complete');
+          this.logger.success('Error analysis complete');
         } else {
-          logger.log('Logs unchanged, skipping analysis');
+          this.logger.log('Logs unchanged, skipping analysis');
         }
 
         // Always hide the spinner at the end
@@ -254,7 +256,7 @@
         }
 
       } catch (error) {
-        logger.error('Failed to fetch logs', error);
+        this.logger.error('Failed to fetch logs', error);
         panelManager.showError((i18n?.loadingError) || 'Error loading logs');
         // Also hide the spinner when an error occurs
         if (!isAutoRefresh) {
@@ -283,11 +285,11 @@
       const { logger, salesforceAPI } = window.FoxLog;
       
       try {
-        logger.log(`Fetching details for log ${logId}`);
+        this.logger.log(`Fetching details for log ${logId}`);
         
         const logMetadata = this.currentLogs.find(log => log.Id === logId);
         if (!logMetadata) {
-          logger.error('Log metadata not found');
+          this.logger.error('Log metadata not found');
           return;
         }
 
@@ -300,15 +302,15 @@
           if (window.FoxLog.modalManager) {
             window.FoxLog.modalManager.showRawLog(logBody);
           } else {
-            console.log('Log Body:', logBody);
+            this.logger.log('Log Body:', logBody);
             const message = (window.FoxLog.i18n?.logLoadedConsole) || 'Log loaded! (see console)';
             alert(message);
           }
         }
         
-        logger.success('Log details displayed');
+        this.logger.success('Log details displayed');
       } catch (error) {
-        logger.error('Failed to fetch log details', error);
+        this.logger.error('Failed to fetch log details', error);
       }
     }
 
@@ -320,7 +322,7 @@
       logPreviewService.clearCache();
       this.currentLogs = [];
       panelManager.updateLogList([]);
-      logger.success('Cache cleared');
+      this.logger.success('Cache cleared');
     }
 
     _startAutoRefresh() {
@@ -333,12 +335,12 @@
       this.refreshInterval = setInterval(() => {
         const userId = this.selectedUserId || this.currentUserId;
         if (panelManager.isOpen && userId) {
-          logger.log('Auto-refresh triggered');
+          this.logger.log('Auto-refresh triggered');
           this.refreshLogs(true);
         }
       }, CONFIG.REFRESH_INTERVAL);
       
-      logger.log(`Auto-refresh started (interval: ${CONFIG.REFRESH_INTERVAL}ms)`);
+      this.logger.log(`Auto-refresh started (interval: ${CONFIG.REFRESH_INTERVAL}ms)`);
     }
 
     destroy() {
@@ -351,23 +353,24 @@
       this.currentLogs = [];
       this.initialized = false;
       
-      logger.log('FoxLog destroyed');
+      this.logger.log('FoxLog destroyed');
     }
   }
 
   const app = new FoxLogApp();
+  const logger = window.FoxLog.logger || console;
   
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      console.log('[FoxLog] DOM ready, initializing...');
+      logger.log('[FoxLog] DOM ready, initializing...');
       app.init();
     });
   } else {
-    console.log('[FoxLog] DOM already ready, initializing...');
+    logger.log('[FoxLog] DOM already ready, initializing...');
     app.init();
   }
   
   window.FoxLogApp = app;
   
-  console.log('[FoxLog] Content script loaded');
+  logger.log('[FoxLog] Content script loaded');
 })();

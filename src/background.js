@@ -1,7 +1,54 @@
 // src/background.js
 'use strict';
 
-console.log('[FoxLog Background] Service worker started');
+// ============================================
+// LOGGER LOCAL
+// ============================================
+const DEBUG_MODE = false; 
+
+const logger = {
+  _isEnabled() {
+    return DEBUG_MODE;
+  },
+  
+  log: (msg, data) => {
+    if (!logger._isEnabled()) return;
+    if (data !== null && data !== undefined && data !== '') {
+      console.log(`[FoxLog BG] ${msg}`, data);
+    } else {
+      console.log(`[FoxLog BG] ${msg}`);
+    }
+  },
+  
+  success: (msg, data) => {
+    if (!logger._isEnabled()) return;
+    if (data !== null && data !== undefined && data !== '') {
+      console.log(`[FoxLog BG] ✅ ${msg}`, data);
+    } else {
+      console.log(`[FoxLog BG] ✅ ${msg}`);
+    }
+  },
+  
+  warn: (msg, data) => {
+    if (!logger._isEnabled()) return;
+    if (data !== null && data !== undefined && data !== '') {
+      console.warn(`[FoxLog BG] ⚠️ ${msg}`, data);
+    } else {
+      console.warn(`[FoxLog BG] ⚠️ ${msg}`);
+    }
+  },
+  
+  error: (msg, err) => {
+    // Toujours logger les erreurs, même en production
+    if (err !== null && err !== undefined && err !== '') {
+      console.error(`[FoxLog BG] ❌ ${msg}`, err);
+    } else {
+      console.error(`[FoxLog BG] ❌ ${msg}`);
+    }
+  }
+};
+
+logger.log('Service worker started');
 
 // ============================================
 // CONSTANTS
@@ -14,27 +61,17 @@ const COOKIE_PRIORITY = [
 ];
 
 // ============================================
-// SIMPLE LOGGER
-// ============================================
-const logger = {
-  log: (msg, data) => console.log(`[FoxLog BG] ${msg}`, data || ''),
-  success: (msg, data) => console.log(`[FoxLog BG] ✅ ${msg}`, data || ''),
-  error: (msg, err) => console.error(`[FoxLog BG] ❌ ${msg}`, err || ''),
-  warn: (msg, data) => console.warn(`[FoxLog BG] ⚠️ ${msg}`, data || '')
-};
-
-// ============================================
 // COOKIE SERVICE
 // ============================================
 class CookieService {
   async findSessionCookie(url) {
     logger.log('Starting cookie search', url);
     
-    // Try direct domain first
+// Try direct domain first
     const directCookie = await this._tryDirectCookie(url);
     if (directCookie) return directCookie;
 
-    // Fallback: search all cookies
+// Fallback: search all cookies
     return this._tryAllCookies();
   }
 
