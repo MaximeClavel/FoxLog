@@ -27,9 +27,6 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.salesforce.com/*",
-        "https://*.force.com/*",
-        "https://*.visualforce.com/*",
         "https://*.lightning.force.com/*"
       ],
       "js": [
@@ -65,9 +62,6 @@
         "src/injected.js"
       ],
       "matches": [
-        "https://*.salesforce.com/*",
-        "https://*.force.com/*",
-        "https://*.visualforce.com/*",
         "https://*.lightning.force.com/*"
       ]
     }
