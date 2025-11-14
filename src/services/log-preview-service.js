@@ -150,5 +150,5 @@
   }
 
   window.FoxLog.logPreviewService = new LogPreviewService();
-  console.log('[FoxLog] Log Preview Service loaded');
+  logger.log('[FoxLog] Log Preview Service loaded');
 })();

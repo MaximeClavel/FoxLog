@@ -3,16 +3,20 @@
   'use strict';
   
   window.FoxLog = window.FoxLog || {};
-  const { logger, sessionManager } = window.FoxLog;
+  
+  const getLogger = () => window.FoxLog.logger || console;
+  const getSessionManager = () => window.FoxLog.sessionManager;
 
   class SalesforceAPI {
     constructor() {
       this.baseUrl = null;
+      this.logger = getLogger();
     }
 
     async initialize() {
+      this.logger = getLogger();
       this.baseUrl = this._getBaseUrl();
-      logger.log('API initialized', this.baseUrl);
+      this.logger.log('API initialized', this.baseUrl);
     }
 
     _getBaseUrl() {
@@ -24,9 +28,11 @@
      * Fetch users with TraceFlags AND/OR ApexLogs
      */
     async fetchUsersWithLogs() {
+      const sessionManager = getSessionManager();
       const sessionId = await sessionManager.getSessionId(window.location.href);
+      
       if (!sessionId) {
-          throw new Error('No session ID available');
+        throw new Error('No session ID available');
       }
   
       // Query 1: Get LogUserId and count
@@ -52,154 +58,156 @@
       const urlFlag = `https://${this.baseUrl}/services/data/v62.0/tooling/query?q=${encodeURIComponent(queryFlag)}`;
   
       try {
-          let dataLog = { records: [] };
-          let dataFlag = { records: [] };
+        let dataLog = { records: [] };
+        let dataFlag = { records: [] };
   
           // Request 1: Users with logs
-          try {
-              const responseLog = await fetch(urlLog, {
-                  headers: {
-                      'Authorization': `Bearer ${sessionId}`,
-                      'Content-Type': 'application/json'
-                  }
-              });
+        try {
+          const responseLog = await fetch(urlLog, {
+            headers: {
+              'Authorization': `Bearer ${sessionId}`,
+              'Content-Type': 'application/json'
+            }
+          });
   
-              if (responseLog.ok) {
-                  dataLog = await responseLog.json();
-                  logger.log(`Found ${dataLog.records?.length || 0} users with logs`);
-              } else {
-                  const errorText = await responseLog.text();
-                  logger.error(`Failed to fetch users: ${responseLog.status} - ${errorText}`);
-              }
-          } catch (error) {
-              logger.error('Error fetching users with logs', error);
+          if (responseLog.ok) {
+            dataLog = await responseLog.json();
+            this.logger.log(`Found ${dataLog.records?.length || 0} users with logs`);
+          } else {
+            const errorText = await responseLog.text();
+            this.logger.error(`Failed to fetch users: ${responseLog.status} - ${errorText}`);
           }
+        } catch (error) {
+          this.logger.error('Error fetching users with logs', error);
+        }
   
           // Separate query to fetch user names
-          let userNames = new Map();
-          if (dataLog.records && dataLog.records.length > 0) {
-              const userIds = dataLog.records.map(r => r.LogUserId);
-              const queryUsers = `
-                  SELECT Id, Name
-                  FROM User
-                  WHERE Id IN ('${userIds.join("','")}')
-              `;
-              const urlUsers = `https://${this.baseUrl}/services/data/v62.0/query?q=${encodeURIComponent(queryUsers)}`;
-              
-              try {
-                  const responseUsers = await fetch(urlUsers, {
-                      headers: {
-                          'Authorization': `Bearer ${sessionId}`,
-                          'Content-Type': 'application/json'
-                      }
-                  });
-  
-                  if (responseUsers.ok) {
-                      const dataUsers = await responseUsers.json();
-                      dataUsers.records.forEach(user => {
-                          userNames.set(user.Id, user.Name);
-                      });
-                      logger.log(`Fetched names for ${userNames.size} users`);
-                  } else {
-                      logger.error(`Failed to fetch user names: ${responseUsers.status}`);
-                  }
-              } catch (error) {
-                  logger.error('Error fetching user names', error);
+        let userNames = new Map();
+        if (dataLog.records && dataLog.records.length > 0) {
+          const userIds = dataLog.records.map(r => r.LogUserId);
+          const queryUsers = `
+              SELECT Id, Name
+              FROM User
+              WHERE Id IN ('${userIds.join("','")}')
+          `;
+          const urlUsers = `https://${this.baseUrl}/services/data/v62.0/query?q=${encodeURIComponent(queryUsers)}`;
+          
+          try {
+            const responseUsers = await fetch(urlUsers, {
+              headers: {
+                'Authorization': `Bearer ${sessionId}`,
+                'Content-Type': 'application/json'
               }
+            });
+  
+            if (responseUsers.ok) {
+              const dataUsers = await responseUsers.json();
+              dataUsers.records.forEach(user => {
+                userNames.set(user.Id, user.Name);
+              });
+              this.logger.log(`Fetched names for ${userNames.size} users`);
+            } else {
+              this.logger.error(`Failed to fetch user names: ${responseUsers.status}`);
+            }
+          } catch (error) {
+            this.logger.error('Error fetching user names', error);
           }
+        }
   
           // Request 2: TraceFlags (optional)
-          try {
-              const responseFlag = await fetch(urlFlag, {
-                  headers: {
-                      'Authorization': `Bearer ${sessionId}`,
-                      'Content-Type': 'application/json'
-                  }
-              });
+        try {
+          const responseFlag = await fetch(urlFlag, {
+            headers: {
+              'Authorization': `Bearer ${sessionId}`,
+              'Content-Type': 'application/json'
+            }
+          });
   
-              if (responseFlag.ok) {
-                  dataFlag = await responseFlag.json();
-                  logger.log(`Found ${dataFlag.records?.length || 0} users with TraceFlags`);
-              } else {
-                  logger.warn(`Failed to fetch TraceFlags: ${responseFlag.status}`);
-              }
-          } catch (error) {
-              logger.warn('Error fetching TraceFlags', error);
+          if (responseFlag.ok) {
+            dataFlag = await responseFlag.json();
+            this.logger.log(`Found ${dataFlag.records?.length || 0} users with TraceFlags`);
+          } else {
+            this.logger.warn(`Failed to fetch TraceFlags: ${responseFlag.status}`);
           }
+        } catch (error) {
+          this.logger.warn('Error fetching TraceFlags', error);
+        }
   
           // Build user map
-          const usersMap = new Map();
+        const usersMap = new Map();
   
           // Add users with logs
           logger.log(`Processing ${dataLog.records?.length || 0} users...`);
-          (dataLog.records || []).forEach(record => {
-              const userId = record.LogUserId;
-              const userName = userNames.get(userId) || 'Unknown User';
-              const logCount = record.LogCount || record.expr0 || 0;
+        (dataLog.records || []).forEach(record => {
+          const userId = record.LogUserId;
+          const userName = userNames.get(userId) || 'Unknown User';
+          const logCount = record.LogCount || record.expr0 || 0;
   
-              logger.log(` - User: ${userName} (${userId}) with ${logCount} logs`);
+          this.logger.log(` - User: ${userName} (${userId}) with ${logCount} logs`);
   
-              usersMap.set(userId, {
-                  id: userId,
-                  name: userName,
-                  logCount: logCount,
-                  debugLevel: null,
-                  hasTraceFlag: false
-              });
+          usersMap.set(userId, {
+            id: userId,
+            name: userName,
+            logCount: logCount,
+            debugLevel: null,
+            hasTraceFlag: false
           });
+        });
   
           // Add/Update users with TraceFlag
           logger.log(`Processing ${dataFlag.records?.length || 0} TraceFlags...`);
-          (dataFlag.records || []).forEach(flag => {
-              const userId = flag.TracedEntityId;
-              const userName = flag.TracedEntity?.Name || 'Unknown User';
-              const debugLevel = flag.DebugLevel?.DeveloperName || 'N/A';
+        (dataFlag.records || []).forEach(flag => {
+          const userId = flag.TracedEntityId;
+          const userName = flag.TracedEntity?.Name || 'Unknown User';
+          const debugLevel = flag.DebugLevel?.DeveloperName || 'N/A';
   
-              const existingUser = usersMap.get(userId);
+          const existingUser = usersMap.get(userId);
   
-              if (existingUser) {
-                  existingUser.debugLevel = debugLevel;
-                  existingUser.hasTraceFlag = true;
-                  logger.log(` - Updated user: ${existingUser.name} with TraceFlag [${debugLevel}]`);
-              } else {
-                  usersMap.set(userId, {
-                      id: userId,
-                      name: userName,
-                      logCount: 0,
-                      debugLevel: debugLevel,
-                      hasTraceFlag: true
-                  });
-                  logger.log(` - New user with TraceFlag: ${userName} [${debugLevel}]`);
-              }
-          });
-  
-          if (usersMap.size === 0) {
-              logger.log('No users found');
-              return [];
+          if (existingUser) {
+            existingUser.debugLevel = debugLevel;
+            existingUser.hasTraceFlag = true;
+            this.logger.log(` - Updated user: ${existingUser.name} with TraceFlag [${debugLevel}]`);
+          } else {
+            usersMap.set(userId, {
+              id: userId,
+              name: userName,
+              logCount: 0,
+              debugLevel: debugLevel,
+              hasTraceFlag: true
+            });
+            this.logger.log(` - New user with TraceFlag: ${userName} [${debugLevel}]`);
           }
+        });
+  
+        if (usersMap.size === 0) {
+          this.logger.log('No users found');
+          return [];
+        }
   
           // Convert and sort
-          const users = Array.from(usersMap.values()).sort((a, b) => {
+        const users = Array.from(usersMap.values()).sort((a, b) => {
               // Priority 1: Active TraceFlag
-              if (a.hasTraceFlag && !b.hasTraceFlag) return -1;
-              if (!a.hasTraceFlag && b.hasTraceFlag) return 1;
+          if (a.hasTraceFlag && !b.hasTraceFlag) return -1;
+          if (!a.hasTraceFlag && b.hasTraceFlag) return 1;
               // Priority 2: Log count
-              if (b.logCount !== a.logCount) return b.logCount - a.logCount;
+          if (b.logCount !== a.logCount) return b.logCount - a.logCount;
               // Priority 3: Alphabetical name
-              return a.name.localeCompare(b.name);
-          });
+          return a.name.localeCompare(b.name);
+        });
   
-          logger.success(`Loaded ${users.length} users (${users.filter(u => u.hasTraceFlag).length} with TraceFlag, ${users.filter(u => u.logCount > 0).length} with logs)`);
-          return users;
+        this.logger.success(`Loaded ${users.length} users (${users.filter(u => u.hasTraceFlag).length} with TraceFlag, ${users.filter(u => u.logCount > 0).length} with logs)`);
+        return users;
   
       } catch (error) {
-          logger.error('Failed to fetch users', error);
-          return [];
+        this.logger.error('Failed to fetch users', error);
+        return [];
       }
-  }
+    }
 
     async getCurrentUser() {
+      const sessionManager = getSessionManager();
       const sessionId = await sessionManager.getSessionId(window.location.href);
+      
       if (!sessionId) {
         throw new Error('No session ID available');
       }
@@ -225,7 +233,9 @@
     }
 
     async fetchLogs(userId, limit = 100) {
+      const sessionManager = getSessionManager();
       const sessionId = await sessionManager.getSessionId(window.location.href);
+      
       if (!sessionId) {
         throw new Error('No session ID available');
       }
@@ -250,7 +260,9 @@
     }
 
     async fetchLogBody(logId) {
+      const sessionManager = getSessionManager();
       const sessionId = await sessionManager.getSessionId(window.location.href);
+      
       if (!sessionId) {
         throw new Error('No session ID available');
       }
@@ -271,7 +283,9 @@
     }
 
     async deleteLog(logId) {
+      const sessionManager = getSessionManager();
       const sessionId = await sessionManager.getSessionId(window.location.href);
+      
       if (!sessionId) {
         throw new Error('No session ID available');
       }
@@ -290,5 +304,7 @@
   }
 
   window.FoxLog.salesforceAPI = new SalesforceAPI();
-  console.log('[FoxLog] Salesforce API loaded');
+  
+  const logger = getLogger();
+  logger.log('Salesforce API loaded');
 })();

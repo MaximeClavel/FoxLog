@@ -4,6 +4,7 @@
   
   window.FoxLog = window.FoxLog || {};
   const i18n = window.FoxLog.i18n || {};
+  const logger = window.FoxLog.logger || console;
   
   class ModalManager {
     constructor() {
@@ -378,7 +379,7 @@
       const { callTreeBuilder, CallTreeView } = window.FoxLog;
       
       if (!callTreeBuilder || !CallTreeView) {
-        console.warn('[ModalManager] CallTree components not available');
+        logger.warn('[ModalManager] CallTree components not available');
         return;
       }
 
@@ -703,5 +704,5 @@
 
   window.FoxLog.ModalManager = ModalManager;
   window.FoxLog.modalManager = new ModalManager();
-  console.log('[FoxLog] Modal Manager loaded');
+  logger.log('[FoxLog] Modal Manager loaded');
 })();

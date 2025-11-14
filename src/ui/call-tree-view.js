@@ -647,5 +647,5 @@
   // Exposer le composant
   window.FoxLog.CallTreeView = CallTreeView;
   
-  console.log('[FoxLog] CallTreeView loaded');
+  logger.log('[FoxLog] CallTreeView loaded');
 })();

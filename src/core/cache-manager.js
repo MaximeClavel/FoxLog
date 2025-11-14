@@ -3,6 +3,7 @@
   'use strict';
   
   window.FoxLog = window.FoxLog || {};
+  const logger = window.FoxLog.logger || console;
   
   class CacheManager {
     constructor(ttl = 30000) {
@@ -52,5 +53,5 @@
 
   const CONFIG = window.FoxLog.CONFIG || {};
   window.FoxLog.cache = new CacheManager(CONFIG.CACHE_DURATION || 30000);
-  console.log('[FoxLog] Cache Manager loaded');
+  logger.log('[FoxLog] Cache Manager loaded');
 })();

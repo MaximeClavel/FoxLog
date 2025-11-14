@@ -4,6 +4,53 @@
 
 'use strict';
 
+// ============================================
+  // LOGGER LOCAL
+  // ============================================
+  const DEBUG_MODE = false; 
+
+  const logger = {
+    _isEnabled() {
+      return DEBUG_MODE;
+    },
+    
+    log: (msg, data) => {
+      if (!logger._isEnabled()) return;
+      if (data !== null && data !== undefined && data !== '') {
+        console.log(`[FoxLog BG] ${msg}`, data);
+      } else {
+        console.log(`[FoxLog BG] ${msg}`);
+      }
+    },
+    
+    success: (msg, data) => {
+      if (!logger._isEnabled()) return;
+      if (data !== null && data !== undefined && data !== '') {
+        console.log(`[FoxLog BG] ✅ ${msg}`, data);
+      } else {
+        console.log(`[FoxLog BG] ✅ ${msg}`);
+      }
+    },
+    
+    warn: (msg, data) => {
+      if (!logger._isEnabled()) return;
+      if (data !== null && data !== undefined && data !== '') {
+        console.warn(`[FoxLog BG] ⚠️ ${msg}`, data);
+      } else {
+        console.warn(`[FoxLog BG] ⚠️ ${msg}`);
+      }
+    },
+    
+    error: (msg, err) => {
+      // Toujours logger les erreurs, même en production
+      if (err !== null && err !== undefined && err !== '') {
+        console.error(`[FoxLog BG] ❌ ${msg}`, err);
+      } else {
+        console.error(`[FoxLog BG] ❌ ${msg}`);
+      }
+    }
+  };
+
 /**
  * Call tree node structure
  * @typedef {Object} CallTreeNode
@@ -63,7 +110,7 @@ class CallTreeBuilder {
     const metadata = this._collectMetadata(root, parsedLog);
     
     const buildDuration = performance.now() - startBuild;
-    console.log(`[CallTreeWorker] Tree built in ${buildDuration.toFixed(2)}ms`);
+    logger.log('Tree built in ${buildDuration.toFixed(2)}ms');
     
     return {
       metadata,
@@ -445,4 +492,4 @@ self.addEventListener('message', (event) => {
   }
 });
 
-console.log('[CallTreeWorker] Worker initialized');
+logger.log('[CallTreeWorker] Worker initialized');

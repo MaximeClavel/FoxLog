@@ -291,5 +291,5 @@
   window.FoxLog.CallTreeBuilderService = CallTreeBuilderService;
   window.FoxLog.callTreeBuilder = new CallTreeBuilderService();
   
-  console.log('[FoxLog] CallTreeBuilder service loaded');
+  logger.log('[FoxLog] CallTreeBuilder service loaded');
 })();

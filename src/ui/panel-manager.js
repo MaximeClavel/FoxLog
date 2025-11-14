@@ -4,6 +4,7 @@
   
   window.FoxLog = window.FoxLog || {};
   const i18n = window.FoxLog.i18n || {};
+  const logger = window.FoxLog.logger || console;
 
   class PanelManager {
     constructor() {
@@ -20,7 +21,7 @@
 
     create() {
       if (this.panel) {
-        console.warn('[FoxLog] Panel already exists');
+        logger.warn('[FoxLog] Panel already exists');
         return;
       }
 
@@ -32,13 +33,13 @@
       document.body.appendChild(this.panel);
       this._attachEventListeners();
       
-      console.log('[FoxLog] Panel created');
+      logger.log('[FoxLog] Panel created');
     }
 
     toggle() {
       this.isOpen = !this.isOpen;
       this.panel.className = this.isOpen ? 'sf-panel-open' : 'sf-panel-closed';
-      console.log(`[FoxLog] Panel ${this.isOpen ? 'opened' : 'closed'}`);
+      logger.log(`Panel ${this.isOpen ? 'opened' : 'closed'}`);
     }
 
     /**
@@ -451,5 +452,5 @@
   }
 
   window.FoxLog.panelManager = new PanelManager();
-  console.log('[FoxLog] Panel Manager loaded');
+  logger.log('[FoxLog] Panel Manager loaded');
 })();

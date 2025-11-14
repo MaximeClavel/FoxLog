@@ -3,15 +3,29 @@
   'use strict';
   
   window.FoxLog = window.FoxLog || {};
+  const logger = window.FoxLog.logger || console;
   
+  // ============================================
+  // CONFIGURATION
+  // ============================================
   window.FoxLog.CONFIG = {
     AUTO_REFRESH_INTERVAL: 5000,
     MAX_LOGS: 100,
     CACHE_DURATION: 30000,
     REFRESH_INTERVAL: 10000,
-    DEBUG_MODE: true
+    
+    // ✅ LOGGER CONFIGURATION
+    // Set to false before publishing to production
+    DEBUG_MODE: false,           // Enable/disable all logs
+    ENABLE_SUCCESS_LOGS: true,  // Show success messages (✅)
+    ENABLE_INFO_LOGS: true,     // Show info messages
+    ENABLE_WARN_LOGS: true,     // Show warnings (⚠️)
+    ENABLE_ERROR_LOGS: true     // Show errors (❌) - always recommended
   };
   
+  // ============================================
+  // ICONS
+  // ============================================
   window.FoxLog.ICONS = {
     FOXLOG: chrome.runtime.getURL('src/assets/icon128.png'),
     TAIL: chrome.runtime.getURL('src/assets/tail128.png'),
@@ -19,6 +33,9 @@
     REFRESH: chrome.runtime.getURL('src/assets/refresh.png')
   };
   
+  // ============================================
+  // COOKIE PRIORITY
+  // ============================================
   window.FoxLog.COOKIE_PRIORITY = [
     'my.salesforce.com',
     '.salesforce.com',
@@ -26,6 +43,9 @@
     'lightning.force.com'
   ];
   
+  // ============================================
+  // LOG TYPES
+  // ============================================
   window.FoxLog.LOG_TYPES = {
     CODE_UNIT: 'CODE_UNIT_STARTED',
     METHOD_ENTRY: 'METHOD_ENTRY',
@@ -38,11 +58,12 @@
     USER_DEBUG: 'USER_DEBUG'
   };
   
-  // Detect browser language
+  // ============================================
+  // I18N - INTERNATIONALIZATION
+  // ============================================
   const browserLang = navigator.language.toLowerCase();
   const isFrench = browserLang.startsWith('fr');
   
-  // UI Translations
   window.FoxLog.i18n = {
     // Panel
     welcome: isFrench ? 'Bienvenue dans FoxLog !' : 'Welcome to FoxLog!',
@@ -146,5 +167,5 @@
     limitHeap: isFrench ? 'Taille du heap' : 'Heap Size'
   };
   
-  console.log('[FoxLog] Constants loaded');
+  //logger.log('[FoxLog] Constants loaded - Debug mode:', window.FoxLog.CONFIG.DEBUG_MODE);
 })();
