@@ -12,8 +12,6 @@
   ],
   
   "host_permissions": [
-    "https://*.salesforce.com/*",
-    "https://*.force.com/*",
     "https://*.my.salesforce.com/*",
     "https://*.lightning.force.com/*"
   ],
