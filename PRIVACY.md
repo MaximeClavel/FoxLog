@@ -117,7 +117,7 @@ FoxLog is open source software. You can review the complete source code to verif
 If you have questions or concerns about this Privacy Policy or how FoxLog handles data, please contact us:
 
 - **GitHub Issues**: [https://github.com/MaximeClavel/FoxLog/issues]
-- **Email**: contact@foxlog.dev
+- **Email**: FoxLog.Extension@proton.me
 
 ## Compliance
 

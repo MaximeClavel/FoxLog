@@ -64,6 +64,7 @@ Contributions are welcome!
 ## ℹ️ About
 
 By Claude Sonnet 4.5 and occasionally Maxime Clavel
+Contact : FoxLog.Extension@proton.me
 
 ## 📄 License
 
