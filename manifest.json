@@ -1,14 +1,11 @@
 {
   "manifest_version": 3,
   "name": "FoxLog",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Display Salesforce debug logs in a user-friendly format with error detection and pagination.",
   
   "permissions": [
-    "activeTab",
-    "storage",
-    "cookies",
-    "webRequest"
+    "cookies"
   ],
   
   "host_permissions": [
