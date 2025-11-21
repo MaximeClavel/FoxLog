@@ -1774,6 +1774,17 @@ ONGLET TIMELINE
   flex-shrink: 0;
 }
 
+/* Bouton actif */
+.sf-call-tree-btn.sf-btn-active {
+  background: #0176d3 !important;
+  color: white !important;
+  border-color: #0176d3 !important;
+}
+
+.sf-call-tree-btn.sf-btn-active svg {
+  color: white !important;
+}
+
 /* Node icon */
 .sf-node-icon {
   font-size: 18px;
@@ -1994,7 +2005,7 @@ ONGLET TIMELINE
 }
 
 /* ============================================
-   TARGET NODE HIGHLIGHT - TO ADD TO modal-styles.css
+   TARGET NODE HIGHLIGHT 
    ============================================ */
 
 /* Node highlighted after navigation */
@@ -2143,3 +2154,4 @@ ONGLET TIMELINE
     background: #451a03 !important;
   }
 }
+

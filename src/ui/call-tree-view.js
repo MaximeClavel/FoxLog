@@ -37,27 +37,41 @@
       this.toolbarEl = null;
       this.treeContainer = null;
       this.scrollContainer = null;
-      this.topSentinel = null;
-      this.bottomSentinel = null;
-      
-      // Infinite scroll observer
-      this.intersectionObserver = null;
       
       // Debounce timers
       this.searchDebounce = null;
+      this.listenersAttached = false;
     }
 
     /**
      * Initialize the view
      */
-    init() {
+    async init() {
       this._initExpandedState();
       this._buildVisibleNodes();
       this._render();
-      this._setupEventListeners();
-      this._setupIntersectionObserver();
-      
+      await this._waitForRender();
       logger.success('CallTreeView initialized');
+    }
+
+    async _waitForRender() {
+      return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            this.toolbarEl = this.container.querySelector('.sf-call-tree-toolbar');
+            this.scrollContainer = this.container.querySelector('.sf-call-tree-scroll-container');
+            this.treeContainer = this.container.querySelector('.sf-call-tree-viewport');
+            
+            if (this.scrollContainer) {
+              this.viewportHeight = this.scrollContainer.clientHeight;
+            }
+            
+            this._renderVisibleNodes();
+            this._setupEventListeners();
+            resolve();
+          });
+        });
+      });
     }
 
     /**
@@ -113,17 +127,6 @@
           ${this._renderEmptyState()}
         </div>
       `;
-      
-      // Retrieve references
-      this.toolbarEl = this.container.querySelector('.sf-call-tree-toolbar');
-      this.scrollContainer = this.container.querySelector('.sf-call-tree-scroll-container');
-      this.treeContainer = this.container.querySelector('.sf-call-tree-viewport');
-      
-      // Compute viewport height
-      this.viewportHeight = this.scrollContainer.clientHeight;
-      
-      // Initial render
-      this._renderVisibleNodes();
     }
 
     /**
@@ -146,17 +149,17 @@
           </div>
           
           <div class="sf-call-tree-actions">
-            <button class="sf-call-tree-btn" data-action="expand-all" title="${i18n.expandAll || 'Expand All'}">
+            <button class="sf-call-tree-btn sf-btn-expand" data-action="expand-all" title="${i18n.expandAll || 'Expand All'}">
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
               </svg>
             </button>
-            <button class="sf-call-tree-btn" data-action="collapse-all" title="${i18n.collapseAll || 'Collapse All'}">
+            <button class="sf-call-tree-btn sf-btn-collapse" data-action="collapse-all" title="${i18n.collapseAll || 'Collapse All'}">
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
               </svg>
             </button>
-            <button class="sf-call-tree-btn" data-action="errors-only" title="${i18n.errorsOnly || 'Errors Only'}">
+            <button class="sf-call-tree-btn sf-btn-errors" data-action="errors-only" title="${i18n.errorsOnly || 'Errors Only'}">
               <svg viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
               </svg>
@@ -197,8 +200,6 @@
      * @param {string} nodeId - Target node ID
      */
     scrollToNode(nodeId) {
-      const { logger } = window.FoxLog;
-      
       // 1. Find the node in the tree
       const node = this._findNodeById(this.callTree.root, nodeId);
       if (!node) {
@@ -316,15 +317,25 @@
      * @private
      */
     _renderVisibleNodes() {
-      if (this.filteredNodes.length === 0) {
-        this.treeContainer.innerHTML = '';
+      if (!this.treeContainer || this.filteredNodes.length === 0) {
+        if (this.treeContainer) {
+          this.treeContainer.innerHTML = '';
+        }
         return;
       }
       
+      if (this.scrollContainer) {
+        const currentHeight = this.scrollContainer.clientHeight;
+        if (currentHeight > 0) {
+          this.viewportHeight = currentHeight;
+        }
+      }
+      
+      const effectiveViewportHeight = this.viewportHeight || 600;
       const startIndex = Math.max(0, Math.floor(this.scrollTop / this.nodeHeight) - this.renderBuffer);
       const endIndex = Math.min(
         this.filteredNodes.length,
-        Math.ceil((this.scrollTop + this.viewportHeight) / this.nodeHeight) + this.renderBuffer
+        Math.ceil((this.scrollTop + effectiveViewportHeight) / this.nodeHeight) + this.renderBuffer
       );
       
       const fragment = document.createDocumentFragment();
@@ -398,41 +409,34 @@
      * @private
      */
     _setupEventListeners() {
-      // Search
-      const searchInput = this.container.querySelector('.sf-call-tree-search-input');
-      searchInput?.addEventListener('input', (e) => {
-        clearTimeout(this.searchDebounce);
-        this.searchDebounce = setTimeout(() => {
-          this.searchQuery = e.target.value;
-          this._applySearch();
-        }, 200);
-      });
+      if (this.listenersAttached) return;
       
       // Toolbar actions
-      this.toolbarEl?.addEventListener('click', (e) => {
+      this.container.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        
-        const action = btn.dataset.action;
-        switch (action) {
-          case 'expand-all':
-            this._expandAll();
-            break;
-          case 'collapse-all':
-            this._collapseAll();
-            break;
-          case 'errors-only':
-            this._toggleErrorsOnly();
-            break;
+        if (btn) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const action = btn.dataset.action;
+          switch (action) {
+            case 'expand-all':
+              this._expandAll();
+              break;
+            case 'collapse-all':
+              this._collapseAll();
+              break;
+            case 'errors-only':
+              this._toggleErrorsOnly();
+              break;
+          }
+          return;
         }
-      });
-      
-      // Toggle expand/collapse
-      this.treeContainer?.addEventListener('click', (e) => {
+        
+        // Toggle expand/collapse
         const toggleBtn = e.target.closest('.sf-node-toggle');
         if (toggleBtn) {
-          const nodeId = toggleBtn.dataset.nodeId;
-          this._toggleNode(nodeId);
+          this._toggleNode(toggleBtn.dataset.nodeId);
           return;
         }
         
@@ -440,40 +444,40 @@
         const nodeEl = e.target.closest('.sf-call-tree-node');
         if (nodeEl) {
           this._selectNode(nodeEl.dataset.nodeId);
+          return;
+        }
+        
+        const topNodeItem = e.target.closest('.sf-top-node-item');
+        if (topNodeItem) {
+          this.scrollToNode(topNodeItem.dataset.nodeId);
+          return;
         }
       });
       
       // Top nodes
-      const topNodesContainer = this.container.querySelector('.sf-call-tree-top-nodes');
-      topNodesContainer?.addEventListener('click', (e) => {
-        const item = e.target.closest('.sf-top-node-item');
-        if (item) {
-          const nodeId = item.dataset.nodeId;
-          // Use scrollToNode instead of _selectNode
-          this.scrollToNode(nodeId);
-        }
-      });
+      const searchInput = this.container.querySelector('.sf-call-tree-search-input');
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          clearTimeout(this.searchDebounce);
+          this.searchDebounce = setTimeout(() => {
+            this.searchQuery = e.target.value;
+            this._applySearch();
+          }, 200);
+        });
+      }
       
       // Scroll
-      this.scrollContainer?.addEventListener('scroll', () => {
-        this.scrollTop = this.scrollContainer.scrollTop;
-        this._renderVisibleNodes();
-      });
+      const scrollContainer = this.container.querySelector('.sf-call-tree-scroll-container');
+      if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', () => {
+          this.scrollTop = scrollContainer.scrollTop;
+          this._renderVisibleNodes();
+        });
+      }
+      
+      this.listenersAttached = true;
     }
 
-    /**
-     * Configure the intersection observer for infinite scroll
-     * @private
-     */
-    _setupIntersectionObserver() {
-      // Not required with full virtualization
-      // Could be used for lazy-loading if needed
-    }
-
-    /**
-     * Toggle a node
-     * @private
-     */
     _toggleNode(nodeId) {
       if (this.expandedNodes.has(nodeId)) {
         this.expandedNodes.delete(nodeId);
@@ -490,12 +494,12 @@
      * @private
      */
     _expandAll() {
-      this.filteredNodes.forEach(node => {
-        if (node.children.length > 0) {
-          this.expandedNodes.add(node.id);
-        }
-      });
+      const addAllNodes = (node) => {
+        this.expandedNodes.add(node.id);
+        node.children.forEach(child => addAllNodes(child));
+      };
       
+      addAllNodes(this.callTree.root);
       this._buildVisibleNodes();
       this._applyFilters();
     }
@@ -506,7 +510,7 @@
      */
     _collapseAll() {
       this.expandedNodes.clear();
-      this._initExpandedState(); // Reset to default state (levels 0-2)
+      this.expandedNodes.add(this.callTree.root.id);
       this._buildVisibleNodes();
       this._applyFilters();
     }
@@ -517,6 +521,16 @@
      */
     _toggleErrorsOnly() {
       this.filters.errorsOnly = !this.filters.errorsOnly;
+
+      const errorBtn = this.container.querySelector('[data-action="errors-only"]');
+      if (errorBtn) {
+        if (this.filters.errorsOnly) {
+          errorBtn.classList.add('sf-btn-active');
+        } else {
+          errorBtn.classList.remove('sf-btn-active');
+        }
+      }
+
       this._applyFilters();
     }
 
@@ -550,6 +564,11 @@
         return true;
       });
       
+      if (this.searchQuery) {
+        this._applySearch();
+        return;
+      }
+      
       this._updateView();
     }
 
@@ -558,6 +577,11 @@
      * @private
      */
     _updateView() {
+      if (this.scrollContainer) {
+        this.viewportHeight = this.scrollContainer.clientHeight;
+        this.scrollTop = this.scrollContainer.scrollTop;
+      }
+
       // Update spacer height
       const spacer = this.container.querySelector('.sf-call-tree-spacer');
       if (spacer) {
@@ -566,6 +590,14 @@
       
       // Re-render
       this._renderVisibleNodes();
+      
+      if (this.scrollContainer) {
+        const maxScroll = (this.filteredNodes.length * this.nodeHeight) - this.viewportHeight;
+        if (this.scrollTop > maxScroll) {
+          this.scrollContainer.scrollTop = 0;
+          this.scrollTop = 0;
+        }
+      }
     }
 
     /**
@@ -637,9 +669,6 @@
      * Destroy the view
      */
     destroy() {
-      if (this.intersectionObserver) {
-        this.intersectionObserver.disconnect();
-      }
       clearTimeout(this.searchDebounce);
     }
   }
