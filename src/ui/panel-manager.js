@@ -1,4 +1,4 @@
-// src/ui/panel-manager.js (Emoji corrections applied)
+// src/ui/panel-manager.js
 (function() {
   'use strict';
   
@@ -17,6 +17,8 @@
       this.usersCache = [];
       this.selectedUserId = null;
       this.locale = navigator.language || 'en-US';
+      this.debugStatus = null;
+      this.statusMessageTimeout = null;
     }
 
     create() {
@@ -43,7 +45,7 @@
     }
 
     /**
-     * ✅ Fixed: load users into the picklist
+     * load users into the picklist
      */
     async loadUsers(currentUserId = null) {
       const { salesforceAPI, logger } = window.FoxLog;
@@ -90,11 +92,9 @@
 
         this.hideLoading();
 
-        // ✅ CORRECTION : Utiliser des emojis Unicode valides
         const options = users.map(user => {
           const selected = user.id === currentUserId ? 'selected' : '';
           
-          // Emoji selon le statut (Unicode natif)
           let emoji = '';
           if (user.hasTraceFlag && user.logCount > 0) {
             emoji = '🟢'; // Vert : TraceFlag actif + logs
@@ -104,7 +104,6 @@
             emoji = '📋'; // Clipboard : Seulement des logs
           }
           
-          // Formatage du label
           let label = `${emoji} ${user.name}`;
           
           if (user.hasTraceFlag) {
@@ -130,6 +129,9 @@
           this.selectedUserId = currentUserId;
         }
 
+        // Update debug status
+        await this.updateDebugStatus(this.selectedUserId);
+
         logger.success(`Loaded ${users.length} users`);
       } catch (error) {
         logger.error('Failed to load users', error);
@@ -137,6 +139,149 @@
         userSelect.disabled = true;
         this.hideLoading();
       }
+    }
+
+    /**
+     * Update debug status
+     */
+    async updateDebugStatus(userId) {
+      if (!userId) return;
+
+      const { debugLevelManager } = window.FoxLog;
+      if (!debugLevelManager) {
+        logger.warn('Debug Level Manager not available');
+        return;
+      }
+
+      const statusContainer = this.panel.querySelector('#sf-debug-status');
+      const debugToggle = this.panel.querySelector('#sf-debug-logs-toggle');
+      
+      if (!statusContainer) return;
+
+      try {
+        statusContainer.textContent = '⏳';
+        if (debugToggle) {
+          debugToggle.disabled = true;
+        }
+
+        const status = await debugLevelManager.getDebugStatus(userId);
+        this.debugStatus = status;
+
+        if (debugToggle) {
+          debugToggle.checked = status.enabled;
+          debugToggle.disabled = false;
+        }
+
+        statusContainer.innerHTML = `
+          <span class="${status.className}">
+            ${status.icon} ${status.message}
+          </span>
+        `;
+
+        logger.log('Debug status updated:', status);
+      } catch (error) {
+        logger.error('Failed to update debug status', error);
+        statusContainer.textContent = '❌ ' + (i18n.error || 'Error');
+        if (debugToggle) {
+          debugToggle.disabled = false;
+        }
+      }
+    }
+
+    async toggleDebugLogs() {
+      const userId = this.selectedUserId;
+      if (!userId) {
+        this._showStatusMessage('⚠️ ' + (i18n.noUserSelected || 'No user selected'), 'warning');
+        return;
+      }
+
+      const { debugLevelManager } = window.FoxLog;
+      if (!debugLevelManager) {
+        this._showStatusMessage('❌ ' + (i18n.debugManagerUnavailable || 'Debug manager unavailable'), 'error');
+        return;
+      }
+
+      const debugToggle = this.panel.querySelector('#sf-debug-logs-toggle');
+      const statusContainer = this.panel.querySelector('#sf-debug-status');
+
+      try {
+        if (debugToggle) debugToggle.disabled = true;
+        statusContainer.textContent = '⏳ ' + (i18n.processing || 'Processing...');
+        this.showLoading();
+        this._showStatusMessage('⏳ ' + (i18n.processing || 'Processing...'), 'info');
+
+        const result = await debugLevelManager.toggleDebugLogs(userId, 60);
+
+        if (result.success) {
+          
+          if (result.enabled) {
+            this._showStatusMessage('✅ ' + (i18n.debugLogsEnabled || 'Debug logs enabled (60min)'), 'success');
+            logger.success('Debug logs enabled for user:', userId);
+          } else {
+            this._showStatusMessage('✅ ' + (i18n.debugLogsDisabled || 'Debug logs disabled'), 'success');
+            logger.success('Debug logs disabled for user:', userId);
+          }
+
+          // Refresh status
+          document.dispatchEvent(new CustomEvent('foxlog:refresh'));
+          await this.updateDebugStatus(userId);
+
+          const finalMessage = result.enabled 
+            ? (i18n.debugLogsEnabledShort || 'Debug logs enabled')
+            : (i18n.debugLogsDisabledShort || 'Debug logs disabled');
+          this._showStatusMessage(finalMessage, 'success');
+          
+        } else {
+          throw new Error(result.error || 'Unknown error');
+        }
+
+      } catch (error) {
+        logger.error('Failed to toggle debug logs', error);
+        this._showStatusMessage('❌ ' + (i18n.errorPrefix || 'Error:') + ' ' + error.message, 'error');
+        
+        if (debugToggle) {
+          debugToggle.checked = !debugToggle.checked;
+          debugToggle.disabled = false;
+        }
+        statusContainer.textContent = '❌ ' + (i18n.error || 'Error');
+      }
+      this.hideLoading();
+    }
+
+    _showStatusMessage(message, type = 'info') {
+      const statusIndicator = this.panel.querySelector('#sf-status-indicator');
+      const statusText = this.panel.querySelector('#sf-status-text');
+      
+      if (!statusIndicator || !statusText) return;
+
+      if (this.statusMessageTimeout) {
+        clearTimeout(this.statusMessageTimeout);
+      }
+
+      statusIndicator.className = 'sf-status-disconnected';
+      
+      switch (type) {
+        case 'success':
+          statusIndicator.className = 'sf-status-success';
+          break;
+        case 'error':
+          statusIndicator.className = 'sf-status-error';
+          break;
+        case 'warning':
+          statusIndicator.className = 'sf-status-warning';
+          break;
+        case 'info':
+          statusIndicator.className = 'sf-status-info';
+          break;
+      }
+
+      statusText.textContent = message;
+
+      // Auto-clear after 5 seconds
+      this.statusMessageTimeout = setTimeout(() => {
+        statusIndicator.className = 'sf-status-disconnected';
+        statusText.textContent = i18n.ready || 'Ready';
+      }, 5000);
     }
 
     getSelectedUserId() {
@@ -322,6 +467,18 @@
             <option value="">${i18n.loading || 'Loading...'}</option>
           </select>
         </div>
+        
+        <div class="sf-debug-control">
+          <label class="sf-debug-toggle-label">
+            <input type="checkbox" id="sf-debug-logs-toggle" class="sf-debug-toggle-input" disabled>
+            <span class="sf-debug-toggle-slider"></span>
+            <span class="sf-debug-toggle-text">${i18n.debugLogs || 'Debug Logs'}</span>
+          </label>
+          <span id="sf-debug-status" class="sf-debug-status">
+            ⚪ ${i18n.unknown || 'Unknown'}
+          </span>
+        </div>
+        
         <div class="sf-panel-content" id="sf-logs-list">
           <div class="sf-empty-state">
             <p>👋 ${i18n.welcome || 'Welcome to FoxLog!'}</p>
@@ -329,7 +486,7 @@
           </div>
         </div>
         <div class="sf-panel-footer">
-          <span id="sf-version-display">v1.0.8</span>
+          <span id="sf-version-display">v1.1.0</span>
           <span id="sf-last-update">${i18n.neverUpdated || 'Never updated'}</span>
         </div>
       `;
@@ -348,11 +505,18 @@
         this.toggle();
       });
 
-      this.panel.querySelector('#sf-user-select')?.addEventListener('change', (e) => {
+      this.panel.querySelector('#sf-user-select')?.addEventListener('change', async (e) => {
         this.selectedUserId = e.target.value;
+        
+        await this.updateDebugStatus(this.selectedUserId);
+        
         document.dispatchEvent(new CustomEvent('foxlog:userChanged', {
           detail: { userId: this.selectedUserId }
         }));
+      });
+
+      this.panel.querySelector('#sf-debug-logs-toggle')?.addEventListener('change', async (e) => {
+        await this.toggleDebugLogs();
       });
       
       this.panel.querySelector('#sf-logs-list')?.addEventListener('click', (e) => {

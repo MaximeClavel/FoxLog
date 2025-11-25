@@ -122,12 +122,12 @@
     _createFloatingButton() {
       const { panelManager, i18n } = window.FoxLog;
       
-      if (document.getElementById('sf-debug-toggle')) {
+      if (document.getElementById('sf-foxlog-toggle')) {
         return;
       }
       
       const button = document.createElement('div');
-      button.id = 'sf-debug-toggle';
+      button.id = 'sf-foxlog-toggle';
       
       const iconUrl = chrome.runtime.getURL('src/assets/tail128.png');
       button.innerHTML = `<img src="${iconUrl}" alt="FoxLog" style="width:32px;height:32px;">`;

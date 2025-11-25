@@ -7,7 +7,7 @@
   --sf-text: #1f2937;
 }
 
-#sf-debug-toggle {
+#sf-foxlog-toggle {
   position: fixed !important;
   right: 12px !important;
   top: 50% !important;
@@ -27,14 +27,14 @@
   transition: opacity .2s, box-shadow .2s, border-color .2s !important;
   animation: foxlogFade .3s;
 }
-#sf-debug-toggle:hover { border-color: #d4d7de !important; background: #fafbff !important; }
+#sf-foxlog-toggle:hover { border-color: #d4d7de !important; background: #fafbff !important; }
 
-#sf-debug-toggle.sf-toggle-closed {
+#sf-foxlog-toggle.sf-toggle-closed {
   opacity: 0.3 !important;
   pointer-events: auto !important;
 }
 
-#sf-debug-toggle.sf-toggle-open {
+#sf-foxlog-toggle.sf-toggle-open {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
@@ -109,7 +109,10 @@
   border-left: 3px solid transparent !important;
   border-radius: 10px !important; padding: 12px !important; margin-top: 12px !important;
   transition: border-color .2s ease, box-shadow .2s ease !important;
+  min-height: 90px !important;
+  margin-bottom: 8px !important;
 }
+
 .sf-log-entry:hover { border-color: #dbe1ea !important; box-shadow: 0 4px 14px rgba(2,6,23,.06) !important; }
 
 .sf-panel-footer {
@@ -495,11 +498,12 @@
 
 /* ========== SPINNER DE CHARGEMENT ========== */
 .sf-loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: absolute !important; /* Prend toute la place du parent */
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  min-height: 350px !important;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(4px);
   display: flex;
@@ -543,7 +547,10 @@
 
 /* Position relative pour le conteneur de logs */
 .sf-panel-content {
-  position: relative;
+  min-height: 350px !important;
+  max-height: 56vh !important;
+  overflow-y: auto !important;
+  position: relative !important;
 }
 
 /* Badge de notification sur le bouton */
@@ -917,4 +924,319 @@
   background: white;
   cursor: pointer;
   outline: none;
+}
+
+/* ========== DEBUG LOGS CONTROL (TOGGLE) ========== */
+
+.sf-debug-control {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 12px 16px !important;
+  background: #f9fafb !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  gap: 12px !important;
+}
+
+/* Toggle Label */
+.sf-debug-toggle-label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
+/* Hidden Checkbox */
+.sf-debug-toggle-input {
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Toggle Slider */
+.sf-debug-toggle-slider {
+  position: relative !important;
+  width: 44px !important;
+  height: 24px !important;
+  background: #d1d5db !important;
+  border-radius: 12px !important;
+  transition: all 0.3s ease !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.sf-debug-toggle-slider::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 2px !important;
+  left: 2px !important;
+  width: 20px !important;
+  height: 20px !important;
+  background: white !important;
+  border-radius: 50% !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Checked State */
+.sf-debug-toggle-input:checked + .sf-debug-toggle-slider {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+}
+
+.sf-debug-toggle-input:checked + .sf-debug-toggle-slider::before {
+  transform: translateX(20px) !important;
+}
+
+/* Disabled State */
+.sf-debug-toggle-input:disabled + .sf-debug-toggle-slider {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  background: #e5e7eb !important;
+}
+
+.sf-debug-toggle-label:has(.sf-debug-toggle-input:disabled) {
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+/* Hover State */
+.sf-debug-toggle-label:hover .sf-debug-toggle-slider:not(:has(+ input:disabled)) {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 0 0 4px rgba(1, 118, 211, 0.1) !important;
+}
+
+/* Focus State (Accessibility) */
+.sf-debug-toggle-input:focus-visible + .sf-debug-toggle-slider {
+  outline: 2px solid #0176d3 !important;
+  outline-offset: 2px !important;
+}
+
+/* Toggle Text */
+.sf-debug-toggle-text {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #374151 !important;
+}
+
+/* Debug Status */
+.sf-debug-status {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  padding: 4px 10px !important;
+  border-radius: 12px !important;
+  background: #f3f4f6 !important;
+  color: #6b7280 !important;
+  white-space: nowrap !important;
+}
+
+.sf-debug-enabled {
+  background: #f3f4f6 !important;
+  color: #059669 !important;
+  border: none !important;
+}
+
+.sf-debug-disabled {
+  background: #f3f4f6 !important;
+  color: #9ca3af !important;
+  border: none !important;
+}
+
+/* Animation for status change */
+@keyframes statusChange {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Loading state for toggle */
+.sf-debug-toggle-input:disabled + .sf-debug-toggle-slider::after {
+  content: '' !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 12px !important;
+  height: 12px !important;
+  border: 2px solid #9ca3af !important;
+  border-top-color: #4b5563 !important;
+  border-radius: 50% !important;
+  animation: spin 0.6s linear infinite !important;
+}
+
+.sf-debug-toggle-input:disabled:checked + .sf-debug-toggle-slider::after {
+  display: none !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .sf-debug-control {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .sf-debug-status {
+    width: 100% !important;
+    text-align: center !important;
+  }
+}
+/* ============================================
+   STATUS INDICATORS - NEW STYLES
+   ============================================ */
+
+.sf-status-disconnected {
+  color: #9ca3af !important;
+}
+
+.sf-status-success {
+  color: #10b981 !important;
+  animation: statusPulse 0.5s ease !important;
+}
+
+.sf-status-error {
+  color: #ef4444 !important;
+  animation: statusPulse 0.5s ease !important;
+}
+
+.sf-status-warning {
+  color: #f59e0b !important;
+  animation: statusPulse 0.5s ease !important;
+}
+
+.sf-status-info {
+  color: #3b82f6 !important;
+  animation: statusPulse 0.5s ease !important;
+}
+
+@keyframes statusPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+/* ============================================
+   FIXED PANEL WIDTH + PICKLIST OVERFLOW FIX
+   ============================================ */
+
+#sf-debug-panel {
+  position: fixed !important;
+  right: 12px !important;
+  top: 50% !important;
+  width: 400px !important; /* ✅ Fixed width */
+  max-width: 400px !important; /* ✅ Never grow beyond this */
+  min-width: 350px !important; /* ✅ Never shrink below this */
+  height: auto !important;
+  max-height: 72vh !important;
+  background: var(--sf-bg) !important;
+  border: 1px solid var(--sf-border) !important;
+  box-shadow: 0 24px 64px rgba(2, 6, 23, 0.16) !important;
+  border-radius: 12px !important;
+  transition: transform .24s ease, opacity .2s ease !important;
+  z-index: 2147483647 !important;
+  overflow: hidden !important; /* ✅ Prevent content from overflowing */
+}
+
+/* ============================================
+   PICKLIST - TEXT OVERFLOW FIX
+   ============================================ */
+
+.sf-user-picklist {
+  height: 36px !important;
+  padding: 0 12px !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+  background: white !important;
+  color: #1f2937 !important;
+  cursor: pointer !important;
+  outline: none !important;
+  transition: all 0.2s ease !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+  
+  /* ✅ FIX: Handle long text */
+  width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.sf-user-picklist option {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  color: #1f2937 !important;
+  
+  /* ✅ Allow wrapping in dropdown menu */
+  white-space: normal !important;
+  overflow-wrap: break-word !important;
+}
+
+/* ============================================
+   PANEL FILTERS - ENSURE NO OVERFLOW
+   ============================================ */
+
+.sf-panel-filters {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+  padding: 12px !important;
+  border-bottom: 1px solid var(--sf-border) !important;
+  background: var(--sf-bg) !important;
+  overflow: hidden !important; /* ✅ Prevent overflow */
+}
+
+/* ============================================
+   STATUS BAR - BETTER TEXT HANDLING
+   ============================================ */
+
+.sf-panel-status {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  font-size: 12px !important;
+  color: #4b5563 !important;
+  padding: 8px 12px !important;
+  border-bottom: 1px solid var(--sf-border) !important;
+  background: #f8fafc !important;
+  overflow: hidden !important; /* ✅ Prevent overflow */
+}
+
+#sf-status-text {
+  flex: 1 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* ============================================
+   DEBUG CONTROL - PREVENT OVERFLOW
+   ============================================ */
+
+.sf-debug-control {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 12px 16px !important;
+  background: #f9fafb !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  gap: 12px !important;
+  overflow: hidden !important; /* ✅ Prevent overflow */
+}
+
+.sf-debug-status {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  padding: 4px 10px !important;
+  border-radius: 12px !important;
+  background: #f3f4f6 !important;
+  color: #6b7280 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 150px !important; /* ✅ Limit width */
 }

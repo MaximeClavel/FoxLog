@@ -93,6 +93,20 @@
     error: isFrench ? 'Erreur' : 'Error',
     loadingError: isFrench ? 'Erreur de chargement des logs' : 'Error loading logs',
     
+    // DEBUG LOGS TOGGLE
+    debugLogs: isFrench ? 'Logs de Debug' : 'Debug Logs',
+    unknown: isFrench ? 'Inconnu' : 'Unknown',
+    
+    // Toggle Messages
+    noUserSelected: isFrench ? 'Aucun utilisateur sélectionné' : 'No user selected',
+    debugManagerUnavailable: isFrench ? 'Gestionnaire de debug indisponible' : 'Debug manager unavailable',
+    processing: isFrench ? 'Traitement en cours...' : 'Processing...',
+    debugLogsEnabled: isFrench ? 'Logs de debug activés (60min)' : 'Debug logs enabled (60min)',
+    debugLogsDisabled: isFrench ? 'Logs de debug désactivés' : 'Debug logs disabled',
+    debugLogsEnabledShort: isFrench ? 'Logs de debug activés' : 'Debug logs enabled',
+    debugLogsDisabledShort: isFrench ? 'Logs de debug désactivés' : 'Debug logs disabled',
+    errorPrefix: isFrench ? 'Erreur :' : 'Error:',
+    
     // Pagination
     page: isFrench ? 'Page' : 'Page',
     logs: isFrench ? 'logs' : 'logs',
@@ -166,6 +180,4 @@
     limitCpu: isFrench ? 'Temps CPU' : 'CPU Time',
     limitHeap: isFrench ? 'Taille du heap' : 'Heap Size'
   };
-  
-  //logger.log('[FoxLog] Constants loaded - Debug mode:', window.FoxLog.CONFIG.DEBUG_MODE);
 })();
