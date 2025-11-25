@@ -50,7 +50,6 @@
           SELECT TracedEntityId, TracedEntity.Name, DebugLevel.DeveloperName
           FROM TraceFlag
           WHERE LogType = 'USER_DEBUG'
-          AND ExpirationDate >= TODAY
           AND TracedEntityId != null
       `;
   
