@@ -1,12 +1,23 @@
 {
   "manifest_version": 3,
   "name": "FoxLog - Salesforce Debug Log Viewer",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Display Salesforce debug logs in a user-friendly format with error detection and debug control.",
   
   "permissions": [
-    "cookies"
+    "cookies",
+    "storage"
   ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "src/assets/icon16.png",
+      "48": "src/assets/icon48.png",
+      "128": "src/assets/icon128.png"
+    },
+    "default_title": "FoxLog Settings"
+  },
   
   "host_permissions": [
     "https://*.my.salesforce.com/*",
