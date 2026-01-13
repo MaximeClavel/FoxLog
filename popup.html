@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoxLog Settings</title>
+    <style>
+        * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        }
+
+        body {
+        width: 300px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background: #f9fafb;
+        }
+
+        .popup-header {
+        background: linear-gradient(135deg, #00a1e0 0%, #0070d2 100%);
+        color: white;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        }
+
+        .popup-header img {
+        width: 32px;
+        height: 32px;
+        }
+
+        .popup-header h2 {
+        font-size: 18px;
+        font-weight: 600;
+        }
+
+        .popup-content {
+        padding: 20px;
+        background: #f9fafb;
+        }
+
+        .setting-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid #e5e7eb;
+        }
+
+        .setting-item:last-child {
+        border-bottom: none;
+        }
+
+        .setting-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        color: #1f2937;
+        font-weight: 500;
+        }
+
+        .setting-label svg {
+        width: 20px;
+        height: 20px;
+        color: #6b7280;
+        }
+
+        .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        background: #d1d5db;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        }
+
+        .toggle-switch::before {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle-switch.active {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .toggle-switch.active::before {
+        transform: translateX(20px);
+        }
+
+        .popup-footer {
+        padding: 12px 20px;
+        background: #f3f4f6;
+        border-top: 1px solid #e5e7eb;
+        font-size: 11px;
+        color: #6b7280;
+        text-align: center;
+        }
+
+        .version {
+        font-weight: 600;
+        color: #0176d3;
+        }
+    </style>
+</head>
+<body>
+  <div class="popup-header">
+    <img src="src/assets/icon48.png" alt="FoxLog">
+    <h2>FoxLog</h2>
+  </div>
+
+  <div class="popup-content">
+    <div class="setting-item">
+      <div class="setting-label">
+        <svg viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+        </svg>
+        <span data-i18n="showButton">Afficher le bouton</span>
+      </div>
+      <div class="toggle-switch" id="toggle-button">
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-footer">
+    <span data-i18n="version">Version</span> <span class="version">1.1.0</span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

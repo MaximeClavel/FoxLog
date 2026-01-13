@@ -7,38 +7,6 @@
   --sf-text: #1f2937;
 }
 
-#sf-foxlog-toggle {
-  position: fixed !important;
-  right: 12px !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  width: 44px !important;
-  height: 44px !important;
-  border-radius: 9999px !important;
-  background: var(--sf-bg) !important;
-  border: 1px solid var(--sf-border) !important;
-  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.08) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  cursor: pointer !important;
-  z-index: 2147483647 !important;
-  opacity: 1 !important;
-  transition: opacity .2s, box-shadow .2s, border-color .2s !important;
-  animation: foxlogFade .3s;
-}
-#sf-foxlog-toggle:hover { border-color: #d4d7de !important; background: #fafbff !important; }
-
-#sf-foxlog-toggle.sf-toggle-closed {
-  opacity: 0.3 !important;
-  pointer-events: auto !important;
-}
-
-#sf-foxlog-toggle.sf-toggle-open {
-  opacity: 1 !important;
-  pointer-events: auto !important;
-}
-
 #sf-debug-panel {
   position: fixed !important;
   right: 12px !important;
@@ -1239,4 +1207,88 @@
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   max-width: 150px !important; /* ✅ Limit width */
+}
+
+/* DRAGGABLE BUTTON STYLES */
+#sf-foxlog-toggle {
+    position: fixed !important;
+    /* ✅ Pas de position par défaut - sera définie par JS */
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 9999px !important;
+    background: var(--sf-bg) !important;
+    border: 1px solid var(--sf-border) !important;
+    box-shadow: 0 8px 24px rgba(2, 6, 23, 0.08) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    z-index: 2147483647 !important;
+    opacity: 1 !important;
+    transition: all 0.2s ease-out !important;
+    animation: foxlogFade 0.3s;
+    user-select: none !important;
+}
+
+/* Zone de sécurité invisible pour stabiliser le survol */
+#sf-foxlog-toggle::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    z-index: -1; /* Derrière le bouton */
+}
+
+/* Animation de "réveil" UNIQUEMENT si PAS en train de draguer */
+#sf-foxlog-toggle:not([data-dragging="true"]):hover {
+    z-index: 2147483648 !important;
+}
+
+/* Ajustements spécifiques UNIQUEMENT si docké et PAS en drag */
+#sf-foxlog-toggle[data-docked="left"]:not([data-dragging="true"]):hover {
+    transform: translateX(31px) !important;
+}
+
+#sf-foxlog-toggle[data-docked="right"]:not([data-dragging="true"]):hover {
+    transform: translateX(-31px) !important;
+}
+
+#sf-foxlog-toggle[data-docked="top"]:not([data-dragging="true"]):hover {
+    transform: translateY(31px) !important;
+}
+
+#sf-foxlog-toggle[data-docked="bottom"]:not([data-dragging="true"]):hover {
+    transform: translateY(-31px) !important;
+}
+
+#sf-foxlog-toggle:active {
+    transform: scale(0.95) !important;
+}
+
+/* Dragging state */
+#sf-foxlog-toggle[data-dragging="true"] {
+    cursor: grabbing !important;
+    box-shadow: 0 16px 48px rgba(2, 6, 23, 0.24) !important;
+    transform: scale(1.05) !important;
+    opacity: 0.9 !important;
+    transition: none !important; /* Disable transition during drag */
+}
+
+/* Hidden state */
+#sf-foxlog-toggle[style*="display: none"] {
+    display: none !important;
+}
+
+/* Animation d'apparition */
+@keyframes foxlogFade {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }

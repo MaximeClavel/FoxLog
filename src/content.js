@@ -48,6 +48,11 @@
       this._createUI();
       this._attachEventListeners();
       
+      chrome.storage.local.get(['buttonVisible'], (result) => {
+        const isVisible = result.buttonVisible !== false; // Default: true
+        this._toggleButtonVisibility(isVisible);
+      });
+
       this.currentUserId = await this._getUserId();
       
       if (this.currentUserId) {
@@ -130,17 +135,25 @@
       button.id = 'sf-foxlog-toggle';
       
       const iconUrl = chrome.runtime.getURL('src/assets/tail128.png');
-      button.innerHTML = `<img src="${iconUrl}" alt="FoxLog" style="width:32px;height:32px;">`;
+      button.innerHTML = `<img src="${iconUrl}" alt="FoxLog" style="width:32px;height:32px;pointer-events:none;">`;
       button.title = (i18n?.openLogs) || 'FoxLog - Open logs';
       
-      button.addEventListener('click', async () => {
+      // Load saved position or use default
+      this._loadButtonPosition(button);
+      
+      // Make button draggable
+      this._makeButtonDraggable(button);
+      
+      // Click handler (only when not dragging)
+      button.addEventListener('click', async (e) => {
+        if (button.dataset.dragging === 'true') {
+          return; // Ignore click if dragging
+        }
+        
         panelManager.toggle();
         
         if (panelManager.isOpen) {
-          // Load users
           await panelManager.loadUsers(this.currentUserId);
-          
-          // Load logs for the selected user
           const userId = panelManager.getSelectedUserId();
           if (userId) {
             this.selectedUserId = userId;
@@ -151,6 +164,247 @@
       
       document.body.appendChild(button);
     }
+
+    /**
+     * Load button position from storage
+     * @private
+     */
+    _loadButtonPosition(button) {
+      chrome.storage.local.get(['buttonPosition'], (result) => {
+          if (result.buttonPosition) {
+              // ✅ On récupère aussi dockedSide
+              const { top, left, dockedSide } = result.buttonPosition;
+
+              // Apply saved position
+              button.style.left = left;
+              button.style.top = top;
+              button.style.right = 'auto';
+              button.style.bottom = 'auto';
+              button.style.transform = 'none';
+
+              // ✅ RESTAURATION CRITIQUE DE L'ETAT DOCKÉ
+              // Sans ça, le CSS hover ne sait pas dans quel sens animer au premier chargement
+              if (dockedSide && dockedSide !== 'none') {
+                  button.dataset.docked = dockedSide;
+              }
+
+              this.logger.log('Button position restored', { left, top, dockedSide });
+          } else {
+              // Default position logic...
+              const defaultLeft = window.innerWidth - 56;
+              const defaultTop = (window.innerHeight / 2) - 22;
+              
+              button.style.left = defaultLeft + 'px';
+              button.style.top = defaultTop + 'px';
+              button.style.right = 'auto';
+              button.style.bottom = 'auto';
+              button.style.transform = 'none';
+              
+              this.logger.log('Button position set to default');
+          }
+      });
+    }
+
+
+    /**
+     * Save button position to storage
+     * @private
+     */
+    _saveButtonPosition(button, dockedSide) {
+      // ✅ Save EXACT pixel position (pas de calcul de side)
+      const position = {
+        left: button.style.left,
+        top: button.style.top,
+        dockedSide: dockedSide || 'none' // Optionnel, juste pour info
+      };
+      
+      chrome.storage.local.set({ buttonPosition: position });
+      
+      this.logger.log('Button position saved', position);
+    }
+
+    /**
+     * Make button draggable with docking to all edges
+     * @private
+     */
+    _makeButtonDraggable(button) {
+        let isDragging = false;
+        let offsetX = 0; // Offset de la souris dans le bouton (axe X)
+        let offsetY = 0; // Offset de la souris dans le bouton (axe Y)
+        let hasMoved = false;
+
+        const onMouseDown = (e) => {
+            // Ignore if clicking on interactive elements
+            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+                return;
+            }
+
+            isDragging = true;
+            hasMoved = false;
+            // ✅ SAUVEGARDE de l'état docké avant de l'effacer
+            button.setAttribute('data-last-docked', button.dataset.docked || '');
+            
+            // ✅ IMPORTANT : On signale immédiatement qu'on commence une interaction
+            // et on supprime l'état "docké" pour tuer les styles CSS :hover conflictuels
+            button.dataset.dragging = 'true';
+            button.dataset.docked = ''; 
+            
+            // Calculer l'offset de la souris DANS le bouton
+            const rect = button.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+
+            // Change cursor and disable transition during drag
+            button.style.cursor = 'grabbing';
+            button.style.transition = 'none';
+
+            e.preventDefault();
+        };
+
+        const onMouseMove = (e) => {
+            if (!isDragging) return;
+
+            // Calculer la nouvelle position du bouton
+            // Position de la souris - offset = coin supérieur gauche du bouton
+            let newLeft = e.clientX - offsetX;
+            let newTop = e.clientY - offsetY;
+
+            // Détecter si on a bougé de plus de 5px (seuil pour distinguer clic vs drag)
+            if (!hasMoved) {
+                const rect = button.getBoundingClientRect();
+                const deltaX = Math.abs(newLeft - rect.left);
+                const deltaY = Math.abs(newTop - rect.top);
+
+                if (deltaX > 5 || deltaY > 5) {
+                    hasMoved = true;
+                }
+            }
+
+            // Si on a confirmé le mouvement, on applique la position
+            if (hasMoved) {
+                // ✅ Contraindre aux limites de la fenêtre
+                const margin = 0;
+                const maxLeft = window.innerWidth - button.offsetWidth - margin;
+                const maxTop = window.innerHeight - button.offsetHeight - margin;
+
+                newLeft = Math.max(margin, Math.min(newLeft, maxLeft));
+                newTop = Math.max(margin, Math.min(newTop, maxTop));
+
+                // ✅ Appliquer la position (mouvement 2D libre)
+                button.style.left = newLeft + 'px';
+                button.style.top = newTop + 'px';
+                button.style.right = 'auto';
+                button.style.bottom = 'auto';
+                button.style.transform = 'none';
+            }
+
+            e.preventDefault();
+        };
+
+        const onMouseUp = (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+
+            // SI on n'a pas bougé, c'est un simple clic -> on arrête tout ici pour laisser le click handler agir
+            if (!hasMoved) {
+                button.style.cursor = 'pointer';
+                button.style.transition = 'all 0.3s ease'; // Remet la transition normale
+                button.dataset.dragging = 'false';
+                // IMPORTANT: Si on avait enlevé le 'docked' au mousedown, on le remet
+                // pour que le CSS hover fonctionne à nouveau
+                const lastDocked = button.getAttribute('data-last-docked'); // Voir explication ci-dessous*
+                if (lastDocked) button.dataset.docked = lastDocked;
+                return; 
+            }
+
+            // SINON (c'est un vrai drag), on lance l'animation de fin
+            button.style.cursor = 'pointer';
+            button.style.transition = 'left 0.4s cubic-bezier(0.19, 1, 0.22, 1), top 0.4s cubic-bezier(0.19, 1, 0.22, 1)';
+
+            setTimeout(() => {
+                this._dockButton(button);
+                setTimeout(() => {
+                    button.dataset.dragging = 'false';
+                    button.style.transition = ''; 
+                }, 400);
+            }, 50);
+        };
+
+
+        button.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    /**
+     * Dock button to nearest edge (all 4 sides)
+     * @private
+     */
+    _dockButton(button) {
+      const rect = button.getBoundingClientRect();
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+      const btnSize = 44; // Taille du bouton
+
+      // Distances aux bords
+      const distanceToLeft = rect.left;
+      const distanceToRight = windowWidth - rect.right;
+      const distanceToTop = rect.top;
+      const distanceToBottom = windowHeight - rect.bottom;
+
+      const minDistance = Math.min(distanceToLeft, distanceToRight, distanceToTop, distanceToBottom);
+
+      // ✅ REGLAGE DU DOCKING PARTIEL
+      // Le bouton fait 44px.
+      // -19px permet de cacher environ 1/3 du bouton (44 / 3 ≈ 14.6)
+      const hiddenOffset = -19; 
+      
+      let finalLeft, finalTop;
+      let dockedSide = '';
+
+      if (minDistance === distanceToLeft) {
+          finalLeft = hiddenOffset; // Dépasse à gauche
+          finalTop = rect.top;
+          dockedSide = 'left';
+      } else if (minDistance === distanceToRight) {
+          // On ajoute 15px de marge supplémentaire pour contrer la scrollbar
+          // Donc au lieu d'être caché de 19px, on le décale vers la gauche de 15px de plus
+          const scrollbarSafeMargin = 15; 
+          
+          // Calcul : Largeur fenêtre - Taille bouton - (Offset négatif) - Marge Scrollbar
+          finalLeft = windowWidth - btnSize - hiddenOffset - scrollbarSafeMargin;
+          
+          finalTop = rect.top;
+          dockedSide = 'right';
+      } else if (minDistance === distanceToTop) {
+          finalLeft = rect.left;
+          finalTop = hiddenOffset; // Dépasse en haut
+          dockedSide = 'top';
+      } else {
+          finalLeft = rect.left;
+          finalTop = windowHeight - btnSize - hiddenOffset; // Dépasse en bas
+          dockedSide = 'bottom';
+      }
+
+      // Contraindre pour ne pas sortir de l'écran sur l'axe opposé (ex: ne pas dépasser en haut si on est docké à gauche)
+      if (dockedSide === 'left' || dockedSide === 'right') {
+          finalTop = Math.max(0, Math.min(finalTop, windowHeight - btnSize));
+      } else {
+          finalLeft = Math.max(0, Math.min(finalLeft, windowWidth - btnSize));
+      }
+
+      button.style.left = finalLeft + 'px';
+      button.style.top = finalTop + 'px';
+      button.style.right = 'auto';
+      button.style.bottom = 'auto';
+      button.style.transform = 'none';
+
+      // Sauvegarde avec l'info du côté pour le CSS
+      button.dataset.docked = dockedSide; // ✅ On ajoute ceci pour le CSS
+      this._saveButtonPosition(button, dockedSide);
+    }
+
+
     
     _attachEventListeners() {
       document.addEventListener('foxlog:refresh', () => this.refreshLogs());
@@ -164,6 +418,43 @@
         this.selectedUserId = e.detail.userId;
         await this.refreshLogs();
       });
+
+      // Listen for messages from popup
+      chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'toggleButton') {
+          this._toggleButtonVisibility(request.visible);
+          sendResponse({ success: true });
+        }
+        return true;
+      });
+
+      // Écouteur de redimensionnement
+      window.addEventListener('resize', () => {
+          const button = document.getElementById('sf-foxlog-toggle');
+          if (button) this._dockButton(button); // Recalcule la position immédiatement
+      });
+    }
+
+    /**
+     * Toggle button visibility
+     * @private
+     */
+    _toggleButtonVisibility(visible) {
+      const button = document.getElementById('sf-foxlog-toggle');
+      
+      if (!button) return;
+      
+      if (visible) {
+        button.style.display = 'flex';
+        button.style.opacity = '1';
+        button.style.pointerEvents = 'auto';
+        this.logger.success('Button shown');
+      } else {
+        button.style.display = 'none';
+        button.style.opacity = '0';
+        button.style.pointerEvents = 'none';
+        this.logger.success('Button hidden');
+      }
     }
 
     async _getUserId() {
