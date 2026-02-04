@@ -179,6 +179,13 @@
     limitSoql: isFrench ? 'Requêtes SOQL' : 'SOQL Queries',
     limitDml: isFrench ? 'Instructions DML' : 'DML Statements',
     limitCpu: isFrench ? 'Temps CPU' : 'CPU Time',
-    limitHeap: isFrench ? 'Taille du heap' : 'Heap Size'
+    limitHeap: isFrench ? 'Taille du heap' : 'Heap Size',
+    
+    // Navigation
+    previousLog: isFrench ? 'Log précédent' : 'Previous log',
+    nextLog: isFrench ? 'Log suivant' : 'Next log',
+    loadingLog: isFrench ? 'Chargement du log...' : 'Loading log...',
+    logPosition: isFrench ? 'Log {current} sur {total}' : 'Log {current} of {total}',
+    noMoreLogs: isFrench ? 'Pas d\'autre log' : 'No more logs'
   };
 })();

@@ -31,6 +31,7 @@
   - **Timeline**: Execution timeline with indentation and colors
   - **Call Tree**: Hierarchical method visualization (built via Web Worker)
   - **Raw Log**: Original log content
+- **Log navigation**: Previous/Next buttons to switch between logs without closing the modal
 - **Advanced filtering**: by log type, errors only, duration, depth
 - **Search** in logs with highlighting
 - **Pagination** to handle large log lists

@@ -10,6 +10,12 @@
     constructor() {
       this.currentModal = null;
       this.logger = window.FoxLog.logger;
+      
+      // Navigation state
+      this.logsList = [];
+      this.currentLogIndex = -1;
+      this.isLoadingNavigation = false;
+      this.onNavigate = null; // Callback for navigation
     }
 
     /**
@@ -34,19 +40,41 @@
     }
 
     /**
-     * Display a modal with the parsed log (tabs and filters)
+     * Set the logs list for navigation
+     * @param {Array} logs - Array of log metadata objects
+     * @param {number} currentIndex - Index of the currently displayed log
+     * @param {Function} onNavigate - Callback function(logId) when navigating
      */
-    showParsedLog(parsedLog, parser) {
-      this.close();
-      
+    setLogsList(logs, currentIndex, onNavigate) {
+      this.logsList = logs || [];
+      this.currentLogIndex = currentIndex;
+      this.onNavigate = onNavigate;
+    }
+
+    /**
+     * Display a modal with the parsed log (tabs and filters)
+     * @param {Object} parsedLog - The parsed log object
+     * @param {Object} parser - The log parser instance
+     * @param {boolean} updateOnly - If true, update existing modal content without closing
+     */
+    showParsedLog(parsedLog, parser, updateOnly = false) {
       const filterManager = window.FoxLog.filterManager;
       const summary = parser.getSummary(parsedLog);
+      
+      // If updateOnly and modal exists, just update the content
+      if (updateOnly && this.currentModal) {
+        this._updateModalContent(parsedLog, parser, summary);
+        return;
+      }
+      
+      this.close();
       
       const modal = this._createModal();
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
             <h3>📊 ${i18n.logAnalysis || 'Log Analysis'}</h3>
+            ${this._renderNavigationButtons()}
             <button class="sf-modal-close-btn">×</button>
           </div>
           
@@ -136,6 +164,82 @@
       this._setupExportButtons(modal, parsedLog);
       
       this.logger.success('Parsed log modal with filters displayed');
+    }
+
+    /**
+     * Update modal content without closing it (for navigation)
+     * @private
+     */
+    _updateModalContent(parsedLog, parser, summary) {
+      const modal = this.currentModal;
+      if (!modal) return;
+      
+      const filterManager = window.FoxLog.filterManager;
+      
+      // Update navigation buttons
+      const navContainer = modal.querySelector('.sf-modal-nav, .sf-nav-placeholder');
+      if (navContainer) {
+        const newNav = document.createElement('div');
+        newNav.innerHTML = this._renderNavigationButtons();
+        navContainer.replaceWith(newNav.firstElementChild);
+        this._setupNavigation(modal);
+      }
+      
+      // Update Summary tab
+      const summaryTab = modal.querySelector('#tab-summary');
+      if (summaryTab) {
+        summaryTab.innerHTML = this._renderSummaryTab(summary, parsedLog);
+      }
+      
+      // Update Timeline tab
+      const timelineTab = modal.querySelector('#tab-timeline');
+      if (timelineTab) {
+        // Rebuild timeline content
+        const timelineWrapper = timelineTab.querySelector('.sf-timeline-wrapper');
+        if (timelineWrapper) {
+          timelineWrapper.innerHTML = parsedLog.lines.map(line => this._renderTimelineLine(line)).join('');
+        }
+        
+        // Update method filter
+        const methodFilterWrapper = timelineTab.querySelector('.sf-method-filter-wrapper');
+        if (methodFilterWrapper && filterManager) {
+          methodFilterWrapper.innerHTML = '';
+          methodFilterWrapper.appendChild(filterManager.createMethodFilter(parsedLog));
+        }
+      }
+      
+      // Reset Calls tab (will be rebuilt on click)
+      const callsTab = modal.querySelector('#tab-calls');
+      if (callsTab) {
+        callsTab.innerHTML = `
+          <div class="sf-calls-loading">
+            <div class="sf-spinner"></div>
+            <div class="sf-loading-text">${i18n.buildingCallTree || 'Building call tree...'}</div>
+          </div>
+        `;
+        // Re-setup calls tab for the new log
+        this._setupCallsTab(modal, parsedLog);
+      }
+      
+      // Update Raw tab
+      const rawTab = modal.querySelector('#tab-raw');
+      if (rawTab) {
+        rawTab.innerHTML = this._renderRawTab(parsedLog);
+      }
+      
+      // Re-setup export buttons
+      this._setupExportButtons(modal, parsedLog);
+      
+      // Re-apply filters
+      if (filterManager) {
+        filterManager.onFilterChange = () => {
+          this._applyFilters(modal, parsedLog);
+          this._triggerInitialHighlight();
+        };
+        this._applyFilters(modal, parsedLog);
+      }
+      
+      this.logger.success('Modal content updated for navigation');
     }
 
     _triggerInitialHighlight() {
@@ -300,6 +404,170 @@
     }
 
     /**
+     * Render navigation buttons for previous/next log
+     * @private
+     * @returns {string} HTML string for navigation buttons
+     */
+    _renderNavigationButtons() {
+      const hasNavigation = this.logsList.length > 1 && this.currentLogIndex >= 0;
+      
+      if (!hasNavigation) {
+        return '<div class="sf-nav-placeholder"></div>';
+      }
+      
+      const isFirst = this.currentLogIndex === 0;
+      const isLast = this.currentLogIndex === this.logsList.length - 1;
+      const position = (i18n.logPosition || 'Log {current} of {total}')
+        .replace('{current}', this.currentLogIndex + 1)
+        .replace('{total}', this.logsList.length);
+      
+      return `
+        <div class="sf-modal-nav">
+          <button class="sf-nav-btn sf-nav-prev" ${isFirst ? 'disabled' : ''} title="${i18n.previousLog || 'Previous log'}">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+          <span class="sf-nav-position">${position}</span>
+          <button class="sf-nav-btn sf-nav-next" ${isLast ? 'disabled' : ''} title="${i18n.nextLog || 'Next log'}">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+          <div class="sf-nav-loading" style="display: none;">
+            <div class="sf-spinner-small"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    /**
+     * Setup navigation button event listeners
+     * @private
+     */
+    _setupNavigation(modal) {
+      const prevBtn = modal.querySelector('.sf-nav-prev');
+      const nextBtn = modal.querySelector('.sf-nav-next');
+      
+      if (prevBtn) {
+        prevBtn.addEventListener('click', () => this._navigateToPrevious());
+      }
+      
+      if (nextBtn) {
+        nextBtn.addEventListener('click', () => this._navigateToNext());
+      }
+    }
+
+    /**
+     * Navigate to the previous log
+     * @private
+     */
+    async _navigateToPrevious() {
+      if (this.isLoadingNavigation || this.currentLogIndex <= 0) return;
+      
+      const newIndex = this.currentLogIndex - 1;
+      await this._navigateToLog(newIndex);
+    }
+
+    /**
+     * Navigate to the next log
+     * @private
+     */
+    async _navigateToNext() {
+      if (this.isLoadingNavigation || this.currentLogIndex >= this.logsList.length - 1) return;
+      
+      const newIndex = this.currentLogIndex + 1;
+      await this._navigateToLog(newIndex);
+    }
+
+    /**
+     * Navigate to a specific log by index
+     * @private
+     */
+    async _navigateToLog(newIndex) {
+      if (this.isLoadingNavigation) return;
+      if (newIndex < 0 || newIndex >= this.logsList.length) return;
+      
+      const log = this.logsList[newIndex];
+      if (!log || !log.Id) return;
+      
+      this.isLoadingNavigation = true;
+      this._showNavigationLoading(true);
+      this._updateNavigationButtons(newIndex);
+      
+      try {
+        // Update the current index
+        this.currentLogIndex = newIndex;
+        
+        // Call the navigation callback
+        if (this.onNavigate) {
+          await this.onNavigate(log.Id, newIndex);
+        }
+      } catch (error) {
+        this.logger.error('Navigation failed', error);
+        this._showToast(`❌ ${i18n.error || 'Error'}`, 'error');
+        // Revert to previous state on error
+        this._updateNavigationButtons(this.currentLogIndex);
+      } finally {
+        this.isLoadingNavigation = false;
+        this._showNavigationLoading(false);
+      }
+    }
+
+    /**
+     * Show/hide navigation loading spinner
+     * @private
+     */
+    _showNavigationLoading(show) {
+      if (!this.currentModal) return;
+      
+      const loadingEl = this.currentModal.querySelector('.sf-nav-loading');
+      const navBtns = this.currentModal.querySelectorAll('.sf-nav-btn');
+      
+      if (loadingEl) {
+        loadingEl.style.display = show ? 'flex' : 'none';
+      }
+      
+      navBtns.forEach(btn => {
+        if (show) {
+          btn.classList.add('sf-nav-loading-state');
+        } else {
+          btn.classList.remove('sf-nav-loading-state');
+        }
+      });
+    }
+
+    /**
+     * Update navigation buttons state
+     * @private
+     */
+    _updateNavigationButtons(index) {
+      if (!this.currentModal) return;
+      
+      const prevBtn = this.currentModal.querySelector('.sf-nav-prev');
+      const nextBtn = this.currentModal.querySelector('.sf-nav-next');
+      const positionEl = this.currentModal.querySelector('.sf-nav-position');
+      
+      const isFirst = index === 0;
+      const isLast = index === this.logsList.length - 1;
+      
+      if (prevBtn) {
+        prevBtn.disabled = isFirst;
+      }
+      
+      if (nextBtn) {
+        nextBtn.disabled = isLast;
+      }
+      
+      if (positionEl) {
+        const position = (i18n.logPosition || 'Log {current} of {total}')
+          .replace('{current}', index + 1)
+          .replace('{total}', this.logsList.length);
+        positionEl.textContent = position;
+      }
+    }
+
+    /**
      * Ferme la modal actuelle
      */
     close() {
@@ -308,6 +576,9 @@
         this.currentModal = null;
         this.logger.log('Modal closed');
       }
+      
+      // Reset navigation state
+      this.isLoadingNavigation = false;
     }
 
     _createModal() {
@@ -326,6 +597,9 @@
         closeBtn.addEventListener('click', () => this.close());
       }
 
+      // Setup navigation buttons
+      this._setupNavigation(modal);
+
       // Click outside to close
       modal.addEventListener('click', (e) => {
         if (e.target === modal) {
@@ -341,6 +615,27 @@
         }
       };
       document.addEventListener('keydown', escapeHandler);
+
+      // Arrow keys for navigation
+      const arrowHandler = (e) => {
+        if (!this.currentModal) {
+          document.removeEventListener('keydown', arrowHandler);
+          return;
+        }
+        
+        // Don't navigate if focus is in an input
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+          return;
+        }
+        
+        if (e.key === 'ArrowLeft' && !e.ctrlKey && !e.metaKey) {
+          this._navigateToPrevious();
+        } else if (e.key === 'ArrowRight' && !e.ctrlKey && !e.metaKey) {
+          this._navigateToNext();
+        }
+      };
+      document.addEventListener('keydown', arrowHandler);
 
       // Listen for requests to scroll to a specific line
       document.addEventListener('foxlog:scrollToLine', (e) => {
