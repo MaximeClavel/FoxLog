@@ -14,9 +14,16 @@
 - **Salesforce limits analysis** with visual alerts
 
 ### 👥 Multi-user Management
-- **User selection** via picklist with visual indicators
+- **User selection** via picklist with visual indicators:
+  - 🟢 TraceFlag active + logs available
+  - 🟡 TraceFlag active, no logs yet
+  - 📋 Logs available (no TraceFlag)
+  - ⚪ No TraceFlag, no logs (current user)
+- **Current user always visible** in picklist (marked with "You" / "Moi")
+- **Current user selected by default** for easy TraceFlag activation
 - **Active TraceFlags display** per user
 - **Log counter** per user
+- **One-click TraceFlag toggle** to enable/disable debug logs
 
 ### 🔍 Advanced Visualization
 - **4 complementary views**:
@@ -50,12 +57,13 @@
 
 ## 🎯 Usage
 
-1. Navigate to a Salesforce page (Lightning or Classic)
+1. Navigate to a Salesforce page (Lightning)
 2. Click on the 🦊 icon in the bottom right of the screen
 3. The panel opens with your recent logs
-4. Select a user from the dropdown list if needed
-5. Click "Details" to analyze a log in depth
-6. Explore the different tabs: Summary, Timeline, Calls, Raw Log
+4. **You are automatically selected** in the dropdown list (marked with "You")
+5. If you have no active TraceFlag, use the toggle to enable debug logs
+6. Click "Details" to analyze a log in depth
+7. Explore the different tabs: Summary, Timeline, Calls, Raw Log
 
 ## 🤝 Contributing
 
