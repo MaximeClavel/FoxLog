@@ -573,12 +573,14 @@
     }
     
     async viewLogDetails(logId) {
-      const { logger, salesforceAPI } = window.FoxLog;
+      const { logger, salesforceAPI, modalManager } = window.FoxLog;
       
       try {
         this.logger.log(`Fetching details for log ${logId}`);
         
         const logMetadata = this.currentLogs.find(log => log.Id === logId);
+        const currentIndex = this.currentLogs.findIndex(log => log.Id === logId);
+        
         if (!logMetadata) {
           this.logger.error('Log metadata not found');
           return;
@@ -586,12 +588,21 @@
 
         const logBody = await salesforceAPI.fetchLogBody(logId);
         
-        if (window.FoxLog.logParser && window.FoxLog.modalManager) {
+        if (window.FoxLog.logParser && modalManager) {
+          // Setup navigation before showing the modal
+          modalManager.setLogsList(
+            this.currentLogs,
+            currentIndex,
+            async (newLogId, newIndex) => {
+              await this._loadAndDisplayLog(newLogId);
+            }
+          );
+          
           const parsedLog = window.FoxLog.logParser.parse(logBody, logMetadata);
-          window.FoxLog.modalManager.showParsedLog(parsedLog, window.FoxLog.logParser);
+          modalManager.showParsedLog(parsedLog, window.FoxLog.logParser);
         } else {
-          if (window.FoxLog.modalManager) {
-            window.FoxLog.modalManager.showRawLog(logBody);
+          if (modalManager) {
+            modalManager.showRawLog(logBody);
           } else {
             this.logger.log('Log Body:', logBody);
             const message = (window.FoxLog.i18n?.logLoadedConsole) || 'Log loaded! (see console)';
@@ -603,6 +614,32 @@
       } catch (error) {
         this.logger.error('Failed to fetch log details', error);
       }
+    }
+
+    /**
+     * Load and display a log (used for navigation)
+     * @private
+     * @param {string} logId - The ID of the log to load
+     */
+    async _loadAndDisplayLog(logId) {
+      const { salesforceAPI, modalManager } = window.FoxLog;
+      
+      const logMetadata = this.currentLogs.find(log => log.Id === logId);
+      if (!logMetadata) {
+        throw new Error('Log metadata not found');
+      }
+      
+      const logBody = await salesforceAPI.fetchLogBody(logId);
+      
+      if (window.FoxLog.logParser && modalManager) {
+        const parsedLog = window.FoxLog.logParser.parse(logBody, logMetadata);
+        // Use updateOnly=true to avoid closing/reopening the modal
+        modalManager.showParsedLog(parsedLog, window.FoxLog.logParser, true);
+      } else if (modalManager) {
+        modalManager.showRawLog(logBody);
+      }
+      
+      this.logger.success('Log navigation completed');
     }
 
     clearLogs() {

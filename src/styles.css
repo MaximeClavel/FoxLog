@@ -424,11 +424,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
 .sf-modal-header h3 {
   margin: 0;
   font-size: 18px;
+  flex: 0 0 auto;
+  text-align: left;
 }
 
 .sf-modal-header button {
@@ -443,10 +446,87 @@
   align-items: center;
   justify-content: center;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .sf-modal-header button:hover {
   background: #f0f0f0;
+}
+
+/* ========== NAVIGATION BUTTONS ========== */
+.sf-nav-placeholder {
+  flex: 1;
+}
+
+.sf-modal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.sf-nav-btn {
+  background: #f3f4f6 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  color: #374151 !important;
+  font-size: 14px !important;
+}
+
+.sf-nav-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.sf-nav-btn:hover:not(:disabled) {
+  background: #e5e7eb !important;
+  border-color: #9ca3af !important;
+  color: #0176d3 !important;
+}
+
+.sf-nav-btn:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  background: #f9fafb !important;
+}
+
+.sf-nav-btn.sf-nav-loading-state {
+  pointer-events: none !important;
+  opacity: 0.6 !important;
+}
+
+.sf-nav-position {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+  min-width: 70px;
+  text-align: center;
+}
+
+.sf-nav-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+}
+
+.sf-spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #0176d3;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 .sf-modal-body {

@@ -18,6 +18,7 @@ La **Phase 1** de FoxLog ajoute un **parser de logs Salesforce** complet qui ana
 - ⏱️ **Timeline d'exécution** avec profondeur
 - 🎨 **Visualisation moderne** avec barres de progression
 - 🌳 **Arbre d'appels** des méthodes
+- ⏮️⏭️ **Navigation entre logs** avec boutons Previous/Next
 
 ### Avant / Après
 
