@@ -123,8 +123,9 @@
 
     /**
      * Fetch users with TraceFlags AND/OR ApexLogs
+     * @param {string} currentUserId - Optional current user ID to always include in the list
      */
-    async fetchUsersWithLogs() {
+    async fetchUsersWithLogs(currentUserId = null) {
       // Query 1: Users with logs
       const queryLogs = `
         SELECT LogUserId, COUNT(Id) LogCount
@@ -186,19 +187,50 @@
       // Build user map
       const usersMap = new Map();
 
+      // If currentUserId is provided, fetch current user info and add to map first
+      if (currentUserId && !usersMap.has(currentUserId)) {
+        try {
+          const queryCurrentUser = `SELECT Id, Name FROM User WHERE Id = '${currentUserId}'`;
+          const currentUserData = await this._restRequest('GET', `query?q=${encodeURIComponent(queryCurrentUser)}`);
+          if (currentUserData.records && currentUserData.records.length > 0) {
+            const user = currentUserData.records[0];
+            usersMap.set(currentUserId, {
+              id: currentUserId,
+              name: user.Name,
+              logCount: 0,
+              debugLevel: null,
+              hasTraceFlag: false,
+              isCurrentUser: true
+            });
+            this.logger.log(`Added current user to list: ${user.Name}`);
+          }
+        } catch (error) {
+          this.logger.warn('Error fetching current user info', error);
+        }
+      }
+
       // Add users with logs
       (dataLog.records || []).forEach(record => {
         const userId = record.LogUserId;
         const userName = userNames.get(userId) || 'Unknown User';
         const logCount = record.LogCount || record.expr0 || 0;
+        const isCurrentUser = userId === currentUserId;
 
-        usersMap.set(userId, {
-          id: userId,
-          name: userName,
-          logCount: logCount,
-          debugLevel: null,
-          hasTraceFlag: false
-        });
+        const existingUser = usersMap.get(userId);
+        if (existingUser) {
+          // Update existing user (current user already in map)
+          existingUser.logCount = logCount;
+          existingUser.name = userName !== 'Unknown User' ? userName : existingUser.name;
+        } else {
+          usersMap.set(userId, {
+            id: userId,
+            name: userName,
+            logCount: logCount,
+            debugLevel: null,
+            hasTraceFlag: false,
+            isCurrentUser: isCurrentUser
+          });
+        }
       });
 
       // Add/Update users with TraceFlag
@@ -206,6 +238,7 @@
         const userId = flag.TracedEntityId;
         const userName = flag.TracedEntity?.Name || 'Unknown User';
         const debugLevel = flag.DebugLevel?.DeveloperName || 'N/A';
+        const isCurrentUser = userId === currentUserId;
 
         const existingUser = usersMap.get(userId);
 
@@ -218,16 +251,23 @@
             name: userName,
             logCount: 0,
             debugLevel: debugLevel,
-            hasTraceFlag: true
+            hasTraceFlag: true,
+            isCurrentUser: isCurrentUser
           });
         }
       });
 
-      // Convert and sort
+      // Convert and sort (current user first, then by TraceFlag, then by log count)
       const users = Array.from(usersMap.values()).sort((a, b) => {
+        // Current user always first
+        if (a.isCurrentUser && !b.isCurrentUser) return -1;
+        if (!a.isCurrentUser && b.isCurrentUser) return 1;
+        // Then users with TraceFlag
         if (a.hasTraceFlag && !b.hasTraceFlag) return -1;
         if (!a.hasTraceFlag && b.hasTraceFlag) return 1;
+        // Then by log count
         if (b.logCount !== a.logCount) return b.logCount - a.logCount;
+        // Finally alphabetically
         return a.name.localeCompare(b.name);
       });
 

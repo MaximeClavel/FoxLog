@@ -79,6 +79,7 @@
     userIdUnavailable: isFrench ? 'ID utilisateur indisponible' : 'User ID not available',
     logLoadedConsole: isFrench ? 'Log chargé ! (voir console)' : 'Log loaded! (see console)',
     thisUser: isFrench ? 'cet utilisateur' : 'this user',
+    you: isFrench ? 'Moi' : 'You',
     
     // Status
     traceFlagActive: isFrench ? 'TraceFlag actif mais aucun log. Exécutez du code Apex.' : 'TraceFlag active but no logs. Execute Apex code.',
