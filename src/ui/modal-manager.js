@@ -16,6 +16,11 @@
       this.currentLogIndex = -1;
       this.isLoadingNavigation = false;
       this.onNavigate = null; // Callback for navigation
+      
+      // Listen for toast events from other components
+      document.addEventListener('foxlog:showToast', (e) => {
+        this._showToast(e.detail.message, e.detail.type || 'success');
+      });
     }
 
     /**
@@ -80,7 +85,6 @@
           
           <div class="sf-modal-tabs">
             <button class="sf-tab-btn active" data-tab="summary">${i18n.summary || 'Summary'}</button>
-            <button class="sf-tab-btn" data-tab="timeline">${i18n.timeline || 'Timeline'}</button>
             <button class="sf-tab-btn" data-tab="calls">${i18n.calls || 'Calls'}</button>
             <button class="sf-tab-btn" data-tab="raw">${i18n.rawLog || 'Raw Log'}</button>
           </div>
@@ -88,31 +92,6 @@
           <div class="sf-modal-body-tabs">
             <div id="tab-summary" class="sf-tab-content active">
               ${this._renderSummaryTab(summary, parsedLog)}
-            </div>
-            
-            <div id="tab-timeline" class="sf-tab-content">
-              
-              <!-- SEARCH BAR -->
-              <div class="sf-search-bar-sticky">
-                <div class="sf-search-container-wrapper">
-                </div>
-                
-                <button id="export-stats-btn" class="sf-export-btn">
-                  <svg viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
-                  </svg>
-                  ${i18n.exportStats || 'Export stats (.json)'}
-                </button>
-                
-              </div>
-              
-              <!-- FILTER BAR -->
-              <div class="sf-filters-wrapper"></div>
-              
-              <!-- METHOD FILTER -->
-              <div class="sf-method-filter-wrapper"></div>
-              
-              ${this._renderTimelineTab(parsedLog)}
             </div>
             
             <div id="tab-calls" class="sf-tab-content">
@@ -132,34 +111,6 @@
       this._attachModal(modal);
       this._setupTabs(modal);
       this._setupCallsTab(modal, parsedLog);
-      
-      // Insert search bar
-      const searchWrapper = modal.querySelector('.sf-search-container-wrapper');
-      if (searchWrapper && filterManager) {
-      searchWrapper.appendChild(filterManager.createSearchBar());
-      }
-      
-      // Insert filter bar
-      const filtersWrapper = modal.querySelector('.sf-filters-wrapper');
-      if (filtersWrapper && filterManager) {
-      filtersWrapper.appendChild(filterManager.createFilterBar());
-      }
-      
-      // Insert method filter
-      const methodFilterWrapper = modal.querySelector('.sf-method-filter-wrapper');
-      if (methodFilterWrapper && filterManager) {
-      methodFilterWrapper.appendChild(filterManager.createMethodFilter(parsedLog));
-      }
-      
-      // Setup filter change listener
-      if (filterManager) {
-        filterManager.onFilterChange = () => {
-          this._applyFilters(modal, parsedLog);
-          this._triggerInitialHighlight();
-        };
-        this._applyFilters(modal, parsedLog);
-        this._triggerInitialHighlight();
-      }
 
       this._setupExportButtons(modal, parsedLog);
       
@@ -191,23 +142,6 @@
         summaryTab.innerHTML = this._renderSummaryTab(summary, parsedLog);
       }
       
-      // Update Timeline tab
-      const timelineTab = modal.querySelector('#tab-timeline');
-      if (timelineTab) {
-        // Rebuild timeline content
-        const timelineWrapper = timelineTab.querySelector('.sf-timeline-wrapper');
-        if (timelineWrapper) {
-          timelineWrapper.innerHTML = parsedLog.lines.map(line => this._renderTimelineLine(line)).join('');
-        }
-        
-        // Update method filter
-        const methodFilterWrapper = timelineTab.querySelector('.sf-method-filter-wrapper');
-        if (methodFilterWrapper && filterManager) {
-          methodFilterWrapper.innerHTML = '';
-          methodFilterWrapper.appendChild(filterManager.createMethodFilter(parsedLog));
-        }
-      }
-      
       // Reset Calls tab (will be rebuilt on click)
       const callsTab = modal.querySelector('#tab-calls');
       if (callsTab) {
@@ -230,41 +164,7 @@
       // Re-setup export buttons
       this._setupExportButtons(modal, parsedLog);
       
-      // Re-apply filters
-      if (filterManager) {
-        filterManager.onFilterChange = () => {
-          this._applyFilters(modal, parsedLog);
-          this._triggerInitialHighlight();
-        };
-        this._applyFilters(modal, parsedLog);
-      }
-      
       this.logger.success('Modal content updated for navigation');
-    }
-
-    _triggerInitialHighlight() {
-      setTimeout(() => {
-        const searchInput = this.currentModal?.querySelector('.sf-search-input');
-        if (searchInput && searchInput.value) {
-          // Create and dispatch an input event manually
-          const event = new Event('input', { bubbles: true });
-          searchInput.dispatchEvent(event);
-        }
-      }, 100);
-    }
-
-    _applyFilters(modal, parsedLog) {
-      const filterManager = window.FoxLog.filterManager;
-      if (!filterManager) return;
-      
-      const filteredLines = filterManager.applyFilters(parsedLog.lines);
-      
-      // Re-render timeline
-      const timelineWrapper = modal.querySelector('#tab-timeline .sf-timeline-wrapper');
-      if (timelineWrapper) {
-        const timelineContent = filteredLines.map(line => this._renderTimelineLine(line)).join('');
-        timelineWrapper.innerHTML = timelineContent;
-      }
     }
 
     _setupExportButtons(modal, parsedLog) {
@@ -273,14 +173,6 @@
       if (exportRawBtn) {
         exportRawBtn.addEventListener('click', () => {
           this._exportRawLog(parsedLog);
-        });
-      }
-
-      // Export statistiques (JSON)
-      const exportStatsBtn = modal.querySelector('#export-stats-btn');
-      if (exportStatsBtn) {
-        exportStatsBtn.addEventListener('click', () => {
-          this._exportStats(parsedLog);
         });
       }
 
@@ -299,35 +191,6 @@
         const blob = new Blob([parsedLog.rawContent], { type: 'text/plain' });
         this._downloadFile(blob, filename);
         this.logger.success('Raw log exported');
-        this._showToast(`✅ ${i18n.exportSuccess || 'Exported successfully!'}`);
-      } catch (error) {
-        this.logger.error('Export failed', error);
-        this._showToast(`❌ ${i18n.exportError || 'Export error'}`, 'error');
-      }
-    }
-
-    _exportStats(parsedLog) {
-      try {
-        const data = {
-          metadata: parsedLog.metadata,
-          stats: {
-            limits: parsedLog.stats.limits,
-            methods: parsedLog.stats.methods,
-            errors: parsedLog.stats.errors,
-            queries: parsedLog.stats.queries,
-            dmlOperations: parsedLog.stats.dmlOperations
-          },
-          summary: {
-            totalLines: parsedLog.lines.length,
-            duration: parsedLog.metadata.duration,
-            hasErrors: parsedLog.stats.errors.length > 0
-          }
-        };
-
-        const filename = this._generateFilename(parsedLog, 'json');
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        this._downloadFile(blob, filename);
-        this.logger.success('Stats exported');
         this._showToast(`✅ ${i18n.exportSuccess || 'Exported successfully!'}`);
       } catch (error) {
         this.logger.error('Export failed', error);
@@ -818,77 +681,6 @@
             <div class="sf-limit-fill sf-limit-${statusClass}" style="width: ${percentage}%"></div>
           </div>
           <span class="sf-limit-value">${displayValue}</span>
-        </div>
-      `;
-    }
-
-    _renderTimelineTab(parsedLog) {
-      return `
-        <div class="sf-timeline-container">
-          <div class="sf-timeline-wrapper">
-            ${parsedLog.lines.map(line => this._renderTimelineLine(line)).join('')}
-          </div>
-                </div>
-              `;
-    }
-
-    _renderTimelineLine(line) {
-      const iconMap = {
-        'METHOD_ENTRY': '→',
-        'METHOD_EXIT': '←',
-        'SOQL_EXECUTE_BEGIN': '🔍',
-        'SOQL_EXECUTE_END': '✓',
-        'DML_BEGIN': '💾',
-        'DML_END': '✓',
-        'USER_DEBUG': '🐛',
-        'EXCEPTION_THROWN': '⚠️',
-        'FATAL_ERROR': '❌',
-        'CODE_UNIT_STARTED': '📦',
-        'CODE_UNIT_FINISHED': '✅'
-      };
-
-      const typeClassMap = {
-        'METHOD_ENTRY': 'sf-type-method',
-        'METHOD_EXIT': 'sf-type-method',
-        'SOQL_EXECUTE_BEGIN': 'sf-type-database',
-        'SOQL_EXECUTE_END': 'sf-type-database',
-        'DML_BEGIN': 'sf-type-database',
-        'DML_END': 'sf-type-database',
-        'USER_DEBUG': 'sf-type-debug',
-        'EXCEPTION_THROWN': 'sf-type-error',
-        'FATAL_ERROR': 'sf-type-error',
-        'CODE_UNIT_STARTED': 'sf-type-system',
-        'CODE_UNIT_FINISHED': 'sf-type-system'
-      };
-
-      const icon = iconMap[line.type] || '•';
-      const typeClass = typeClassMap[line.type] || '';
-      const indent = `margin-left: ${line.depth * 20}px`;
-
-      let details = '';
-      if (line.details.class && line.details.method) {
-        details = `<span class="sf-timeline-method">${line.details.class}.${line.details.method}</span>`;
-      } else if (line.details.message) {
-        details = `<span class="sf-timeline-message">${this._escapeHtml(line.details.message)}</span>`;
-      } else if (line.details.query) {
-        details = `<span class="sf-timeline-query">${this._escapeHtml(line.details.query)}</span>`;
-      }
-
-      const durationBadge = line.duration > 0 
-        ? `<span class="sf-timeline-duration">${line.duration}ms</span>` 
-        : '';
-
-      return `
-        <div class="sf-timeline-item ${typeClass}" style="${indent}" data-line="${line.lineNumber}">
-          <div class="sf-timeline-icon">${icon}</div>
-          <div class="sf-timeline-content">
-            <div class="sf-timeline-header">
-              <span class="sf-timeline-type">${line.type}</span>
-              <span class="sf-timeline-time">${line.timestamp}</span>
-              ${durationBadge}
-            </div>
-            ${details ? `<div class="sf-timeline-details">${details}</div>` : ''}
-          </div>
         </div>
       `;
     }
