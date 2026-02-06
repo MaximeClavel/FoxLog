@@ -9,7 +9,9 @@
       this.currentUserId = null;  // Logged-in user
       this.selectedUserId = null; // User selected in the picklist
       this.currentLogs = [];
-      this.logger = null; 
+      this.logger = null;
+      this.preloadedLogs = false;  // Flag to track if logs have been preloaded
+      this.preloadPromise = null;  // Promise to track preloading status
     }
 
     async init() {
@@ -58,6 +60,9 @@
       if (this.currentUserId) {
         this.logger.success('User ID obtained', this.currentUserId);
         this.selectedUserId = this.currentUserId;
+        
+        // Pre-load logs in background for faster panel opening
+        this._preloadLogs();
       } else {
         this.logger.warn('User ID not found');
       }
@@ -157,7 +162,9 @@
           const userId = panelManager.getSelectedUserId();
           if (userId) {
             this.selectedUserId = userId;
-            await this.refreshLogs();
+            // Use preloaded logs on first open (only if same user)
+            const usePreloaded = this.preloadedLogs && userId === this.currentUserId;
+            await this.refreshLogs(false, usePreloaded);
           }
         }
       });
@@ -474,10 +481,58 @@
     }
 
     /**
+     * Pre-load logs and analyze them in background at page load
+     * This speeds up panel opening by having logs ready
+     * @private
+     */
+    _preloadLogs() {
+      const { logger, salesforceAPI, logPreviewService } = window.FoxLog;
+      
+      const userId = this.selectedUserId || this.currentUserId;
+      if (!userId) {
+        this.logger.warn('Cannot preload logs: no user ID');
+        return;
+      }
+
+      this.logger.log('Starting background preload of logs...');
+      
+      // Store the promise so we can await it if panel opens during preload
+      this.preloadPromise = (async () => {
+        try {
+          // Fetch logs
+          const logs = await salesforceAPI.fetchLogs(userId);
+          this.currentLogs = logs;
+          
+          this.logger.success(`Preloaded ${logs.length} logs for user ${userId}`);
+          
+          // Analyze errors in background
+          if (logs.length > 0) {
+            this.logger.log('Starting background error analysis...');
+            const analysisResults = await logPreviewService.analyzeBatch(logs);
+            
+            // Store analysis results in panelManager for later use
+            const { panelManager } = window.FoxLog;
+            panelManager.logAnalysis = analysisResults;
+            
+            this.logger.success('Background error analysis complete');
+          }
+          
+          this.preloadedLogs = true;
+          this.preloadPromise = null;
+          
+        } catch (error) {
+          this.logger.error('Background preload failed', error);
+          this.preloadPromise = null;
+        }
+      })();
+    }
+
+    /**
      * Refresh logs with error analysis
      * @param {boolean} isAutoRefresh - True when called by the auto-refresh loop
+     * @param {boolean} usePreloaded - True to use preloaded logs if available
      */
-    async refreshLogs(isAutoRefresh = false) {
+    async refreshLogs(isAutoRefresh = false, usePreloaded = false) {
       const { logger, salesforceAPI, panelManager, logPreviewService, i18n } = window.FoxLog;
       
       const userId = this.selectedUserId || this.currentUserId;
@@ -488,6 +543,21 @@
       }
 
       try {
+        // If preload is in progress, wait for it
+        if (this.preloadPromise) {
+          this.logger.log('Waiting for preload to complete...');
+          await this.preloadPromise;
+        }
+        
+        // Use preloaded logs if available and requested
+        if (usePreloaded && this.preloadedLogs && this.currentLogs.length > 0) {
+          this.logger.log('Using preloaded logs');
+          const analysisResults = panelManager.logAnalysis;
+          panelManager.updateLogList(this.currentLogs, analysisResults, false);
+          this.preloadedLogs = false; // Reset flag after use
+          return;
+        }
+
         const SPINNER_DELAY = 300;
         const MIN_SPINNER_TIME = 600;
 
@@ -649,6 +719,8 @@
       sessionManager.clearCache();
       logPreviewService.clearCache();
       this.currentLogs = [];
+      this.preloadedLogs = false;
+      this.preloadPromise = null;
       panelManager.updateLogList([]);
       this.logger.success('Cache cleared');
     }
