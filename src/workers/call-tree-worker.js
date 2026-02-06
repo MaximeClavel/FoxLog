@@ -210,7 +210,7 @@ class CallTreeBuilder {
       hasError: false,
       soqlCount: line.type === 'SOQL_EXECUTE_BEGIN' ? 1 : 0,
       dmlCount: line.type === 'DML_BEGIN' ? 1 : 0,
-      logLineIndex: index,
+      logLineIndex: line.index, // Use the actual raw log line index
       details: this._extractDetails(line)
     };
     
@@ -255,11 +255,17 @@ class CallTreeBuilder {
     
     const currentNode = this.stack[this.stack.length - 1];
     
+    // Build descriptive name for exception
+    const exType = line.details.exceptionType || 'Exception';
+    const exMsg = line.details.message || '';
+    const shortMsg = exMsg.length > 50 ? exMsg.substring(0, 50) + '...' : exMsg;
+    const nodeName = exMsg ? `${exType}: ${shortMsg}` : exType;
+    
     // Create a child node for the exception
     const errorNode = {
       id: `node_${this.nodeCounter++}`,
       type: line.type,
-      name: line.details.exceptionType || 'Exception',
+      name: nodeName,
       depth: currentNode.depth + 1,
       startTime: line.timestamp,
       startTimeMs: line.timestampMs || 0,
@@ -269,7 +275,7 @@ class CallTreeBuilder {
       hasError: true,
       soqlCount: 0,
       dmlCount: 0,
-      logLineIndex: index,
+      logLineIndex: line.index, // Use the actual raw log line index
       details: {
         message: line.details.message || line.content,
         exceptionType: line.details.exceptionType
@@ -295,10 +301,14 @@ class CallTreeBuilder {
     
     switch (line.type) {
       case 'USER_DEBUG':
-        nodeName = `Debug: ${line.details.level || 'INFO'}`;
+        // Show the actual debug message, truncated if too long
+        const message = line.details.message || line.content;
+        const level = line.details.level || 'DEBUG';
+        const truncatedMsg = message.length > 80 ? message.substring(0, 80) + '...' : message;
+        nodeName = `[${level}] ${truncatedMsg}`;
         nodeDetails = {
-          message: line.details.message || line.content,
-          level: line.details.level
+          message: message,
+          level: level
         };
         break;
         
@@ -325,7 +335,7 @@ class CallTreeBuilder {
       hasError: false,
       soqlCount: 0,
       dmlCount: 0,
-      logLineIndex: index,
+      logLineIndex: line.index, // Use the actual raw log line index
       details: nodeDetails
     };
     
@@ -474,7 +484,10 @@ class CallTreeBuilder {
           : 'SOQL Query';
       
       case 'DML_BEGIN':
-        return `${details.operation || 'DML'} ${details.objectType || ''}`.trim();
+        const op = details.operation || 'DML';
+        const objType = details.objectType || '';
+        const rows = details.rows ? ` (${details.rows} row${details.rows > 1 ? 's' : ''})` : '';
+        return `${op} ${objType}${rows}`.trim();
       
       case 'CODE_UNIT_STARTED':
         return line.content || 'Code Unit';

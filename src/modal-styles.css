@@ -50,7 +50,10 @@
 }
 
 .sf-tab-content.active {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  height: calc(80vh - 140px); /* Constrain height for virtualization */
+  overflow: hidden;
 }
 
 /* ============================================
@@ -61,6 +64,8 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .sf-summary-section {
@@ -857,21 +862,38 @@
 .sf-raw-tab-content {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   padding: 0 !important;
 }
 
 .sf-raw-log-content {
   flex: 1;
+  min-height: 0;
   margin: 0;
-  padding: 20px;
+  padding: 16px;
   overflow: auto;
   font-family: 'Courier New', monospace;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 19.2px; /* Fixed line height for accurate scrolling */
   background: #f8f8f8;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  white-space: pre; /* No wrap - each line stays on one line */
+}
+
+/* Log line structure */
+.sf-log-line {
+  display: block;
+}
+
+.sf-log-line.sf-line-highlighted {
+  background: rgba(251, 146, 60, 0.4);
+  animation: sf-line-highlight-pulse 2s ease-out;
+}
+
+@keyframes sf-line-highlight-pulse {
+  0% { background: rgba(251, 146, 60, 0.5); }
+  70% { background: rgba(251, 146, 60, 0.3); }
+  100% { background: rgba(251, 146, 60, 0.15); }
 }
 
 /* Custom scrollbar for the raw log */
@@ -1592,17 +1614,57 @@
   padding: 12px 16px;
 }
 
+.sf-call-tree-top-nodes.sf-collapsed {
+  padding: 8px 16px;
+}
+
+.sf-top-nodes-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sf-top-nodes-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sf-top-nodes-toggle:hover {
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sf-top-nodes-toggle .sf-toggle-chevron {
+  width: 14px;
+  height: 14px;
+  color: #92400e;
+  transition: transform 0.2s ease;
+}
+
+.sf-top-nodes-toggle .sf-toggle-chevron.sf-expanded {
+  transform: rotate(90deg);
+}
+
 .sf-top-nodes-title {
   font-size: 13px;
   font-weight: 600;
   color: #92400e;
-  margin-bottom: 8px;
 }
 
 .sf-top-nodes-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin-top: 8px;
 }
 
 .sf-top-node-item {
@@ -1610,7 +1672,7 @@
   grid-template-columns: 32px 1fr auto auto;
   gap: 12px;
   align-items: center;
-  padding: 8px 12px;
+  padding: 8px 16px 8px 12px;
   background: white;
   border-radius: 6px;
   cursor: pointer;
@@ -1654,11 +1716,13 @@
   font-weight: 600;
   color: #dc2626;
   font-family: monospace;
+  padding-right: 20px;
 }
 
 /* Scroll container (virtualisation) */
 .sf-call-tree-scroll-container {
   flex: 1;
+  min-height: 0; /* Important for flex child to respect overflow */
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;

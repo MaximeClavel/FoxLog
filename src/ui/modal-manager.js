@@ -686,6 +686,12 @@
     }
 
     _renderRawTab(parsedLog) {
+      // Split raw content into lines and wrap each in a span with data-line
+      const rawLines = parsedLog.rawContent.split('\n');
+      const structuredLines = rawLines.map((line, index) => 
+        `<span class="sf-log-line" data-line="${index}">${this._escapeHtml(line)}</span>`
+      ).join('\n');
+      
       return `
         <div class="sf-raw-tab-content">
           <div class="sf-export-toolbar">
@@ -704,10 +710,10 @@
             </button>
             <div class="sf-export-info">
               <span class="sf-export-size">${this._formatBytes(parsedLog.rawContent.length)}</span>
-              <span class="sf-export-lines">${parsedLog.lines.length} ${(i18n.lines || 'Lines').toLowerCase()}</span>
+              <span class="sf-export-lines">${rawLines.length} ${(i18n.lines || 'Lines').toLowerCase()}</span>
             </div>
           </div>
-          <pre class="sf-raw-log-content">${this._escapeHtml(parsedLog.rawContent)}</pre>
+          <pre class="sf-raw-log-content">${structuredLines}</pre>
         </div>
       `;
     }
@@ -746,46 +752,36 @@
         const rawContent = this.currentModal.querySelector('.sf-raw-log-content');
         if (!rawContent) return;
 
-        // Find the line (approximation)
-        const lines = rawContent.textContent.split('\n');
-        if (lineIndex < 0 || lineIndex >= lines.length) return;
+        // Find the line element by data-line attribute
+        const lineEl = rawContent.querySelector(`[data-line="${lineIndex}"]`);
+        if (!lineEl) {
+          logger.warn(`Line ${lineIndex} not found in raw log`);
+          return;
+        }
 
-        // Compute the position
-        const lineHeight = 19.2; // 1.6 * 12px
-        const scrollTop = lineIndex * lineHeight;
+        // Scroll the line into view
+        lineEl.scrollIntoView({ behavior: 'instant', block: 'center' });
 
-        // Scroll
-        rawContent.scrollTop = scrollTop;
-
-        // Optional temporary highlight
-        this._highlightLine(rawContent, lineIndex);
-      }, 100);
+        // Highlight the line
+        this._highlightLineElement(lineEl);
+        
+        logger.log(`Scrolled to line ${lineIndex}`);
+      }, 150);
     }
 
     /**
-     * Highlight a line temporarily
+     * Highlight a line element temporarily
      * @private
+     * @param {HTMLElement} lineEl - The line element to highlight
      */
-    _highlightLine(container, lineIndex) {
-      // Create an overlay used for highlighting
-      const overlay = document.createElement('div');
-      overlay.style.position = 'absolute';
-      overlay.style.left = '0';
-      overlay.style.right = '0';
-      overlay.style.height = '19.2px';
-      overlay.style.top = `${lineIndex * 19.2}px`;
-      overlay.style.background = 'rgba(251, 146, 60, 0.3)';
-      overlay.style.pointerEvents = 'none';
-      overlay.style.animation = 'sf-highlight-fade 2s ease-out';
-
-      const parent = container.parentElement;
-      if (parent.style.position !== 'relative') {
-        parent.style.position = 'relative';
-      }
-
-      parent.appendChild(overlay);
-
-      setTimeout(() => overlay.remove(), 2000);
+    _highlightLineElement(lineEl) {
+      // Add highlight class
+      lineEl.classList.add('sf-line-highlighted');
+      
+      // Remove after 2 seconds
+      setTimeout(() => {
+        lineEl.classList.remove('sf-line-highlighted');
+      }, 2000);
     }
   }
 
