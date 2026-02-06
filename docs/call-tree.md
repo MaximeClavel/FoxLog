@@ -1,6 +1,8 @@
 **Définition de besoin** : Onglet "Appels" avec arborescence interactive des méthodes/SOQL/DML
 **Code de l'extension** : Tous les fichiers source (parsers, services, UI, styles, manifest)
 
+> ⚠️ **Note historique** : Ce document a été rédigé avant l'implémentation. L'onglet Timeline mentionné a depuis été **supprimé** et ses fonctionnalités utiles (filtres par type) ont été intégrées directement dans l'onglet Calls. L'extension dispose maintenant de **3 onglets** : Summary, Calls, Raw Log.
+
 ## 📋 Résumé de ma compréhension
 
 ### Objectif principal

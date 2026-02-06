@@ -156,6 +156,7 @@ class CallTreeBuilder {
     const openingTypes = [
       'CODE_UNIT_STARTED',
       'METHOD_ENTRY',
+      'CONSTRUCTOR_ENTRY',
       'SOQL_EXECUTE_BEGIN',
       'DML_BEGIN'
     ];
@@ -164,8 +165,15 @@ class CallTreeBuilder {
     const closingTypes = [
       'CODE_UNIT_FINISHED',
       'METHOD_EXIT',
+      'CONSTRUCTOR_EXIT',
       'SOQL_EXECUTE_END',
       'DML_END'
+    ];
+    
+    // Event types that are added as leaf nodes
+    const leafTypes = [
+      'USER_DEBUG',
+      'VARIABLE_ASSIGNMENT'
     ];
     
     if (openingTypes.includes(type)) {
@@ -174,8 +182,8 @@ class CallTreeBuilder {
       this._closeNode(line, index);
     } else if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR') {
       this._markError(line, index);
-    } else if (type === 'USER_DEBUG') {
-      // Add USER_DEBUG entries as leaf nodes
+    } else if (leafTypes.includes(type)) {
+      // Add leaf nodes (debug, variables, heap)
       this._addLeafNode(line, index);
     }
   }
@@ -273,7 +281,7 @@ class CallTreeBuilder {
   }
 
   /**
-   * Ajoute un nœud feuille (USER_DEBUG)
+   * Ajoute un nœud feuille (USER_DEBUG, VARIABLE_*, HEAP_ALLOCATE)
    * @private
    */
   _addLeafNode(line, index) {
@@ -281,10 +289,33 @@ class CallTreeBuilder {
     
     const parent = this.stack[this.stack.length - 1];
     
+    // Determine node name based on type
+    let nodeName;
+    let nodeDetails = {};
+    
+    switch (line.type) {
+      case 'USER_DEBUG':
+        nodeName = `Debug: ${line.details.level || 'INFO'}`;
+        nodeDetails = {
+          message: line.details.message || line.content,
+          level: line.details.level
+        };
+        break;
+        
+      case 'VARIABLE_ASSIGNMENT':
+        nodeName = this._extractVariableAssignmentName(line.content);
+        nodeDetails = { assignment: line.content };
+        break;
+        
+      default:
+        nodeName = line.type;
+        nodeDetails = { content: line.content };
+    }
+    
     const node = {
       id: `node_${this.nodeCounter++}`,
       type: line.type,
-      name: `Debug: ${line.details.level || 'INFO'}`,
+      name: nodeName,
       depth: parent.depth + 1,
       startTime: line.timestamp,
       startTimeMs: line.timestampMs || 0,
@@ -295,13 +326,28 @@ class CallTreeBuilder {
       soqlCount: 0,
       dmlCount: 0,
       logLineIndex: index,
-      details: {
-        message: line.details.message || line.content,
-        level: line.details.level
-      }
+      details: nodeDetails
     };
     
     parent.children.push(node);
+  }
+
+  /**
+   * Extract variable assignment name from content
+   * @private
+   */
+  _extractVariableAssignmentName(content) {
+    // Format: [depth]|variableName|value or variableName|value
+    const parts = content.split('|');
+    if (parts.length >= 2) {
+      // Try to get variable name (skip the depth if present)
+      const varName = parts[0].includes('[') ? parts[1] : parts[0];
+      const value = parts[parts.length - 1];
+      // Truncate long values
+      const shortValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+      return `${varName} = ${shortValue}`;
+    }
+    return content.length > 60 ? content.substring(0, 60) + '...' : content;
   }
 
   /**

@@ -20,6 +20,18 @@
       this.filteredNodes = [];
       this.searchQuery = '';
       this.highlightedNodeId = null;
+      
+      // Type filters - all active by default
+      this.typeFilters = {
+        methods: true,
+        database: true,
+        debug: true,
+        errors: true,
+        variables: true,
+        system: true
+      };
+      
+      // Legacy filters (kept for compatibility)
       this.filters = {
         types: [],
         errorsOnly: false,
@@ -159,10 +171,50 @@
                 <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
               </svg>
             </button>
-            <button class="sf-call-tree-btn sf-btn-errors" data-action="errors-only" title="${i18n.errorsOnly || 'Errors Only'}">
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-              </svg>
+            <div class="sf-export-dropdown">
+              <button class="sf-call-tree-btn sf-btn-export" data-action="toggle-export-menu" title="${i18n.exportReport || 'Export Report'}">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                </svg>
+              </button>
+              <div class="sf-export-menu" style="display: none;">
+                <button class="sf-export-menu-item" data-action="export-txt">
+                  📄 ${i18n.exportTxt || 'Export (.txt)'}
+                </button>
+                <button class="sf-export-menu-item" data-action="export-md">
+                  📝 ${i18n.exportMd || 'Export (.md)'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="sf-call-tree-filters">
+          <span class="sf-filters-label">${i18n.filterBy || 'Filter'}:</span>
+          <div class="sf-filter-toggles">
+            <button class="sf-filter-toggle sf-filter-methods sf-filter-active" data-filter="methods" title="${i18n.filterMethods || 'Methods'}">
+              <span class="sf-filter-icon">→</span>
+              <span class="sf-filter-text">${i18n.methods || 'Methods'}</span>
+            </button>
+            <button class="sf-filter-toggle sf-filter-database sf-filter-active" data-filter="database" title="${i18n.filterDatabase || 'Database (SOQL/DML)'}">
+              <span class="sf-filter-icon">🔍</span>
+              <span class="sf-filter-text">${i18n.database || 'Database'}</span>
+            </button>
+            <button class="sf-filter-toggle sf-filter-debug sf-filter-active" data-filter="debug" title="${i18n.filterDebug || 'Debug statements'}">
+              <span class="sf-filter-icon">🐛</span>
+              <span class="sf-filter-text">${i18n.debug || 'Debug'}</span>
+            </button>
+            <button class="sf-filter-toggle sf-filter-errors sf-filter-active" data-filter="errors" title="${i18n.filterErrors || 'Errors & Exceptions'}">
+              <span class="sf-filter-icon">❌</span>
+              <span class="sf-filter-text">${i18n.errors || 'Errors'}</span>
+            </button>
+            <button class="sf-filter-toggle sf-filter-variables sf-filter-active" data-filter="variables" title="${i18n.filterVariables || 'Variables'}">
+              <span class="sf-filter-icon">📝</span>
+              <span class="sf-filter-text">${i18n.variables || 'Variables'}</span>
+            </button>
+            <button class="sf-filter-toggle sf-filter-system sf-filter-active" data-filter="system" title="${i18n.filterSystem || 'System events'}">
+              <span class="sf-filter-icon">⚙️</span>
+              <span class="sf-filter-text">${i18n.system || 'System'}</span>
             </button>
           </div>
         </div>
@@ -426,11 +478,34 @@
             case 'collapse-all':
               this._collapseAll();
               break;
-            case 'errors-only':
-              this._toggleErrorsOnly();
+            case 'toggle-export-menu':
+              this._toggleExportMenu();
+              break;
+            case 'export-txt':
+              this._exportReport('txt');
+              this._toggleExportMenu(false);
+              break;
+            case 'export-md':
+              this._exportReport('md');
+              this._toggleExportMenu(false);
               break;
           }
           return;
+        }
+        
+        // Filter toggle buttons
+        const filterBtn = e.target.closest('[data-filter]');
+        if (filterBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          this._toggleTypeFilter(filterBtn.dataset.filter);
+          return;
+        }
+        
+        // Close export menu when clicking outside
+        const exportDropdown = e.target.closest('.sf-export-dropdown');
+        if (!exportDropdown) {
+          this._toggleExportMenu(false);
         }
         
         // Toggle expand/collapse
@@ -516,22 +591,69 @@
     }
 
     /**
-     * Toggle the errors-only filter
+     * Toggle a type filter on/off
      * @private
+     * @param {string} filterType - The filter type to toggle
      */
-    _toggleErrorsOnly() {
-      this.filters.errorsOnly = !this.filters.errorsOnly;
-
-      const errorBtn = this.container.querySelector('[data-action="errors-only"]');
-      if (errorBtn) {
-        if (this.filters.errorsOnly) {
-          errorBtn.classList.add('sf-btn-active');
-        } else {
-          errorBtn.classList.remove('sf-btn-active');
+    _toggleTypeFilter(filterType) {
+      if (this.typeFilters.hasOwnProperty(filterType)) {
+        this.typeFilters[filterType] = !this.typeFilters[filterType];
+        
+        // Update button visual state
+        const filterBtn = this.container.querySelector(`[data-filter="${filterType}"]`);
+        if (filterBtn) {
+          if (this.typeFilters[filterType]) {
+            filterBtn.classList.add('sf-filter-active');
+          } else {
+            filterBtn.classList.remove('sf-filter-active');
+          }
         }
+        
+        this._applyFilters();
       }
+    }
 
-      this._applyFilters();
+    /**
+     * Get the category for a node type
+     * @private
+     * @param {string} type - The node type
+     * @returns {string} The category name
+     */
+    _getNodeCategory(type) {
+      const categoryMap = {
+        // Methods
+        'METHOD_ENTRY': 'methods',
+        'METHOD_EXIT': 'methods',
+        'CONSTRUCTOR_ENTRY': 'methods',
+        'CONSTRUCTOR_EXIT': 'methods',
+        
+        // Database
+        'SOQL_EXECUTE_BEGIN': 'database',
+        'SOQL_EXECUTE_END': 'database',
+        'DML_BEGIN': 'database',
+        'DML_END': 'database',
+        
+        // Debug
+        'USER_DEBUG': 'debug',
+        
+        // Errors
+        'EXCEPTION_THROWN': 'errors',
+        'FATAL_ERROR': 'errors',
+        
+        // Variables
+        'VARIABLE_ASSIGNMENT': 'variables',
+        
+        // System
+        'CODE_UNIT_STARTED': 'system',
+        'CODE_UNIT_FINISHED': 'system',
+        'EXECUTION_STARTED': 'system',
+        'EXECUTION_FINISHED': 'system',
+        'FLOW_START_INTERVIEWS_BEGIN': 'system',
+        'FLOW_START_INTERVIEWS_END': 'system',
+        'ROOT': 'system'
+      };
+      
+      return categoryMap[type] || 'system';
     }
 
     /**
@@ -553,14 +675,22 @@
     }
 
     /**
-     * Apply additional filters
+     * Apply type filters
      * @private
      */
     _applyFilters() {
       this.filteredNodes = this.visibleNodes.filter(node => {
-        if (this.filters.errorsOnly && !node.hasError) return false;
+        // Always show root node
+        if (node.depth === 0) return true;
+        
+        // Check if the node's category is enabled
+        const category = this._getNodeCategory(node.type);
+        if (!this.typeFilters[category]) return false;
+        
+        // Legacy filters (kept for compatibility)
         if (this.filters.minDuration && node.duration < this.filters.minDuration) return false;
         if (this.filters.maxDepth !== null && node.depth > this.filters.maxDepth) return false;
+        
         return true;
       });
       
@@ -663,6 +793,229 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+    }
+
+    /**
+     * Toggle export menu visibility
+     * @private
+     * @param {boolean|undefined} forceState - Force open (true) or close (false)
+     */
+    _toggleExportMenu(forceState) {
+      const menu = this.container.querySelector('.sf-export-menu');
+      if (!menu) return;
+      
+      const isVisible = menu.style.display !== 'none';
+      const newState = forceState !== undefined ? forceState : !isVisible;
+      menu.style.display = newState ? 'block' : 'none';
+    }
+
+    /**
+     * Build the call tree as text (recursive)
+     * @private
+     * @param {Object} node - Current node
+     * @param {string} prefix - Line prefix for indentation
+     * @param {boolean} isLast - Is this the last child
+     * @param {string} format - 'txt' or 'md'
+     * @returns {string[]} Array of lines
+     */
+    _buildTreeText(node, prefix = '', isLast = true, format = 'txt') {
+      const lines = [];
+      
+      // Skip root node display but process children
+      if (node.depth === 0) {
+        node.children.forEach((child, index) => {
+          const childIsLast = index === node.children.length - 1;
+          lines.push(...this._buildTreeText(child, '', childIsLast, format));
+        });
+        return lines;
+      }
+      
+      // Build node line
+      const connector = isLast ? '└── ' : '├── ';
+      const durationStr = node.duration > 0 ? ` (${node.duration.toFixed(2)}ms)` : '';
+      const errorMark = node.hasError ? ' ❌' : '';
+      const soqlMark = node.soqlCount > 0 ? ` [${node.soqlCount} SOQL]` : '';
+      const dmlMark = node.dmlCount > 0 ? ` [${node.dmlCount} DML]` : '';
+      
+      let nodeLine;
+      if (format === 'md') {
+        // Markdown format with code styling
+        const badges = [];
+        if (node.hasError) badges.push('❌');
+        if (node.soqlCount > 0) badges.push(`\`${node.soqlCount} SOQL\``);
+        if (node.dmlCount > 0) badges.push(`\`${node.dmlCount} DML\``);
+        const badgeStr = badges.length > 0 ? ' ' + badges.join(' ') : '';
+        nodeLine = `${prefix}${connector}\`${node.name}\`${durationStr}${badgeStr}`;
+      } else {
+        // Plain text format
+        nodeLine = `${prefix}${connector}${node.name}${durationStr}${errorMark}${soqlMark}${dmlMark}`;
+      }
+      
+      lines.push(nodeLine);
+      
+      // Process children
+      const childPrefix = prefix + (isLast ? '    ' : '│   ');
+      node.children.forEach((child, index) => {
+        const childIsLast = index === node.children.length - 1;
+        lines.push(...this._buildTreeText(child, childPrefix, childIsLast, format));
+      });
+      
+      return lines;
+    }
+
+    /**
+     * Export a report with call tree
+     * @private
+     * @param {string} format - 'txt' or 'md'
+     */
+    _exportReport(format = 'txt') {
+      try {
+        const metadata = this.callTree.metadata;
+        const topNodes = metadata.topSlowNodes || [];
+        const date = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const isMd = format === 'md';
+        
+        let content;
+        
+        if (isMd) {
+          // Markdown format
+          content = this._buildMarkdownReport(metadata, topNodes, date);
+        } else {
+          // Plain text format
+          content = this._buildTextReport(metadata, topNodes, date);
+        }
+        
+        // Generate filename
+        const fileDate = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+        const operation = (this.parsedLog.metadata.operation || 'report')
+          .replace(/[^a-zA-Z0-9]/g, '_')
+          .substring(0, 30);
+        const filename = `foxlog_${operation}_${fileDate}.${format}`;
+        
+        // Download file
+        const mimeType = isMd ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8';
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        logger.success(`Performance report exported as ${format.toUpperCase()}`);
+        
+        // Show toast via custom event
+        document.dispatchEvent(new CustomEvent('foxlog:showToast', {
+          detail: { message: `✅ ${i18n.exportSuccess || 'Exported successfully!'}` }
+        }));
+      } catch (error) {
+        logger.error('Export failed', error);
+        document.dispatchEvent(new CustomEvent('foxlog:showToast', {
+          detail: { message: `❌ ${i18n.exportError || 'Export error'}`, type: 'error' }
+        }));
+      }
+    }
+
+    /**
+     * Build plain text report
+     * @private
+     */
+    _buildTextReport(metadata, topNodes, date) {
+      const lines = [
+        '╔══════════════════════════════════════════════════════════════════╗',
+        '║                    🦊 FoxLog - Performance Report                ║',
+        '╚══════════════════════════════════════════════════════════════════╝',
+        '',
+        `📅 ${i18n.exportedOn || 'Exported on'}: ${date}`,
+        `📋 ${i18n.operation || 'Operation'}: ${this.parsedLog.metadata.operation || 'N/A'}`,
+        `⏱️  ${i18n.totalDuration || 'Total Duration'}: ${metadata.totalDuration?.toFixed(2) || 0}ms`,
+        `📊 ${i18n.totalNodes || 'Total Nodes'}: ${metadata.totalNodes || 0}`,
+        `❌ ${i18n.totalErrors || 'Errors'}: ${metadata.errorCount || 0}`,
+        '',
+        '─'.repeat(70),
+        `⚡ ${i18n.topSlowestNodes || 'TOP 5 SLOWEST NODES'}`,
+        '─'.repeat(70),
+        ''
+      ];
+      
+      if (topNodes.length > 0) {
+        topNodes.forEach((node, index) => {
+          lines.push(`  #${index + 1} │ ${node.duration.toFixed(2)}ms │ ${node.type}`);
+          lines.push(`     └─ ${node.name}`);
+          lines.push('');
+        });
+      } else {
+        lines.push(`  ${i18n.noSlowNodes || 'No slow nodes detected'}`);
+        lines.push('');
+      }
+      
+      // Add call tree
+      lines.push('─'.repeat(70));
+      lines.push(`📂 ${i18n.callTree || 'CALL TREE'}`);
+      lines.push('─'.repeat(70));
+      lines.push('');
+      
+      const treeLines = this._buildTreeText(this.callTree.root, '', true, 'txt');
+      lines.push(...treeLines);
+      
+      lines.push('');
+      lines.push('─'.repeat(70));
+      lines.push(`${i18n.generatedBy || 'Generated by'} FoxLog - Salesforce Debug Log Analyzer`);
+      lines.push('');
+      
+      return lines.join('\n');
+    }
+
+    /**
+     * Build Markdown report
+     * @private
+     */
+    _buildMarkdownReport(metadata, topNodes, date) {
+      const lines = [
+        '# 🦊 FoxLog - Performance Report',
+        '',
+        '## 📋 Summary',
+        '',
+        '| Metric | Value |',
+        '|--------|-------|',
+        `| ${i18n.exportedOn || 'Exported on'} | ${date} |`,
+        `| ${i18n.operation || 'Operation'} | ${this.parsedLog.metadata.operation || 'N/A'} |`,
+        `| ${i18n.totalDuration || 'Total Duration'} | **${metadata.totalDuration?.toFixed(2) || 0}ms** |`,
+        `| ${i18n.totalNodes || 'Total Nodes'} | ${metadata.totalNodes || 0} |`,
+        `| ${i18n.totalErrors || 'Errors'} | ${metadata.errorCount || 0} |`,
+        '',
+        `## ⚡ ${i18n.topSlowestNodes || 'Top 5 Slowest Nodes'}`,
+        ''
+      ];
+      
+      if (topNodes.length > 0) {
+        lines.push('| Rank | Duration | Type | Name |');
+        lines.push('|------|----------|------|------|');
+        topNodes.forEach((node, index) => {
+          lines.push(`| #${index + 1} | **${node.duration.toFixed(2)}ms** | \`${node.type}\` | ${node.name} |`);
+        });
+      } else {
+        lines.push(`> ${i18n.noSlowNodes || 'No slow nodes detected'}`);
+      }
+      
+      // Add call tree
+      lines.push('');
+      lines.push(`## 📂 ${i18n.callTree || 'Call Tree'}`);
+      lines.push('');
+      lines.push('```');
+      
+      const treeLines = this._buildTreeText(this.callTree.root, '', true, 'txt');
+      lines.push(...treeLines);
+      
+      lines.push('```');
+      lines.push('');
+      lines.push('---');
+      lines.push(`*${i18n.generatedBy || 'Generated by'} [FoxLog](https://github.com/your-repo) - Salesforce Debug Log Analyzer*`);
+      lines.push('');
+      
+      return lines.join('\n');
     }
 
     /**
