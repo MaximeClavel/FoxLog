@@ -45,6 +45,9 @@
       this.scrollTop = 0;
       this.renderBuffer = 10; // Additional nodes to render
       
+      // Top 5 collapse state
+      this.topNodesCollapsed = false;
+      
       // DOM references
       this.toolbarEl = null;
       this.treeContainer = null;
@@ -230,10 +233,19 @@
         return '';
       }
       
+      const isCollapsed = this.topNodesCollapsed;
+      
       return `
-        <div class="sf-call-tree-top-nodes">
-          <div class="sf-top-nodes-title">⚡ ${i18n.topSlowestNodes || 'Top 5 Slowest Nodes'}</div>
-          <div class="sf-top-nodes-list">
+        <div class="sf-call-tree-top-nodes ${isCollapsed ? 'sf-collapsed' : ''}">
+          <div class="sf-top-nodes-header">
+            <button class="sf-top-nodes-toggle" title="${isCollapsed ? 'Expand' : 'Collapse'}">
+              <svg viewBox="0 0 20 20" fill="currentColor" class="sf-toggle-chevron ${isCollapsed ? '' : 'sf-expanded'}">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+              </svg>
+            </button>
+            <span class="sf-top-nodes-title">⚡ ${i18n.topSlowestNodes || 'Top 5 Slowest Nodes'}</span>
+          </div>
+          <div class="sf-top-nodes-list" style="${isCollapsed ? 'display: none;' : ''}">
             ${this.callTree.metadata.topSlowNodes.map((node, i) => `
               <div class="sf-top-node-item" data-node-id="${node.id}">
                 <span class="sf-top-node-rank">#${i + 1}</span>
@@ -266,21 +278,45 @@
       this._buildVisibleNodes();
       this._applyFilters();
       
-      // 4. Find the node index in filteredNodes
+      // 4. Get fresh reference to scroll container
+      const scrollContainer = this.container.querySelector('.sf-call-tree-scroll-container');
+      if (!scrollContainer) {
+        logger.error('Scroll container not found');
+        return;
+      }
+      
+      // 5. Update spacer height after filter changes
+      const spacer = this.container.querySelector('.sf-call-tree-spacer');
+      if (spacer) {
+        spacer.style.height = `${this.filteredNodes.length * this.nodeHeight}px`;
+      }
+      
+      // 6. Find the node index in filteredNodes
       const index = this.filteredNodes.findIndex(n => n.id === nodeId);
       if (index === -1) {
         logger.warn(`Node ${nodeId} not in filtered list`);
         return;
       }
       
-      // 5. Scroll to the node
-      const scrollTop = index * this.nodeHeight;
-      this.scrollContainer.scrollTop = scrollTop;
+      // 7. Get actual viewport height
+      const actualViewportHeight = scrollContainer.clientHeight || 400;
       
-      // 6. Temporary highlight
+      // 8. Calculate scroll position (center the node in viewport)
+      const targetScrollTop = Math.max(0, (index * this.nodeHeight) - (actualViewportHeight / 2));
+      
+      logger.log(`scrollToNode: index=${index}, targetScrollTop=${targetScrollTop}, viewportHeight=${actualViewportHeight}`);
+      
+      // 9. Scroll directly using the DOM element
+      scrollContainer.scrollTop = targetScrollTop;
+      
+      // 10. Force sync our internal state and re-render
+      this.scrollTop = targetScrollTop;
+      this.scrollContainer = scrollContainer;
+      this._renderVisibleNodes();
+      
+      // 11. Highlight after a short delay
       setTimeout(() => {
         this._highlightNode(nodeId);
-        this._renderVisibleNodes();
       }, 100);
       
       logger.success(`Scrolled to node: ${node.name}`);
@@ -342,6 +378,9 @@
       // Flag the node for highlighting
       this.highlightedNodeId = nodeId;
       
+      // Immediately re-render to show the highlight
+      this._renderVisibleNodes();
+      
       // Remove highlight after 2 seconds
       setTimeout(() => {
         this.highlightedNodeId = null;
@@ -372,22 +411,28 @@
       if (!this.treeContainer || this.filteredNodes.length === 0) {
         if (this.treeContainer) {
           this.treeContainer.innerHTML = '';
+          this.treeContainer.style.transform = 'translateY(0)';
         }
         return;
       }
       
+      // Get fresh viewport height
       if (this.scrollContainer) {
         const currentHeight = this.scrollContainer.clientHeight;
         if (currentHeight > 0) {
           this.viewportHeight = currentHeight;
         }
+        // Sync scrollTop from DOM
+        this.scrollTop = this.scrollContainer.scrollTop;
       }
       
       const effectiveViewportHeight = this.viewportHeight || 600;
-      const startIndex = Math.max(0, Math.floor(this.scrollTop / this.nodeHeight) - this.renderBuffer);
+      const safeScrollTop = Math.max(0, this.scrollTop || 0);
+      
+      const startIndex = Math.max(0, Math.floor(safeScrollTop / this.nodeHeight) - this.renderBuffer);
       const endIndex = Math.min(
         this.filteredNodes.length,
-        Math.ceil((this.scrollTop + effectiveViewportHeight) / this.nodeHeight) + this.renderBuffer
+        Math.ceil((safeScrollTop + effectiveViewportHeight) / this.nodeHeight) + this.renderBuffer
       );
       
       const fragment = document.createDocumentFragment();
@@ -401,7 +446,7 @@
       this.treeContainer.innerHTML = '';
       this.treeContainer.appendChild(fragment);
       
-      // Positionner le viewport
+      // Position the viewport
       this.treeContainer.style.transform = `translateY(${startIndex * this.nodeHeight}px)`;
     }
 
@@ -508,6 +553,13 @@
           this._toggleExportMenu(false);
         }
         
+        // Top 5 collapse toggle
+        const topNodesToggle = e.target.closest('.sf-top-nodes-toggle');
+        if (topNodesToggle) {
+          this._toggleTopNodes();
+          return;
+        }
+        
         // Toggle expand/collapse
         const toggleBtn = e.target.closest('.sf-node-toggle');
         if (toggleBtn) {
@@ -551,6 +603,24 @@
       }
       
       this.listenersAttached = true;
+    }
+
+    /**
+     * Toggle the Top 5 section collapse state
+     * @private
+     */
+    _toggleTopNodes() {
+      this.topNodesCollapsed = !this.topNodesCollapsed;
+      
+      const topNodesEl = this.container.querySelector('.sf-call-tree-top-nodes');
+      const listEl = this.container.querySelector('.sf-top-nodes-list');
+      const chevronEl = this.container.querySelector('.sf-toggle-chevron');
+      
+      if (topNodesEl && listEl && chevronEl) {
+        topNodesEl.classList.toggle('sf-collapsed', this.topNodesCollapsed);
+        listEl.style.display = this.topNodesCollapsed ? 'none' : '';
+        chevronEl.classList.toggle('sf-expanded', !this.topNodesCollapsed);
+      }
     }
 
     _toggleNode(nodeId) {

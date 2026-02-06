@@ -16,7 +16,7 @@
     
     // ✅ LOGGER CONFIGURATION
     // Set to false before publishing to production
-    DEBUG_MODE: false,           // Enable/disable all logs
+    DEBUG_MODE: true,           // Enable/disable all logs
     ENABLE_SUCCESS_LOGS: true,  // Show success messages (✅)
     ENABLE_INFO_LOGS: true,     // Show info messages
     ENABLE_WARN_LOGS: true,     // Show warnings (⚠️)

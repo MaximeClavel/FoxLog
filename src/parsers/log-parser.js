@@ -18,14 +18,18 @@
     }
 
     parse(rawLog, metadata = {}) {
-      const lines = rawLog.split('\n').filter(line => line.trim());
+      const allLines = rawLog.split('\n');
       const parsedLines = [];
       const stats = this._initStats();
       
       let currentDepth = 0;
 
-      for (let i = 0; i < lines.length; i++) {
-        const parsedLine = this._parseLine(lines[i], i, currentDepth);
+      // Track original line index for scroll navigation
+      for (let i = 0; i < allLines.length; i++) {
+        const line = allLines[i];
+        if (!line.trim()) continue; // Skip empty lines but keep the index
+        
+        const parsedLine = this._parseLine(line, i, currentDepth);
         
         if (parsedLine) {
           currentDepth = this._updateDepth(parsedLine, currentDepth);
@@ -36,7 +40,7 @@
         }
       }
 
-      this._parseCumulativeLimits(lines, stats);
+      this._parseCumulativeLimits(allLines, stats);
 
       return {
         rawContent: rawLog,

@@ -210,7 +210,7 @@ class CallTreeBuilder {
       hasError: false,
       soqlCount: line.type === 'SOQL_EXECUTE_BEGIN' ? 1 : 0,
       dmlCount: line.type === 'DML_BEGIN' ? 1 : 0,
-      logLineIndex: index,
+      logLineIndex: line.index, // Use the actual raw log line index
       details: this._extractDetails(line)
     };
     
@@ -275,7 +275,7 @@ class CallTreeBuilder {
       hasError: true,
       soqlCount: 0,
       dmlCount: 0,
-      logLineIndex: index,
+      logLineIndex: line.index, // Use the actual raw log line index
       details: {
         message: line.details.message || line.content,
         exceptionType: line.details.exceptionType
@@ -335,7 +335,7 @@ class CallTreeBuilder {
       hasError: false,
       soqlCount: 0,
       dmlCount: 0,
-      logLineIndex: index,
+      logLineIndex: line.index, // Use the actual raw log line index
       details: nodeDetails
     };
     
