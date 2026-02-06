@@ -20,6 +20,18 @@
       this.filteredNodes = [];
       this.searchQuery = '';
       this.highlightedNodeId = null;
+      
+      // Type filters - all active by default
+      this.typeFilters = {
+        methods: true,
+        database: true,
+        debug: true,
+        errors: true,
+        variables: true,
+        system: true
+      };
+      
+      // Legacy filters (kept for compatibility)
       this.filters = {
         types: [],
         errorsOnly: false,
@@ -159,11 +171,6 @@
                 <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
               </svg>
             </button>
-            <button class="sf-call-tree-btn sf-btn-errors" data-action="errors-only" title="${i18n.errorsOnly || 'Errors Only'}">
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-              </svg>
-            </button>
             <div class="sf-export-dropdown">
               <button class="sf-call-tree-btn sf-btn-export" data-action="toggle-export-menu" title="${i18n.exportReport || 'Export Report'}">
                 <svg viewBox="0 0 20 20" fill="currentColor">
@@ -179,6 +186,36 @@
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+        
+        <div class="sf-call-tree-filters">
+          <span class="sf-filters-label">${i18n.filterBy || 'Filter'}:</span>
+          <div class="sf-filter-toggles">
+            <button class="sf-filter-toggle sf-filter-methods sf-filter-active" data-filter="methods" title="${i18n.filterMethods || 'Methods'}">
+              <span class="sf-filter-icon">→</span>
+              <span class="sf-filter-text">${i18n.methods || 'Methods'}</span>
+            </button>
+            <button class="sf-filter-toggle sf-filter-database sf-filter-active" data-filter="database" title="${i18n.filterDatabase || 'Database (SOQL/DML)'}">
+              <span class="sf-filter-icon">🔍</span>
+              <span class="sf-filter-text">${i18n.database || 'Database'}</span>
+            </button>
+            <button class="sf-filter-toggle sf-filter-debug sf-filter-active" data-filter="debug" title="${i18n.filterDebug || 'Debug statements'}">
+              <span class="sf-filter-icon">🐛</span>
+              <span class="sf-filter-text">${i18n.debug || 'Debug'}</span>
+            </button>
+            <button class="sf-filter-toggle sf-filter-errors sf-filter-active" data-filter="errors" title="${i18n.filterErrors || 'Errors & Exceptions'}">
+              <span class="sf-filter-icon">❌</span>
+              <span class="sf-filter-text">${i18n.errors || 'Errors'}</span>
+            </button>
+            <button class="sf-filter-toggle sf-filter-variables sf-filter-active" data-filter="variables" title="${i18n.filterVariables || 'Variables'}">
+              <span class="sf-filter-icon">📝</span>
+              <span class="sf-filter-text">${i18n.variables || 'Variables'}</span>
+            </button>
+            <button class="sf-filter-toggle sf-filter-system sf-filter-active" data-filter="system" title="${i18n.filterSystem || 'System events'}">
+              <span class="sf-filter-icon">⚙️</span>
+              <span class="sf-filter-text">${i18n.system || 'System'}</span>
+            </button>
           </div>
         </div>
       `;
@@ -441,9 +478,6 @@
             case 'collapse-all':
               this._collapseAll();
               break;
-            case 'errors-only':
-              this._toggleErrorsOnly();
-              break;
             case 'toggle-export-menu':
               this._toggleExportMenu();
               break;
@@ -456,6 +490,15 @@
               this._toggleExportMenu(false);
               break;
           }
+          return;
+        }
+        
+        // Filter toggle buttons
+        const filterBtn = e.target.closest('[data-filter]');
+        if (filterBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          this._toggleTypeFilter(filterBtn.dataset.filter);
           return;
         }
         
@@ -548,22 +591,69 @@
     }
 
     /**
-     * Toggle the errors-only filter
+     * Toggle a type filter on/off
      * @private
+     * @param {string} filterType - The filter type to toggle
      */
-    _toggleErrorsOnly() {
-      this.filters.errorsOnly = !this.filters.errorsOnly;
-
-      const errorBtn = this.container.querySelector('[data-action="errors-only"]');
-      if (errorBtn) {
-        if (this.filters.errorsOnly) {
-          errorBtn.classList.add('sf-btn-active');
-        } else {
-          errorBtn.classList.remove('sf-btn-active');
+    _toggleTypeFilter(filterType) {
+      if (this.typeFilters.hasOwnProperty(filterType)) {
+        this.typeFilters[filterType] = !this.typeFilters[filterType];
+        
+        // Update button visual state
+        const filterBtn = this.container.querySelector(`[data-filter="${filterType}"]`);
+        if (filterBtn) {
+          if (this.typeFilters[filterType]) {
+            filterBtn.classList.add('sf-filter-active');
+          } else {
+            filterBtn.classList.remove('sf-filter-active');
+          }
         }
+        
+        this._applyFilters();
       }
+    }
 
-      this._applyFilters();
+    /**
+     * Get the category for a node type
+     * @private
+     * @param {string} type - The node type
+     * @returns {string} The category name
+     */
+    _getNodeCategory(type) {
+      const categoryMap = {
+        // Methods
+        'METHOD_ENTRY': 'methods',
+        'METHOD_EXIT': 'methods',
+        'CONSTRUCTOR_ENTRY': 'methods',
+        'CONSTRUCTOR_EXIT': 'methods',
+        
+        // Database
+        'SOQL_EXECUTE_BEGIN': 'database',
+        'SOQL_EXECUTE_END': 'database',
+        'DML_BEGIN': 'database',
+        'DML_END': 'database',
+        
+        // Debug
+        'USER_DEBUG': 'debug',
+        
+        // Errors
+        'EXCEPTION_THROWN': 'errors',
+        'FATAL_ERROR': 'errors',
+        
+        // Variables
+        'VARIABLE_ASSIGNMENT': 'variables',
+        
+        // System
+        'CODE_UNIT_STARTED': 'system',
+        'CODE_UNIT_FINISHED': 'system',
+        'EXECUTION_STARTED': 'system',
+        'EXECUTION_FINISHED': 'system',
+        'FLOW_START_INTERVIEWS_BEGIN': 'system',
+        'FLOW_START_INTERVIEWS_END': 'system',
+        'ROOT': 'system'
+      };
+      
+      return categoryMap[type] || 'system';
     }
 
     /**
@@ -585,14 +675,22 @@
     }
 
     /**
-     * Apply additional filters
+     * Apply type filters
      * @private
      */
     _applyFilters() {
       this.filteredNodes = this.visibleNodes.filter(node => {
-        if (this.filters.errorsOnly && !node.hasError) return false;
+        // Always show root node
+        if (node.depth === 0) return true;
+        
+        // Check if the node's category is enabled
+        const category = this._getNodeCategory(node.type);
+        if (!this.typeFilters[category]) return false;
+        
+        // Legacy filters (kept for compatibility)
         if (this.filters.minDuration && node.duration < this.filters.minDuration) return false;
         if (this.filters.maxDepth !== null && node.depth > this.filters.maxDepth) return false;
+        
         return true;
       });
       

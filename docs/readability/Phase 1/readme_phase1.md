@@ -15,10 +15,10 @@ La **Phase 1** de FoxLog ajoute un **parser de logs Salesforce** complet qui ana
 
 - 📊 **Statistiques détaillées** (SOQL, DML, CPU, Heap)
 - 🔍 **Détection d'erreurs** automatique
-- ⏱️ **Timeline d'exécution** avec profondeur
+- 🌳 **Arbre d'appels** interactif avec filtres par type
 - 🎨 **Visualisation moderne** avec barres de progression
-- 🌳 **Arbre d'appels** des méthodes
 - ⏮️⏭️ **Navigation entre logs** avec boutons Previous/Next
+- 📤 **Export** en TXT ou Markdown
 
 ### Avant / Après
 
@@ -48,16 +48,16 @@ La **Phase 1** de FoxLog ajoute un **parser de logs Salesforce** complet qui ana
 └─────────────────────────────────────────┘
 ```
 
-### Onglet Timeline
+### Onglet Appels (Call Tree)
 ```
 ┌─────────────────────────────────────────┐
-│ 12:34:56.001  [METHOD_ENTRY]            │
-│   ├─ MyClass.myMethod                   │
-│   │  12:34:56.010  [SOQL_EXECUTE]       │
-│   │    └─ SELECT Id FROM Account        │
-│   │  12:34:56.050  [DML_BEGIN]          │
-│   │    └─ Insert Contact (5 rows)       │
-│   └─ 12:34:56.085  [METHOD_EXIT]        │
+│ 🔍 Rechercher...  [Méthodes] [DB] [Debug]│
+├─────────────────────────────────────────┤
+│ ▼ MyClass.myMethod (234ms) [1 SOQL]     │
+│   ├─ SOQL: SELECT Id FROM Account       │
+│   ├─ Debug: INFO                        │
+│   └─ ▼ InnerClass.process (50ms)        │
+│       └─ DML: Insert Contact            │
 └─────────────────────────────────────────┘
 ```
 
@@ -139,8 +139,8 @@ ls -la
 
 1. Cliquez sur **Détails** d'un log
 2. Explorez les 3 onglets :
-   - **Résumé** : Vue d'ensemble
-   - **Timeline** : Chronologie
+   - **Résumé** : Vue d'ensemble avec statistiques
+   - **Appels** : Arbre d'appels interactif avec filtres
    - **Log brut** : Texte original
 
 ### 4. Comprendre les résultats
