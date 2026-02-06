@@ -363,3 +363,73 @@ Tous les fichiers sont générés. Tu peux maintenant :
 2. ✅ Modifier `modal-manager.js` et `manifest.json`
 3. ✅ Recharger l'extension
 4. ✅ Tester sur Salesforce
+
+---
+
+## 📋 Historique des améliorations
+
+### 2026-02-06 - v1.2.0
+
+#### Améliorations du parsing (log-parser.js & call-tree-worker.js)
+
+**DML_BEGIN amélioré** :
+- Extraction séparée de `operation`, `objectType`, et `rows`
+- Format d'entrée : `[16]|Op:Insert|Type:Account|Rows:1`
+- Affichage : "Insert Account (5 rows)"
+
+**Exception améliorée** :
+- Meilleure extraction du type et du message
+- Troncature automatique des messages longs (>50 caractères)
+- Format d'affichage : `System.MathException: Divide by 0...`
+
+**USER_DEBUG amélioré** :
+- Affiche maintenant le contenu réel du message
+- Préfixe avec le niveau : `[DEBUG] Mon message...`
+- Troncature à 80 caractères
+
+#### Navigation et affichage (call-tree-view.js)
+
+**Top 5 collapsible** :
+- Nouveau bouton chevron pour réduire/étendre la section
+- État `topNodesCollapsed` persistant pendant la session
+- Méthode `_toggleTopNodes()` ajoutée
+
+**Scroll vers nœud amélioré** :
+- Le nœud cible est maintenant centré dans le viewport
+- Mise à jour du spacer après changement de filtres
+- Synchronisation fiable de l'état scroll interne avec le DOM
+- Highlight immédiat au lieu du délai post-render
+
+**Rendu virtualisé corrigé** :
+- Reset du transform quand l'arbre est vide
+- Protection contre scrollTop négatif ou undefined
+- Actualisation fraîche de la hauteur du viewport
+
+#### Styles CSS (modal-styles.css)
+
+**Highlight des lignes de log** :
+```css
+.sf-log-line.sf-line-highlighted {
+  background: rgba(251, 146, 60, 0.4);
+  animation: sf-line-highlight-pulse 2s ease-out;
+}
+```
+
+**Top 5 toggle button** :
+- Nouveau `.sf-top-nodes-header` avec flexbox
+- Bouton `.sf-top-nodes-toggle` avec icône SVG chevron
+- Animation de rotation sur expand/collapse
+
+**Tab content amélioré** :
+- Passage de `display: block` à `display: flex`
+- Hauteur contrainte pour la virtualisation
+- `overflow: hidden` pour éviter les débordements
+
+#### Performance (content.js)
+
+**Preloading en background** :
+- Les logs sont chargés et analysés dès le chargement de la page Salesforce
+- Ouverture du panneau quasi instantanée
+- Flags `preloadedLogs` et `preloadPromise` pour le suivi d'état
+- Méthode `_preloadLogs()` pour l'exécution asynchrone
+- Paramètre `usePreloaded` dans `refreshLogs()` pour utiliser le cache

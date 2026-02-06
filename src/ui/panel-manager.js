@@ -492,7 +492,7 @@
           </div>
         </div>
         <div class="sf-panel-footer">
-          <span id="sf-version-display">v1.1.1</span>
+          <span id="sf-version-display">v1.2.0</span>
           <span id="sf-last-update">${i18n.neverUpdated || 'Never updated'}</span>
         </div>
       `;

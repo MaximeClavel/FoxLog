@@ -4,7 +4,40 @@ All notable changes to FoxLog will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [1.2.0] - 2026-02-06
+
+### Added
+- **Background log preloading**: Logs are now pre-fetched and analyzed in background when Salesforce page loads, making panel opening near-instant
+- **Top 5 collapse toggle**: The "Top 5 Slowest Nodes" section in Calls tab can now be collapsed/expanded with a chevron button
+- **Log line highlighting animation**: Clicking a node in the call tree now highlights the corresponding line in Raw Log with a smooth pulse animation
+
+### Changed
+- **Improved DML parsing**: Now extracts operation type, object type, and row count separately (e.g., "Insert Account (5 rows)")
+- **Improved Exception parsing**: Better extraction of exception type and message with truncation for long messages
+- **Improved USER_DEBUG display**: Shows actual debug message content with level prefix (e.g., "[DEBUG] My message...")
+- **Better call tree navigation**: Clicking "Top 5" nodes now properly scrolls and centers the target node in viewport
+- **Text wrapping in labels**: Improved CSS for better text wrapping in modal labels
+- **Disabled debug mode**: Logger debug mode disabled for production readiness
+
+### Fixed
+- **Call tree scroll synchronization**: Fixed issues where internal scroll state could desync from DOM
+- **Node highlighting timing**: Highlight now renders immediately instead of after re-render delay
+- **Empty tree viewport reset**: Properly resets transform when tree is empty
+- **Spacer height update**: Updates spacer height after filter changes for accurate scrolling
+
+### Technical
+- Added `preloadedLogs` and `preloadPromise` flags in FoxLogApp for preload state tracking
+- Added `_preloadLogs()` method for background log fetching and analysis
+- Enhanced `refreshLogs()` with `usePreloaded` parameter to use cached preloaded data
+- Added `_toggleTopNodes()` method in CallTreeView for collapse state management
+- Added `topNodesCollapsed` state in CallTreeView component
+- Improved `scrollToNode()` with fresh DOM references and viewport centering
+- Added CSS animations for log line highlighting (`@keyframes sf-line-highlight-pulse`)
+- Added `.sf-top-nodes-toggle` button with chevron SVG icon
+
+---
+
+## [1.1.1] - Previous Version
 
 ### Added
 - **Export reports**: New dropdown menu in Calls tab with two export formats:
