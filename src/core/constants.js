@@ -122,6 +122,8 @@
     calls: isFrench ? 'Appels' : 'Calls',
     rawLog: isFrench ? 'Log brut' : 'Raw Log',
     logAnalysis: isFrench ? 'Analyse du log' : 'Log Analysis',
+    analysis: isFrench ? 'Analyse' : 'Analysis',
+    analysisUnavailable: isFrench ? 'Analyse indisponible' : 'Analysis unavailable',
     
     // Summary tab
     generalInfo: isFrench ? 'Informations générales' : 'General Information',
@@ -209,6 +211,53 @@
     nextLog: isFrench ? 'Log suivant' : 'Next log',
     loadingLog: isFrench ? 'Chargement du log...' : 'Loading log...',
     logPosition: isFrench ? 'Log {current} sur {total}' : 'Log {current} of {total}',
-    noMoreLogs: isFrench ? 'Pas d\'autre log' : 'No more logs'
+    noMoreLogs: isFrench ? 'Pas d\'autre log' : 'No more logs',
+    
+    // Anti-patterns
+    antiPatterns: isFrench ? 'Anti-patterns détectés' : 'Detected Anti-patterns',
+    noAntiPatterns: isFrench ? 'Aucun anti-pattern détecté' : 'No anti-patterns detected',
+    codeHealthy: isFrench ? 'Code sain ! ✨' : 'Code is healthy! ✨',
+    healthScore: isFrench ? 'Score de santé' : 'Health Score',
+    critical: isFrench ? 'Critique' : 'Critical',
+    warning: isFrench ? 'Attention' : 'Warning',
+    info: isFrench ? 'Info' : 'Info',
+    suggestion: isFrench ? 'Suggestion' : 'Suggestion',
+    impact: isFrench ? 'Impact' : 'Impact',
+    occurrences: isFrench ? 'Occurrences' : 'Occurrences',
+    viewInLog: isFrench ? 'Voir dans le log' : 'View in log',
+    showAll: isFrench ? 'Tout afficher' : 'Show all',
+    showLess: isFrench ? 'Réduire' : 'Less',
+    exportPdf: isFrench ? 'PDF' : 'PDF',
+    exportMd: isFrench ? 'MD' : 'MD',
+    exportTxt: isFrench ? 'TXT' : 'TXT',
+    exportPdfReady: isFrench ? 'PDF prêt - utilisez "Enregistrer en PDF" dans la boîte d\'impression' : 'PDF ready - use "Save as PDF" in print dialog',
+    exportSuccess: isFrench ? 'Export réussi' : 'Export successful',
+    popupBlocked: isFrench ? 'Popup bloqué par le navigateur' : 'Popup blocked by browser',
+    analysisReport: isFrench ? 'Rapport d\'analyse' : 'Analysis Report',
+    logInfo: isFrench ? 'Informations du log' : 'Log Information',
+    
+    // Anti-pattern titles
+    soqlInLoop: isFrench ? 'SOQL dans une boucle' : 'SOQL in Loop',
+    dmlInLoop: isFrench ? 'DML dans une boucle' : 'DML in Loop',
+    nPlusOne: isFrench ? 'Requête N+1' : 'N+1 Query Pattern',
+    possibleRecursion: isFrench ? 'Récursion possible' : 'Possible Recursion',
+    triggerRecursion: isFrench ? 'Récursion de trigger' : 'Trigger Recursion',
+    soqlNoLimit: isFrench ? 'SOQL sans LIMIT' : 'SOQL without LIMIT',
+    soqlNoWhere: isFrench ? 'SOQL sans WHERE' : 'SOQL without WHERE',
+    soqlNonSelective: isFrench ? 'Requête non-sélective' : 'Non-Selective Query',
+    tooManyFields: isFrench ? 'Trop de champs sélectionnés' : 'Too Many Fields Selected',
+    highSoqlUsage: isFrench ? 'Utilisation SOQL élevée' : 'High SOQL Usage',
+    highDmlUsage: isFrench ? 'Utilisation DML élevée' : 'High DML Usage',
+    highCpuUsage: isFrench ? 'Utilisation CPU élevée' : 'High CPU Usage',
+    highHeapUsage: isFrench ? 'Utilisation Heap élevée' : 'High Heap Usage',
+    deepCallStack: isFrench ? 'Pile d\'appels profonde' : 'Deep Call Stack',
+    multipleCallouts: isFrench ? 'Callouts HTTP multiples' : 'Multiple HTTP Callouts',
+    excessiveFuture: isFrench ? 'Trop d\'appels async' : 'Excessive Async Calls',
+    mixedDml: isFrench ? 'DML mixte (setup/non-setup)' : 'Mixed DML Operations',
+    hardcodedId: isFrench ? 'IDs codés en dur' : 'Hardcoded Record IDs',
+    validationFailures: isFrench ? 'Échecs de validation' : 'Multiple Validation Failures',
+    debugStatements: isFrench ? 'Statements debug excessifs' : 'Excessive Debug Statements',
+    calloutAfterDml: isFrench ? 'Callout après DML' : 'Callout After DML',
+    largeQueryResult: isFrench ? 'Résultats volumineux' : 'Large Query Results'
   };
 })();
