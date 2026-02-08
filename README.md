@@ -13,6 +13,15 @@
 - **Detailed statistics**: SOQL queries, DML statements, CPU time, Heap size with progress bars
 - **Salesforce limits analysis** with visual alerts
 
+### � Anti-Pattern Detection
+- **22 automatic detections** for Salesforce best practices:
+  - 🔴 **Critical**: SOQL/DML in Loop, N+1 Query, Trigger Recursion, Mixed DML, Callout After DML
+  - 🟡 **Warning**: No LIMIT/WHERE, Non-Selective Query, Hardcoded IDs, Excessive Async, Large Query Results
+  - 🔵 **Info**: Too Many Fields, Deep Call Stack, Debug Statements, Validation Failures
+- **Dedicated Analysis tab** with severity badges and actionable suggestions
+- **Direct link to raw log lines** for quick navigation
+- **Export analysis** in PDF, Markdown, or TXT format
+
 ### 👥 Multi-user Management
 - **User selection** via picklist with visual indicators:
   - 🟢 TraceFlag active + logs available
@@ -25,10 +34,11 @@
 - **Log counter** per user
 - **One-click TraceFlag toggle** to enable/disable debug logs
 
-### 🔍 Advanced Visualization
-- **3 complementary views**:
+### 🌳 Advanced Visualization
+- **4 complementary views**:
   - **Summary**: Overview with statistics and metadata
   - **Calls**: Hierarchical call tree with performance analysis (built via Web Worker)
+  - **Analysis**: Anti-pattern detection with severity and suggestions
   - **Raw Log**: Original log content with copy/export options
 - **Top 5 Slowest Nodes**: Instantly identify performance bottlenecks
 - **Log navigation**: Previous/Next buttons to switch between logs without closing the modal
@@ -63,8 +73,17 @@
 4. **You are automatically selected** in the dropdown list (marked with "You")
 5. If you have no active TraceFlag, use the toggle to enable debug logs
 6. Click "Details" to analyze a log in depth
-7. Explore the different tabs: Summary, Calls, Raw Log
-8. Use the export button in the Calls tab to generate a performance report
+7. Explore the different tabs: Summary, Calls, Analysis, Raw Log
+8. Use the **Analysis tab** to detect anti-patterns and export reports (PDF/MD/TXT)
+9. Use the export button in the Calls tab to generate a performance report
+
+## 🧪 Testing
+
+Test scripts are available in the `tests/` folder:
+- **test-antipatterns.apex**: Generates all anti-patterns for detection testing
+- **test-calltree.apex**: Generates a rich call tree with nested operations
+
+Execute them in Salesforce Developer Console (Execute Anonymous) and open the log in FoxLog.
 
 ## 🤝 Contributing
 
