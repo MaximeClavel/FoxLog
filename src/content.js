@@ -9,7 +9,9 @@
       this.currentUserId = null;  // Logged-in user
       this.selectedUserId = null; // User selected in the picklist
       this.currentLogs = [];
-      this.logger = null; 
+      this.logger = null;
+      this.preloadedLogs = false;  // Flag to track if logs have been preloaded
+      this.preloadPromise = null;  // Promise to track preloading status
     }
 
     async init() {
@@ -58,6 +60,9 @@
       if (this.currentUserId) {
         this.logger.success('User ID obtained', this.currentUserId);
         this.selectedUserId = this.currentUserId;
+        
+        // Pre-load logs in background for faster panel opening
+        this._preloadLogs();
       } else {
         this.logger.warn('User ID not found');
       }
@@ -157,7 +162,9 @@
           const userId = panelManager.getSelectedUserId();
           if (userId) {
             this.selectedUserId = userId;
-            await this.refreshLogs();
+            // Use preloaded logs on first open (only if same user)
+            const usePreloaded = this.preloadedLogs && userId === this.currentUserId;
+            await this.refreshLogs(false, usePreloaded);
           }
         }
       });
@@ -474,10 +481,58 @@
     }
 
     /**
+     * Pre-load logs and analyze them in background at page load
+     * This speeds up panel opening by having logs ready
+     * @private
+     */
+    _preloadLogs() {
+      const { logger, salesforceAPI, logPreviewService } = window.FoxLog;
+      
+      const userId = this.selectedUserId || this.currentUserId;
+      if (!userId) {
+        this.logger.warn('Cannot preload logs: no user ID');
+        return;
+      }
+
+      this.logger.log('Starting background preload of logs...');
+      
+      // Store the promise so we can await it if panel opens during preload
+      this.preloadPromise = (async () => {
+        try {
+          // Fetch logs
+          const logs = await salesforceAPI.fetchLogs(userId);
+          this.currentLogs = logs;
+          
+          this.logger.success(`Preloaded ${logs.length} logs for user ${userId}`);
+          
+          // Analyze errors in background
+          if (logs.length > 0) {
+            this.logger.log('Starting background error analysis...');
+            const analysisResults = await logPreviewService.analyzeBatch(logs);
+            
+            // Store analysis results in panelManager for later use
+            const { panelManager } = window.FoxLog;
+            panelManager.logAnalysis = analysisResults;
+            
+            this.logger.success('Background error analysis complete');
+          }
+          
+          this.preloadedLogs = true;
+          this.preloadPromise = null;
+          
+        } catch (error) {
+          this.logger.error('Background preload failed', error);
+          this.preloadPromise = null;
+        }
+      })();
+    }
+
+    /**
      * Refresh logs with error analysis
      * @param {boolean} isAutoRefresh - True when called by the auto-refresh loop
+     * @param {boolean} usePreloaded - True to use preloaded logs if available
      */
-    async refreshLogs(isAutoRefresh = false) {
+    async refreshLogs(isAutoRefresh = false, usePreloaded = false) {
       const { logger, salesforceAPI, panelManager, logPreviewService, i18n } = window.FoxLog;
       
       const userId = this.selectedUserId || this.currentUserId;
@@ -488,6 +543,21 @@
       }
 
       try {
+        // If preload is in progress, wait for it
+        if (this.preloadPromise) {
+          this.logger.log('Waiting for preload to complete...');
+          await this.preloadPromise;
+        }
+        
+        // Use preloaded logs if available and requested
+        if (usePreloaded && this.preloadedLogs && this.currentLogs.length > 0) {
+          this.logger.log('Using preloaded logs');
+          const analysisResults = panelManager.logAnalysis;
+          panelManager.updateLogList(this.currentLogs, analysisResults, false);
+          this.preloadedLogs = false; // Reset flag after use
+          return;
+        }
+
         const SPINNER_DELAY = 300;
         const MIN_SPINNER_TIME = 600;
 
@@ -573,12 +643,14 @@
     }
     
     async viewLogDetails(logId) {
-      const { logger, salesforceAPI } = window.FoxLog;
+      const { logger, salesforceAPI, modalManager } = window.FoxLog;
       
       try {
         this.logger.log(`Fetching details for log ${logId}`);
         
         const logMetadata = this.currentLogs.find(log => log.Id === logId);
+        const currentIndex = this.currentLogs.findIndex(log => log.Id === logId);
+        
         if (!logMetadata) {
           this.logger.error('Log metadata not found');
           return;
@@ -586,12 +658,21 @@
 
         const logBody = await salesforceAPI.fetchLogBody(logId);
         
-        if (window.FoxLog.logParser && window.FoxLog.modalManager) {
+        if (window.FoxLog.logParser && modalManager) {
+          // Setup navigation before showing the modal
+          modalManager.setLogsList(
+            this.currentLogs,
+            currentIndex,
+            async (newLogId, newIndex) => {
+              await this._loadAndDisplayLog(newLogId);
+            }
+          );
+          
           const parsedLog = window.FoxLog.logParser.parse(logBody, logMetadata);
-          window.FoxLog.modalManager.showParsedLog(parsedLog, window.FoxLog.logParser);
+          modalManager.showParsedLog(parsedLog, window.FoxLog.logParser);
         } else {
-          if (window.FoxLog.modalManager) {
-            window.FoxLog.modalManager.showRawLog(logBody);
+          if (modalManager) {
+            modalManager.showRawLog(logBody);
           } else {
             this.logger.log('Log Body:', logBody);
             const message = (window.FoxLog.i18n?.logLoadedConsole) || 'Log loaded! (see console)';
@@ -605,6 +686,32 @@
       }
     }
 
+    /**
+     * Load and display a log (used for navigation)
+     * @private
+     * @param {string} logId - The ID of the log to load
+     */
+    async _loadAndDisplayLog(logId) {
+      const { salesforceAPI, modalManager } = window.FoxLog;
+      
+      const logMetadata = this.currentLogs.find(log => log.Id === logId);
+      if (!logMetadata) {
+        throw new Error('Log metadata not found');
+      }
+      
+      const logBody = await salesforceAPI.fetchLogBody(logId);
+      
+      if (window.FoxLog.logParser && modalManager) {
+        const parsedLog = window.FoxLog.logParser.parse(logBody, logMetadata);
+        // Use updateOnly=true to avoid closing/reopening the modal
+        modalManager.showParsedLog(parsedLog, window.FoxLog.logParser, true);
+      } else if (modalManager) {
+        modalManager.showRawLog(logBody);
+      }
+      
+      this.logger.success('Log navigation completed');
+    }
+
     clearLogs() {
       const { cache, sessionManager, panelManager, logger, logPreviewService } = window.FoxLog;
       
@@ -612,6 +719,8 @@
       sessionManager.clearCache();
       logPreviewService.clearCache();
       this.currentLogs = [];
+      this.preloadedLogs = false;
+      this.preloadPromise = null;
       panelManager.updateLogList([]);
       this.logger.success('Cache cleared');
     }

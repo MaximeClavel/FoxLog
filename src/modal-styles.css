@@ -50,7 +50,10 @@
 }
 
 .sf-tab-content.active {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  height: calc(80vh - 140px); /* Constrain height for virtualization */
+  overflow: hidden;
 }
 
 /* ============================================
@@ -61,6 +64,8 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .sf-summary-section {
@@ -90,6 +95,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0; /* Permet au contenu de rétrécir si nécessaire */
 }
 
 .sf-label {
@@ -104,6 +110,9 @@
   font-size: 16px;
   color: #1f2937;
   font-weight: 600;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .sf-status-success {
@@ -269,181 +278,24 @@
   border-radius: 4px;
 }
 
-/* ============================================
-ONGLET TIMELINE
-============================================ */
-
-.sf-timeline-container {
-    display: block; /* Changed from flex to block */
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    background: #f9fafb;
-    padding: 16px;
-    border-radius: 8px;
-    max-height: 600px;
-    overflow-y: auto;
-    overflow-x: auto; /* Scroll horizontal */
-}
-
-/* Wrapper interne pour forcer une largeur minimum */
-.sf-timeline-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 1200px; /* Forces a minimum width to trigger scrolling */
-}
-
-.sf-timeline-item {
-    display: grid;
-    grid-template-columns: 100px 160px 1fr; /* Simplified */
-    gap: 12px;
-    padding: 8px 12px;
-    background: #ffffff;
-    border-left: 3px solid #e5e7eb;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    align-items: center;
-    min-height: 32px;
-}
-
-.sf-timeline-item:hover {
-    background: #f3f4f6;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.sf-timeline-time {
-    color: #6b7280;
-    font-weight: 500;
-    white-space: nowrap;
-}
-
-.sf-timeline-icon
-{
-    font-size: 20px;
-    margin-right: 4px;
-    vertical-align: middle;
-}
-
-.sf-timeline-type {
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    text-align: center;
-    white-space: nowrap;
-    font-family: 'Consolas', monospace;
-}
-
-.sf-timeline-content {
-    color: #1f2937;
-    white-space: nowrap; /* Prevent line wrapping */
-    overflow: visible; /* Allow overflow */
-}
-
-/* Custom scrollbar for the container */
-.sf-timeline-container::-webkit-scrollbar {
-    height: 8px;
-    width: 8px;
-}
-
-.sf-timeline-container::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 4px;
-}
-
-.sf-timeline-container::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
-}
-
-.sf-timeline-container::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-}
-
-/* Corner entre scroll horizontal et vertical */
-.sf-timeline-container::-webkit-scrollbar-corner {
-    background: #f1f5f9;
-}
-
-/* Types de timeline */
-.sf-timeline-method_entry {
-    border-left-color: #3b82f6;
-}
-
-.sf-timeline-method_entry .sf-timeline-type {
-    background: #dbeafe;
-    color: #1e40af;
-}
-
-.sf-timeline-method_exit {
-    border-left-color: #8b5cf6;
-}
-
-.sf-timeline-method_exit .sf-timeline-type {
-    background: #ede9fe;
-    color: #6d28d9;
-}
-
-.sf-timeline-soql_execute_begin {
-    border-left-color: #10b981;
-}
-
-.sf-timeline-soql_execute_begin .sf-timeline-type {
-    background: #d1fae5;
-    color: #065f46;
-}
-
-.sf-timeline-dml_begin {
-    border-left-color: #f59e0b;
-}
-
-.sf-timeline-dml_begin .sf-timeline-type {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.sf-timeline-user_debug {
-    border-left-color: #6366f1;
-}
-
-.sf-timeline-user_debug .sf-timeline-type {
-    background: #e0e7ff;
-    color: #3730a3;
-}
-
-.sf-timeline-exception_thrown {
-    border-left-color: #ef4444;
-    background: #fef2f2 !important;
-}
-
-.sf-timeline-exception_thrown .sf-timeline-type {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
 /* Custom scrollbar */
-.sf-timeline-container::-webkit-scrollbar,
 .sf-methods-list::-webkit-scrollbar,
 .sf-modal-body-tabs::-webkit-scrollbar {
   width: 8px;
 }
 
-.sf-timeline-container::-webkit-scrollbar-track,
 .sf-methods-list::-webkit-scrollbar-track,
 .sf-modal-body-tabs::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 4px;
 }
 
-.sf-timeline-container::-webkit-scrollbar-thumb,
 .sf-methods-list::-webkit-scrollbar-thumb,
 .sf-modal-body-tabs::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
 }
 
-.sf-timeline-container::-webkit-scrollbar-thumb:hover,
 .sf-methods-list::-webkit-scrollbar-thumb:hover,
 .sf-modal-body-tabs::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
@@ -468,19 +320,10 @@ ONGLET TIMELINE
     grid-template-columns: 1fr;
     gap: 8px;
   }
-  
-  .sf-timeline-item {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-  
-  .sf-timeline-type {
-    width: fit-content;
-  }
 }
 
 /* ============================================
-   BARRE DE FILTRES
+   BARRE DE FILTRES (kept for potential future use)
    ============================================ */
 
 .sf-filter-bar {
@@ -1023,21 +866,38 @@ ONGLET TIMELINE
 .sf-raw-tab-content {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   padding: 0 !important;
 }
 
 .sf-raw-log-content {
   flex: 1;
+  min-height: 0;
   margin: 0;
-  padding: 20px;
+  padding: 16px;
   overflow: auto;
   font-family: 'Courier New', monospace;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 19.2px; /* Fixed line height for accurate scrolling */
   background: #f8f8f8;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  white-space: pre; /* No wrap - each line stays on one line */
+}
+
+/* Log line structure */
+.sf-log-line {
+  display: block;
+}
+
+.sf-log-line.sf-line-highlighted {
+  background: rgba(251, 146, 60, 0.4);
+  animation: sf-line-highlight-pulse 2s ease-out;
+}
+
+@keyframes sf-line-highlight-pulse {
+  0% { background: rgba(251, 146, 60, 0.5); }
+  70% { background: rgba(251, 146, 60, 0.3); }
+  100% { background: rgba(251, 146, 60, 0.15); }
 }
 
 /* Custom scrollbar for the raw log */
@@ -1615,6 +1475,142 @@ ONGLET TIMELINE
   color: #374151;
 }
 
+/* Export dropdown */
+.sf-export-dropdown {
+  position: relative;
+}
+
+.sf-export-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  min-width: 160px;
+  overflow: hidden;
+}
+
+.sf-export-menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sf-export-menu-item:hover {
+  background: #f3f4f6;
+}
+
+.sf-export-menu-item:first-child {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* ============================================
+   FILTER BAR (Call Tree)
+   ============================================ */
+
+.sf-call-tree-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sf-filters-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sf-filter-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sf-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  background: white;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.sf-filter-toggle:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.sf-filter-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.sf-filter-text {
+  line-height: 1;
+}
+
+/* Active state - each filter type has its own color */
+.sf-filter-toggle.sf-filter-active {
+  color: white;
+  border-color: transparent;
+}
+
+.sf-filter-toggle.sf-filter-methods.sf-filter-active {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.sf-filter-toggle.sf-filter-database.sf-filter-active {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.sf-filter-toggle.sf-filter-debug.sf-filter-active {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.sf-filter-toggle.sf-filter-errors.sf-filter-active {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.sf-filter-toggle.sf-filter-variables.sf-filter-active {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.sf-filter-toggle.sf-filter-system.sf-filter-active {
+  background: linear-gradient(135deg, #6b7280, #4b5563);
+}
+
+/* Inactive (disabled) state */
+.sf-filter-toggle:not(.sf-filter-active) {
+  opacity: 0.6;
+}
+
+.sf-filter-toggle:not(.sf-filter-active):hover {
+  opacity: 0.8;
+}
+
 /* Top 5 nodes */
 .sf-call-tree-top-nodes {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
@@ -1622,17 +1618,57 @@ ONGLET TIMELINE
   padding: 12px 16px;
 }
 
+.sf-call-tree-top-nodes.sf-collapsed {
+  padding: 8px 16px;
+}
+
+.sf-top-nodes-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sf-top-nodes-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sf-top-nodes-toggle:hover {
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sf-top-nodes-toggle .sf-toggle-chevron {
+  width: 14px;
+  height: 14px;
+  color: #92400e;
+  transition: transform 0.2s ease;
+}
+
+.sf-top-nodes-toggle .sf-toggle-chevron.sf-expanded {
+  transform: rotate(90deg);
+}
+
 .sf-top-nodes-title {
   font-size: 13px;
   font-weight: 600;
   color: #92400e;
-  margin-bottom: 8px;
 }
 
 .sf-top-nodes-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin-top: 8px;
 }
 
 .sf-top-node-item {
@@ -1640,7 +1676,7 @@ ONGLET TIMELINE
   grid-template-columns: 32px 1fr auto auto;
   gap: 12px;
   align-items: center;
-  padding: 8px 12px;
+  padding: 8px 16px 8px 12px;
   background: white;
   border-radius: 6px;
   cursor: pointer;
@@ -1684,11 +1720,13 @@ ONGLET TIMELINE
   font-weight: 600;
   color: #dc2626;
   font-family: monospace;
+  padding-right: 20px;
 }
 
 /* Scroll container (virtualisation) */
 .sf-call-tree-scroll-container {
   flex: 1;
+  min-height: 0; /* Important for flex child to respect overflow */
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
@@ -1783,6 +1821,25 @@ ONGLET TIMELINE
 
 .sf-call-tree-btn.sf-btn-active svg {
   color: white !important;
+}
+
+/* Bouton export - style distinct */
+.sf-call-tree-btn.sf-btn-export {
+  background: #ecfdf5;
+  border-color: #10b981;
+}
+
+.sf-call-tree-btn.sf-btn-export:hover {
+  background: #d1fae5;
+  border-color: #059669;
+}
+
+.sf-call-tree-btn.sf-btn-export svg {
+  color: #059669;
+}
+
+.sf-call-tree-btn.sf-btn-export:hover svg {
+  color: #047857;
 }
 
 /* Node icon */

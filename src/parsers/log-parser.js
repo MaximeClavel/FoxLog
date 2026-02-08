@@ -18,14 +18,18 @@
     }
 
     parse(rawLog, metadata = {}) {
-      const lines = rawLog.split('\n').filter(line => line.trim());
+      const allLines = rawLog.split('\n');
       const parsedLines = [];
       const stats = this._initStats();
       
       let currentDepth = 0;
 
-      for (let i = 0; i < lines.length; i++) {
-        const parsedLine = this._parseLine(lines[i], i, currentDepth);
+      // Track original line index for scroll navigation
+      for (let i = 0; i < allLines.length; i++) {
+        const line = allLines[i];
+        if (!line.trim()) continue; // Skip empty lines but keep the index
+        
+        const parsedLine = this._parseLine(line, i, currentDepth);
         
         if (parsedLine) {
           currentDepth = this._updateDepth(parsedLine, currentDepth);
@@ -36,7 +40,7 @@
         }
       }
 
-      this._parseCumulativeLimits(lines, stats);
+      this._parseCumulativeLimits(allLines, stats);
 
       return {
         rawContent: rawLog,
@@ -130,8 +134,23 @@
     }
 
     _parseDML(content) {
-      const [operation, objectType] = content.split('|');
-      return { operation, objectType };
+      // Format: [16]|Op:Insert|Type:Account|Rows:1
+      const parts = content.split('|');
+      const details = {};
+      
+      for (const part of parts) {
+        if (part.startsWith('Op:')) {
+          details.operation = part.substring(3);
+        } else if (part.startsWith('Type:')) {
+          details.objectType = part.substring(5);
+        } else if (part.startsWith('Rows:')) {
+          details.rows = parseInt(part.substring(5), 10);
+        } else if (part.match(/^\[\d+\]$/)) {
+          details.line = part;
+        }
+      }
+      
+      return details;
     }
 
     _parseDebug(content) {
@@ -140,8 +159,29 @@
     }
 
     _parseException(content) {
-      const [exceptionType, message] = content.split('|');
-      return { exceptionType, message };
+      // Format: [60]|System.MathException: Divide by 0
+      const parts = content.split('|');
+      const details = {};
+      
+      // First part is usually the line number [60]
+      if (parts[0] && parts[0].match(/^\[\d+\]$/)) {
+        details.line = parts[0];
+      }
+      
+      // Second part contains the exception type and message
+      const exceptionPart = parts[1] || parts[0];
+      if (exceptionPart) {
+        const colonIndex = exceptionPart.indexOf(':');
+        if (colonIndex > -1) {
+          details.exceptionType = exceptionPart.substring(0, colonIndex).trim();
+          details.message = exceptionPart.substring(colonIndex + 1).trim();
+        } else {
+          details.exceptionType = exceptionPart.trim();
+          details.message = '';
+        }
+      }
+      
+      return details;
     }
 
     _parseTimestamp(timestamp) {

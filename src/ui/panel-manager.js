@@ -62,7 +62,8 @@
         this.showLoading();
         
         logger.log('Fetching users...');
-        const users = await salesforceAPI.fetchUsersWithLogs();
+        // Pass currentUserId to ensure current user is always in the list
+        const users = await salesforceAPI.fetchUsersWithLogs(currentUserId);
         
         logger.log(`Received ${users.length} users`);
         this.usersCache = users;
@@ -95,16 +96,21 @@
         const options = users.map(user => {
           const selected = user.id === currentUserId ? 'selected' : '';
           
+          // Determine emoji based on status
           let emoji = '';
           if (user.hasTraceFlag && user.logCount > 0) {
             emoji = '🟢'; // Vert : TraceFlag actif + logs
           } else if (user.hasTraceFlag) {
             emoji = '🟡'; // Jaune : TraceFlag actif mais pas de logs
-          } else {
+          } else if (user.logCount > 0) {
             emoji = '📋'; // Clipboard : Seulement des logs
+          } else {
+            emoji = '⚪'; // Cercle gris : Pas de TraceFlag ni de logs
           }
           
-          let label = `${emoji} ${user.name}`;
+          // Add "(You)" indicator for current user
+          const youIndicator = user.isCurrentUser ? ` (${i18n.you || 'You'})` : '';
+          let label = `${emoji} ${user.name}${youIndicator}`;
           
           if (user.hasTraceFlag) {
             label += ` [${user.debugLevel}]`;
@@ -463,7 +469,7 @@
           <span id="sf-status-text">${i18n.ready || 'Ready'}</span>
         </div>
         <div class="sf-panel-filters">
-          <select id="sf-user-select" class="sf-user-picklist" title="🟢 = TraceFlag + logs | 🟡 = TraceFlag | 📋 = Logs">
+          <select id="sf-user-select" class="sf-user-picklist" title="🟢 = TraceFlag + logs | 🟡 = TraceFlag | 📋 = Logs | ⚪ = No logs">
             <option value="">${i18n.loading || 'Loading...'}</option>
           </select>
         </div>
@@ -486,7 +492,7 @@
           </div>
         </div>
         <div class="sf-panel-footer">
-          <span id="sf-version-display">v1.1.1</span>
+          <span id="sf-version-display">v1.2.0</span>
           <span id="sf-last-update">${i18n.neverUpdated || 'Never updated'}</span>
         </div>
       `;

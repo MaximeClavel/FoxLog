@@ -156,6 +156,7 @@ class CallTreeBuilder {
     const openingTypes = [
       'CODE_UNIT_STARTED',
       'METHOD_ENTRY',
+      'CONSTRUCTOR_ENTRY',
       'SOQL_EXECUTE_BEGIN',
       'DML_BEGIN'
     ];
@@ -164,8 +165,15 @@ class CallTreeBuilder {
     const closingTypes = [
       'CODE_UNIT_FINISHED',
       'METHOD_EXIT',
+      'CONSTRUCTOR_EXIT',
       'SOQL_EXECUTE_END',
       'DML_END'
+    ];
+    
+    // Event types that are added as leaf nodes
+    const leafTypes = [
+      'USER_DEBUG',
+      'VARIABLE_ASSIGNMENT'
     ];
     
     if (openingTypes.includes(type)) {
@@ -174,8 +182,8 @@ class CallTreeBuilder {
       this._closeNode(line, index);
     } else if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR') {
       this._markError(line, index);
-    } else if (type === 'USER_DEBUG') {
-      // Add USER_DEBUG entries as leaf nodes
+    } else if (leafTypes.includes(type)) {
+      // Add leaf nodes (debug, variables, heap)
       this._addLeafNode(line, index);
     }
   }
@@ -202,7 +210,7 @@ class CallTreeBuilder {
       hasError: false,
       soqlCount: line.type === 'SOQL_EXECUTE_BEGIN' ? 1 : 0,
       dmlCount: line.type === 'DML_BEGIN' ? 1 : 0,
-      logLineIndex: index,
+      logLineIndex: line.index, // Use the actual raw log line index
       details: this._extractDetails(line)
     };
     
@@ -247,11 +255,17 @@ class CallTreeBuilder {
     
     const currentNode = this.stack[this.stack.length - 1];
     
+    // Build descriptive name for exception
+    const exType = line.details.exceptionType || 'Exception';
+    const exMsg = line.details.message || '';
+    const shortMsg = exMsg.length > 50 ? exMsg.substring(0, 50) + '...' : exMsg;
+    const nodeName = exMsg ? `${exType}: ${shortMsg}` : exType;
+    
     // Create a child node for the exception
     const errorNode = {
       id: `node_${this.nodeCounter++}`,
       type: line.type,
-      name: line.details.exceptionType || 'Exception',
+      name: nodeName,
       depth: currentNode.depth + 1,
       startTime: line.timestamp,
       startTimeMs: line.timestampMs || 0,
@@ -261,7 +275,7 @@ class CallTreeBuilder {
       hasError: true,
       soqlCount: 0,
       dmlCount: 0,
-      logLineIndex: index,
+      logLineIndex: line.index, // Use the actual raw log line index
       details: {
         message: line.details.message || line.content,
         exceptionType: line.details.exceptionType
@@ -273,7 +287,7 @@ class CallTreeBuilder {
   }
 
   /**
-   * Ajoute un nœud feuille (USER_DEBUG)
+   * Ajoute un nœud feuille (USER_DEBUG, VARIABLE_*, HEAP_ALLOCATE)
    * @private
    */
   _addLeafNode(line, index) {
@@ -281,10 +295,37 @@ class CallTreeBuilder {
     
     const parent = this.stack[this.stack.length - 1];
     
+    // Determine node name based on type
+    let nodeName;
+    let nodeDetails = {};
+    
+    switch (line.type) {
+      case 'USER_DEBUG':
+        // Show the actual debug message, truncated if too long
+        const message = line.details.message || line.content;
+        const level = line.details.level || 'DEBUG';
+        const truncatedMsg = message.length > 80 ? message.substring(0, 80) + '...' : message;
+        nodeName = `[${level}] ${truncatedMsg}`;
+        nodeDetails = {
+          message: message,
+          level: level
+        };
+        break;
+        
+      case 'VARIABLE_ASSIGNMENT':
+        nodeName = this._extractVariableAssignmentName(line.content);
+        nodeDetails = { assignment: line.content };
+        break;
+        
+      default:
+        nodeName = line.type;
+        nodeDetails = { content: line.content };
+    }
+    
     const node = {
       id: `node_${this.nodeCounter++}`,
       type: line.type,
-      name: `Debug: ${line.details.level || 'INFO'}`,
+      name: nodeName,
       depth: parent.depth + 1,
       startTime: line.timestamp,
       startTimeMs: line.timestampMs || 0,
@@ -294,14 +335,29 @@ class CallTreeBuilder {
       hasError: false,
       soqlCount: 0,
       dmlCount: 0,
-      logLineIndex: index,
-      details: {
-        message: line.details.message || line.content,
-        level: line.details.level
-      }
+      logLineIndex: line.index, // Use the actual raw log line index
+      details: nodeDetails
     };
     
     parent.children.push(node);
+  }
+
+  /**
+   * Extract variable assignment name from content
+   * @private
+   */
+  _extractVariableAssignmentName(content) {
+    // Format: [depth]|variableName|value or variableName|value
+    const parts = content.split('|');
+    if (parts.length >= 2) {
+      // Try to get variable name (skip the depth if present)
+      const varName = parts[0].includes('[') ? parts[1] : parts[0];
+      const value = parts[parts.length - 1];
+      // Truncate long values
+      const shortValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+      return `${varName} = ${shortValue}`;
+    }
+    return content.length > 60 ? content.substring(0, 60) + '...' : content;
   }
 
   /**
@@ -428,7 +484,10 @@ class CallTreeBuilder {
           : 'SOQL Query';
       
       case 'DML_BEGIN':
-        return `${details.operation || 'DML'} ${details.objectType || ''}`.trim();
+        const op = details.operation || 'DML';
+        const objType = details.objectType || '';
+        const rows = details.rows ? ` (${details.rows} row${details.rows > 1 ? 's' : ''})` : '';
+        return `${op} ${objType}${rows}`.trim();
       
       case 'CODE_UNIT_STARTED':
         return line.content || 'Code Unit';

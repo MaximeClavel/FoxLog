@@ -14,19 +14,26 @@
 - **Salesforce limits analysis** with visual alerts
 
 ### 👥 Multi-user Management
-- **User selection** via picklist with visual indicators
+- **User selection** via picklist with visual indicators:
+  - 🟢 TraceFlag active + logs available
+  - 🟡 TraceFlag active, no logs yet
+  - 📋 Logs available (no TraceFlag)
+  - ⚪ No TraceFlag, no logs (current user)
+- **Current user always visible** in picklist (marked with "You" / "Moi")
+- **Current user selected by default** for easy TraceFlag activation
 - **Active TraceFlags display** per user
 - **Log counter** per user
+- **One-click TraceFlag toggle** to enable/disable debug logs
 
 ### 🔍 Advanced Visualization
-- **4 complementary views**:
+- **3 complementary views**:
   - **Summary**: Overview with statistics and metadata
-  - **Timeline**: Execution timeline with indentation and colors
-  - **Call Tree**: Hierarchical method visualization (built via Web Worker)
-  - **Raw Log**: Original log content
-- **Advanced filtering**: by log type, errors only, duration, depth
-- **Search** in logs with highlighting
-- **Pagination** to handle large log lists
+  - **Calls**: Hierarchical call tree with performance analysis (built via Web Worker)
+  - **Raw Log**: Original log content with copy/export options
+- **Top 5 Slowest Nodes**: Instantly identify performance bottlenecks
+- **Log navigation**: Previous/Next buttons to switch between logs without closing the modal
+- **Advanced filtering**: errors only, search in tree
+- **Export reports**: Export call tree and performance data in `.txt` or `.md` format
 
 ### ⚡ Performance
 - **Smart caching** to avoid redundant requests
@@ -38,7 +45,7 @@
 - **Side panel** with floating button
 - **Modern modal** with tabs
 - **Responsive design** and intuitive
-- **Statistics export** in JSON format
+- **Performance report export** in TXT and Markdown formats
 
 ## 📦 Installation
 
@@ -50,12 +57,14 @@
 
 ## 🎯 Usage
 
-1. Navigate to a Salesforce page (Lightning or Classic)
+1. Navigate to a Salesforce page (Lightning)
 2. Click on the 🦊 icon in the bottom right of the screen
 3. The panel opens with your recent logs
-4. Select a user from the dropdown list if needed
-5. Click "Details" to analyze a log in depth
-6. Explore the different tabs: Summary, Timeline, Calls, Raw Log
+4. **You are automatically selected** in the dropdown list (marked with "You")
+5. If you have no active TraceFlag, use the toggle to enable debug logs
+6. Click "Details" to analyze a log in depth
+7. Explore the different tabs: Summary, Calls, Raw Log
+8. Use the export button in the Calls tab to generate a performance report
 
 ## 🤝 Contributing
 
