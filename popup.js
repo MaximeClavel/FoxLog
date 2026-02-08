@@ -1,6 +1,12 @@
 // popup.js
 'use strict';
 
+// Version (from manifest.json - single source of truth)
+const versionElement = document.getElementById('version-number');
+if (versionElement) {
+  versionElement.textContent = chrome.runtime.getManifest().version;
+}
+
 // I18n
 const browserLang = navigator.language.toLowerCase();
 const isFrench = browserLang.startsWith('fr');

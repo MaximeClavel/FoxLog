@@ -492,7 +492,7 @@
           </div>
         </div>
         <div class="sf-panel-footer">
-          <span id="sf-version-display">v1.3.0</span>
+          <span id="sf-version-display">v${window.FoxLog.VERSION}</span>
           <span id="sf-last-update">${i18n.neverUpdated || 'Never updated'}</span>
         </div>
       `;

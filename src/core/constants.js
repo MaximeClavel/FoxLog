@@ -6,6 +6,11 @@
   const logger = window.FoxLog.logger || console;
   
   // ============================================
+  // VERSION (read from manifest.json)
+  // ============================================
+  window.FoxLog.VERSION = chrome.runtime.getManifest().version;
+  
+  // ============================================
   // CONFIGURATION
   // ============================================
   window.FoxLog.CONFIG = {
