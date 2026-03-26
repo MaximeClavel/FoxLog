@@ -17,36 +17,36 @@
     log: (msg, data) => {
       if (!logger._isEnabled()) return;
       if (data !== null && data !== undefined && data !== '') {
-        console.log(`[FoxLog BG] ${msg}`, data);
+        console.log(`[FoxLog Injected] ${msg}`, data);
       } else {
-        console.log(`[FoxLog BG] ${msg}`);
+        console.log(`[FoxLog Injected] ${msg}`);
       }
     },
     
     success: (msg, data) => {
       if (!logger._isEnabled()) return;
       if (data !== null && data !== undefined && data !== '') {
-        console.log(`[FoxLog BG] ✅ ${msg}`, data);
+        console.log(`[FoxLog Injected] ✅ ${msg}`, data);
       } else {
-        console.log(`[FoxLog BG] ✅ ${msg}`);
+        console.log(`[FoxLog Injected] ✅ ${msg}`);
       }
     },
     
     warn: (msg, data) => {
       if (!logger._isEnabled()) return;
       if (data !== null && data !== undefined && data !== '') {
-        console.warn(`[FoxLog BG] ⚠️ ${msg}`, data);
+        console.warn(`[FoxLog Injected] ⚠️ ${msg}`, data);
       } else {
-        console.warn(`[FoxLog BG] ⚠️ ${msg}`);
+        console.warn(`[FoxLog Injected] ⚠️ ${msg}`);
       }
     },
     
     error: (msg, err) => {
       // Toujours logger les erreurs, même en production
       if (err !== null && err !== undefined && err !== '') {
-        console.error(`[FoxLog BG] ❌ ${msg}`, err);
+        console.error(`[FoxLog Injected] ❌ ${msg}`, err);
       } else {
-        console.error(`[FoxLog BG] ❌ ${msg}`);
+        console.error(`[FoxLog Injected] ❌ ${msg}`);
       }
     }
   };

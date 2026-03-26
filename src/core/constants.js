@@ -4,6 +4,25 @@
   
   window.FoxLog = window.FoxLog || {};
   const logger = window.FoxLog.logger || console;
+
+  // ============================================
+  // UTILITIES
+  // ============================================
+
+  /**
+   * Escape HTML special characters to prevent XSS
+   * @param {string} unsafe - Raw string potentially containing HTML
+   * @returns {string} Escaped string safe for innerHTML
+   */
+  window.FoxLog.escapeHtml = function(unsafe) {
+    if (!unsafe) return '';
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
   
   // ============================================
   // VERSION (read from manifest.json)
@@ -182,9 +201,9 @@
     filterSystem: isFrench ? 'Événements système' : 'System events',
     
     // Toasts
-    exportSuccess: isFrench ? 'Exporté avec succès !' : 'Exported successfully!',
+    toastExportSuccess: isFrench ? 'Exporté avec succès !' : 'Exported successfully!',
     copySuccess: isFrench ? 'Copié dans le presse-papier !' : 'Copied to clipboard!',
-    exportError: isFrench ? 'Erreur lors de l\'export' : 'Export error',
+    toastExportError: isFrench ? 'Erreur lors de l\'export' : 'Export error',
     copyError: isFrench ? 'Erreur lors de la copie' : 'Copy error',
     
     // Filters (legacy)
@@ -232,11 +251,11 @@
     viewInLog: isFrench ? 'Voir dans le log' : 'View in log',
     showAll: isFrench ? 'Tout afficher' : 'Show all',
     showLess: isFrench ? 'Réduire' : 'Less',
-    exportPdf: isFrench ? 'PDF' : 'PDF',
-    exportMd: isFrench ? 'MD' : 'MD',
-    exportTxt: isFrench ? 'TXT' : 'TXT',
+    exportPdfShort: isFrench ? 'PDF' : 'PDF',
+    exportMdShort: isFrench ? 'MD' : 'MD',
+    exportTxtShort: isFrench ? 'TXT' : 'TXT',
     exportPdfReady: isFrench ? 'PDF prêt - utilisez "Enregistrer en PDF" dans la boîte d\'impression' : 'PDF ready - use "Save as PDF" in print dialog',
-    exportSuccess: isFrench ? 'Export réussi' : 'Export successful',
+    analysisExportSuccess: isFrench ? 'Export réussi' : 'Export successful',
     popupBlocked: isFrench ? 'Popup bloqué par le navigateur' : 'Popup blocked by browser',
     analysisReport: isFrench ? 'Rapport d\'analyse' : 'Analysis Report',
     logInfo: isFrench ? 'Informations du log' : 'Log Information',

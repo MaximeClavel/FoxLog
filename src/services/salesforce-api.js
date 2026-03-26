@@ -26,6 +26,30 @@
     }
 
     /**
+     * Validate a Salesforce ID (15 or 18 alphanumeric characters)
+     * @param {string} id - The ID to validate
+     * @returns {boolean} True if valid Salesforce ID
+     * @private
+     */
+    _isValidSalesforceId(id) {
+      return typeof id === 'string' && /^[a-zA-Z0-9]{15,18}$/.test(id);
+    }
+
+    /**
+     * Validate and sanitize a Salesforce ID, throws if invalid
+     * @param {string} id - The ID to validate
+     * @param {string} label - Label for error message
+     * @returns {string} The validated ID
+     * @private
+     */
+    _validateId(id, label = 'ID') {
+      if (!this._isValidSalesforceId(id)) {
+        throw new Error(`Invalid Salesforce ${label}: ${id}`);
+      }
+      return id;
+    }
+
+    /**
      * Generic method to make Tooling API requests
      * @private
      */
@@ -147,49 +171,58 @@
       let dataLog = { records: [] };
       let dataFlag = { records: [] };
 
-      // Fetch logs
-      try {
-        dataLog = await this._restRequest('GET', `query?q=${encodeURIComponent(queryLogs)}`);
+      // Fetch logs and TraceFlags in parallel
+      const [logResult, flagResult] = await Promise.allSettled([
+        this._restRequest('GET', `query?q=${encodeURIComponent(queryLogs)}`),
+        this._toolingRequest('GET', `query?q=${encodeURIComponent(queryFlag)}`)
+      ]);
+
+      if (logResult.status === 'fulfilled') {
+        dataLog = logResult.value;
         this.logger.log(`Found ${dataLog.records?.length || 0} users with logs`);
-      } catch (error) {
-        this.logger.error('Error fetching users with logs', error);
+      } else {
+        this.logger.error('Error fetching users with logs', logResult.reason);
       }
 
-      // Fetch user names
-      let userNames = new Map();
-      if (dataLog.records && dataLog.records.length > 0) {
-        const userIds = dataLog.records.map(r => r.LogUserId);
-        const queryUsers = `
-          SELECT Id, Name
-          FROM User
-          WHERE Id IN ('${userIds.join("','")}')
-        `;
-        
-        try {
-          const dataUsers = await this._restRequest('GET', `query?q=${encodeURIComponent(queryUsers)}`);
-          dataUsers.records.forEach(user => {
-            userNames.set(user.Id, user.Name);
-          });
-          this.logger.log(`Fetched names for ${userNames.size} users`);
-        } catch (error) {
-          this.logger.error('Error fetching user names', error);
-        }
-      }
-
-      // Fetch TraceFlags
-      try {
-        dataFlag = await this._toolingRequest('GET', `query?q=${encodeURIComponent(queryFlag)}`);
+      if (flagResult.status === 'fulfilled') {
+        dataFlag = flagResult.value;
         this.logger.log(`Found ${dataFlag.records?.length || 0} users with TraceFlags`);
-      } catch (error) {
-        this.logger.warn('Error fetching TraceFlags', error);
+      } else {
+        this.logger.warn('Error fetching TraceFlags', flagResult.reason);
       }
 
       // Build user map
       const usersMap = new Map();
 
+      // Fetch user names for log users
+      let userNames = new Map();
+      if (dataLog.records && dataLog.records.length > 0) {
+        const userIds = dataLog.records
+          .map(r => r.LogUserId)
+          .filter(id => this._isValidSalesforceId(id));
+        
+        if (userIds.length > 0) {
+          const queryUsers = `
+            SELECT Id, Name
+            FROM User
+            WHERE Id IN ('${userIds.join("','")}')\n          `;
+          
+          try {
+            const dataUsers = await this._restRequest('GET', `query?q=${encodeURIComponent(queryUsers)}`);
+            dataUsers.records.forEach(user => {
+              userNames.set(user.Id, user.Name);
+            });
+            this.logger.log(`Fetched names for ${userNames.size} users`);
+          } catch (error) {
+            this.logger.error('Error fetching user names', error);
+          }
+        }
+      }
+
       // If currentUserId is provided, fetch current user info and add to map first
       if (currentUserId && !usersMap.has(currentUserId)) {
         try {
+          this._validateId(currentUserId, 'currentUserId');
           const queryCurrentUser = `SELECT Id, Name FROM User WHERE Id = '${currentUserId}'`;
           const currentUserData = await this._restRequest('GET', `query?q=${encodeURIComponent(queryCurrentUser)}`);
           if (currentUserData.records && currentUserData.records.length > 0) {
@@ -283,13 +316,15 @@
      * Fetch ApexLogs for a user
      */
     async fetchLogs(userId, limit = 100) {
+      this._validateId(userId, 'userId');
+      const safeLimit = Math.max(1, Math.min(Math.floor(Number(limit)) || 100, 200));
       const query = `
         SELECT Id, LogUserId, LogLength, Operation, Request, Status, 
                DurationMilliseconds, StartTime, Location 
         FROM ApexLog 
         WHERE LogUserId='${userId}' 
         ORDER BY StartTime DESC 
-        LIMIT ${limit}
+        LIMIT ${safeLimit}
       `;
       
       const data = await this._restRequest('GET', `query?q=${encodeURIComponent(query)}`);
@@ -300,6 +335,7 @@
      * Fetch ApexLog body
      */
     async fetchLogBody(logId) {
+      this._validateId(logId, 'logId');
       const sessionManager = getSessionManager();
       const sessionId = await sessionManager.getSessionId(window.location.href);
       
@@ -326,6 +362,7 @@
      * Delete an ApexLog
      */
     async deleteLog(logId) {
+      this._validateId(logId, 'logId');
       try {
         await this._restRequest('DELETE', `sobjects/ApexLog/${logId}`);
         return true;
@@ -343,6 +380,7 @@
      * Get active TraceFlag for a user
      */
     async getActiveTraceFlag(userId) {
+      this._validateId(userId, 'userId');
       const query = `
         SELECT Id, TracedEntityId, DebugLevelId, DebugLevel.DeveloperName, 
                ExpirationDate, LogType, StartDate
@@ -367,6 +405,9 @@
      * Get or find a DebugLevel by name
      */
     async getDebugLevel(developerName) {
+      if (typeof developerName !== 'string' || !/^[a-zA-Z0-9_]+$/.test(developerName)) {
+        throw new Error(`Invalid DebugLevel name: ${developerName}`);
+      }
       const query = `
         SELECT Id, DeveloperName
         FROM DebugLevel
@@ -415,6 +456,7 @@
      * Delete a TraceFlag
      */
     async deleteTraceFlag(traceFlagId) {
+      this._validateId(traceFlagId, 'traceFlagId');
       try {
         await this._toolingRequest('DELETE', `sobjects/TraceFlag/${traceFlagId}`);
         this.logger.success('TraceFlag deleted');

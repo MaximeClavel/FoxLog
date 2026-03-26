@@ -213,6 +213,7 @@
           maxHeapSize: 6000000
         },
         methods: [],
+        methodMap: new Map(), // key: 'class.method' → index in methods[]
         errors: [],
         queries: [],
         dmlOperations: [],
@@ -244,19 +245,20 @@
           });
         },
         'METHOD_ENTRY': () => {
-          const existing = stats.methods.find(
-            m => m.class === line.details.class && m.method === line.details.method
-          );
+          const key = `${line.details.class || ''}.${line.details.method || ''}`;
+          const existingIndex = stats.methodMap.get(key);
           
-          if (existing) {
-            existing.calls++;
+          if (existingIndex !== undefined) {
+            stats.methods[existingIndex].calls++;
           } else {
-            stats.methods.push({
+            const newEntry = {
               class: line.details.class,
               method: line.details.method,
               calls: 1,
               firstCall: line.timestamp
-            });
+            };
+            stats.methodMap.set(key, stats.methods.length);
+            stats.methods.push(newEntry);
           }
           
           stats.methodStack.push({

@@ -110,10 +110,11 @@
           
           // Add "(You)" indicator for current user
           const youIndicator = user.isCurrentUser ? ` (${i18n.you || 'You'})` : '';
-          let label = `${emoji} ${user.name}${youIndicator}`;
+          const escapeHtml = window.FoxLog.escapeHtml || ((s) => s);
+          let label = `${emoji} ${escapeHtml(user.name)}${youIndicator}`;
           
           if (user.hasTraceFlag) {
-            label += ` [${user.debugLevel}]`;
+            label += ` [${escapeHtml(user.debugLevel)}]`;
           }
           
           if (user.logCount > 0) {
@@ -122,7 +123,7 @@
             label += ` (0 logs)`;
           }
           
-          return `<option value="${user.id}" ${selected}>${label}</option>`;
+          return `<option value="${escapeHtml(user.id)}" ${selected}>${label}</option>`;
         }).join('');
 
         userSelect.innerHTML = options;
