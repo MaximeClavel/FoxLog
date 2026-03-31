@@ -27,3 +27,6 @@ tmp/
 *.pem
 *.crx
 *.zip
+
+# Salesforce
+*.sfdx/
