@@ -293,10 +293,10 @@
         const blob = new Blob([parsedLog.rawContent], { type: 'text/plain' });
         this._downloadFile(blob, filename);
         this.logger.success('Raw log exported');
-        this._showToast(`✅ ${i18n.exportSuccess || 'Exported successfully!'}`);
+        this._showToast(`✅ ${i18n.toastExportSuccess || 'Exported successfully!'}`);
       } catch (error) {
         this.logger.error('Export failed', error);
-        this._showToast(`❌ ${i18n.exportError || 'Export error'}`, 'error');
+        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
       }
     }
 
@@ -725,7 +725,7 @@
           hasLog: !!this.currentParsedLog, 
           hasResults: !!this.currentAntiPatternResults 
         });
-        this._showToast(`❌ ${i18n.exportError || 'Export error'}`, 'error');
+        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
         return;
       }
 
@@ -793,7 +793,7 @@
           this._showToast(`📄 ${i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog'}`);
         } catch (e) {
           logger.error('[PDF Export] Iframe print failed', e);
-          this._showToast(`❌ ${i18n.exportError || 'Export error'}`, 'error');
+          this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
         }
         
         // Remove iframe after a delay
@@ -809,7 +809,7 @@
      */
     _exportAnalysisMd() {
       if (!this.currentParsedLog || !this.currentAntiPatternResults) {
-        this._showToast(`❌ ${i18n.exportError || 'Export error'}`, 'error');
+        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
         return;
       }
 
@@ -822,7 +822,7 @@
       const blob = new Blob([md], { type: 'text/markdown' });
       
       this._downloadFile(blob, filename);
-      this._showToast(`✅ ${i18n.exportSuccess || 'Export successful'}`);
+      this._showToast(`✅ ${i18n.analysisExportSuccess || 'Export successful'}`);
       logger.success('[MD Export] Markdown exported');
     }
 
@@ -832,7 +832,7 @@
      */
     _exportAnalysisTxt() {
       if (!this.currentParsedLog || !this.currentAntiPatternResults) {
-        this._showToast(`❌ ${i18n.exportError || 'Export error'}`, 'error');
+        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
         return;
       }
 
@@ -845,7 +845,7 @@
       const blob = new Blob([txt], { type: 'text/plain' });
       
       this._downloadFile(blob, filename);
-      this._showToast(`✅ ${i18n.exportSuccess || 'Export successful'}`);
+      this._showToast(`✅ ${i18n.analysisExportSuccess || 'Export successful'}`);
       logger.success('[TXT Export] Text file exported');
     }
 
@@ -1546,9 +1546,9 @@
                   </svg>
                 </button>
                 <div class="sf-analysis-export-menu" style="display: none;">
-                  <button class="sf-export-menu-item" data-action="export-pdf">📄 ${i18n.exportPdf || 'PDF'}</button>
-                  <button class="sf-export-menu-item" data-action="export-md">📝 ${i18n.exportMd || 'MD'}</button>
-                  <button class="sf-export-menu-item" data-action="export-txt">📃 ${i18n.exportTxt || 'TXT'}</button>
+                  <button class="sf-export-menu-item" data-action="export-pdf">📄 ${i18n.exportPdfShort || 'PDF'}</button>
+                  <button class="sf-export-menu-item" data-action="export-md">📝 ${i18n.exportMdShort || 'MD'}</button>
+                  <button class="sf-export-menu-item" data-action="export-txt">📃 ${i18n.exportTxtShort || 'TXT'}</button>
                 </div>
               </div>
             </div>
@@ -1588,9 +1588,9 @@
                 </svg>
               </button>
               <div class="sf-analysis-export-menu" style="display: none;">
-                <button class="sf-export-menu-item" data-action="export-pdf">📄 ${i18n.exportPdf || 'PDF'}</button>
-                <button class="sf-export-menu-item" data-action="export-md">📝 ${i18n.exportMd || 'MD'}</button>
-                <button class="sf-export-menu-item" data-action="export-txt">📃 ${i18n.exportTxt || 'TXT'}</button>
+                <button class="sf-export-menu-item" data-action="export-pdf">📄 ${i18n.exportPdfShort || 'PDF'}</button>
+                <button class="sf-export-menu-item" data-action="export-md">📝 ${i18n.exportMdShort || 'MD'}</button>
+                <button class="sf-export-menu-item" data-action="export-txt">📃 ${i18n.exportTxtShort || 'TXT'}</button>
               </div>
             </div>
           </div>

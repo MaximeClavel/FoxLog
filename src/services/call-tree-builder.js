@@ -12,6 +12,8 @@
     constructor() {
       this.worker = null;
       this.cache = new Map(); // logId → CallTree
+      this.cacheOrder = []; // Track insertion order for LRU eviction
+      this.maxCacheSize = 10; // Max number of cached trees
       this.pendingRequests = new Map(); // requestId → Promise resolver
       this.requestCounter = 0;
       this.workerReady = false;
@@ -65,6 +67,9 @@
       
       // Check cache
       if (this.cache.has(logId)) {
+        // Move to end of order (most recently used)
+        this.cacheOrder = this.cacheOrder.filter(id => id !== logId);
+        this.cacheOrder.push(logId);
         logger.log(`CallTree from cache for log ${logId}`);
         return this.cache.get(logId);
       }
@@ -103,8 +108,16 @@
 
       const callTree = await promise;
       
-      // Cache result
+      // Cache result with LRU eviction
+      if (this.cache.size >= this.maxCacheSize) {
+        const oldest = this.cacheOrder.shift();
+        if (oldest) {
+          this.cache.delete(oldest);
+          logger.log(`Cache evicted oldest entry: ${oldest}`);
+        }
+      }
       this.cache.set(logId, callTree);
+      this.cacheOrder.push(logId);
       
       logger.success(`CallTree built (${callTree.metadata.totalNodes} nodes, ${callTree.buildDuration.toFixed(0)}ms)`);
       
@@ -191,9 +204,11 @@
     clearCache(logId = null) {
       if (logId) {
         this.cache.delete(logId);
+        this.cacheOrder = this.cacheOrder.filter(id => id !== logId);
         logger.log(`Cache cleared for log ${logId}`);
       } else {
         this.cache.clear();
+        this.cacheOrder = [];
         logger.log('Cache cleared');
       }
     }

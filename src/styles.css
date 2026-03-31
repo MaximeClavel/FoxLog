@@ -376,10 +376,27 @@
   padding: 12px 16px;
   background: #f3f3f3;
   border-top: 1px solid #e0e0e0;
-  display: grid;
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   font-size: 12px;
   color: #666;
+}
+
+.sf-kofi-link {
+  display: inline-flex;
+  align-items: center;
+  transition: opacity 0.2s ease;
+  opacity: 0.7;
+}
+
+.sf-kofi-link:hover {
+  opacity: 1;
+}
+
+.sf-kofi-logo {
+  width: 24px;
+  height: 24px;
 }
 
 /* Modal */

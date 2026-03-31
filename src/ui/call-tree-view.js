@@ -978,12 +978,12 @@
         
         // Show toast via custom event
         document.dispatchEvent(new CustomEvent('foxlog:showToast', {
-          detail: { message: `✅ ${i18n.exportSuccess || 'Exported successfully!'}` }
+          detail: { message: `✅ ${i18n.toastExportSuccess || 'Exported successfully!'}` }
         }));
       } catch (error) {
         logger.error('Export failed', error);
         document.dispatchEvent(new CustomEvent('foxlog:showToast', {
-          detail: { message: `❌ ${i18n.exportError || 'Export error'}`, type: 'error' }
+          detail: { message: `❌ ${i18n.toastExportError || 'Export error'}`, type: 'error' }
         }));
       }
     }

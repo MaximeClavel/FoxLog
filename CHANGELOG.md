@@ -4,6 +4,26 @@ All notable changes to FoxLog will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.2] - 2026-03-31
+
+### Added
+- **Ko-fi support link**: Added a Ko-fi donation button in the panel footer
+
+### Fixed
+- **Error badge double-counting**: Fixed badge showing 4 errors instead of 3 when `REQUIRED_FIELD_MISSING` appeared inside `EXCEPTION_THROWN` text
+- **SOQL injection risk**: Added `_validateId()` to sanitize all Salesforce IDs before SOQL queries
+- **i18n duplicate keys**: Renamed colliding keys (`exportMd`, `exportSuccess`, `exportError`, `exportPdf`, `exportTxt`)
+- **XSS in user picklist**: User names escaped with `escapeHtml()` in panel dropdown
+- **Unbounded call tree cache**: Added LRU eviction (max 10 entries) to `CallTreeBuilder`
+
+### Changed
+- **Faster method stats**: `_collectStats` uses `Map` for O(1) lookup instead of `Array.find()` O(n²)
+- **Parallel API calls**: `fetchUsersWithLogs` now uses `Promise.allSettled` for logs + TraceFlags
+- **Logger prefixes**: Fixed copy-paste prefixes — `[FoxLog Injected]` and `[FoxLog Worker]` instead of `[FoxLog BG]`
+- **Validation-only error detection**: Regex now matches log event lines only, not keyword substrings inside exception messages
+
+---
+
 ## [1.2.0] - 2026-02-06
 
 ### Added

@@ -110,10 +110,11 @@
           
           // Add "(You)" indicator for current user
           const youIndicator = user.isCurrentUser ? ` (${i18n.you || 'You'})` : '';
-          let label = `${emoji} ${user.name}${youIndicator}`;
+          const escapeHtml = window.FoxLog.escapeHtml || ((s) => s);
+          let label = `${emoji} ${escapeHtml(user.name)}${youIndicator}`;
           
           if (user.hasTraceFlag) {
-            label += ` [${user.debugLevel}]`;
+            label += ` [${escapeHtml(user.debugLevel)}]`;
           }
           
           if (user.logCount > 0) {
@@ -122,7 +123,7 @@
             label += ` (0 logs)`;
           }
           
-          return `<option value="${user.id}" ${selected}>${label}</option>`;
+          return `<option value="${escapeHtml(user.id)}" ${selected}>${label}</option>`;
         }).join('');
 
         userSelect.innerHTML = options;
@@ -493,6 +494,9 @@
         </div>
         <div class="sf-panel-footer">
           <span id="sf-version-display">v${window.FoxLog.VERSION}</span>
+          <a href="https://ko-fi.com/maxclv" target="_blank" rel="noopener noreferrer" class="sf-kofi-link" title="${i18n.supportOnKofi || 'Support FoxLog on Ko-fi'}">
+            <img src="${ICONS.KOFI || ''}" alt="Ko-fi" class="sf-kofi-logo">
+          </a>
           <span id="sf-last-update">${i18n.neverUpdated || 'Never updated'}</span>
         </div>
       `;

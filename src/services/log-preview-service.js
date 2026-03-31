@@ -89,14 +89,14 @@
       const errorPatterns = {
         exception: /EXCEPTION_THROWN\|([^|]+)\|(.+)/g,
         fatal: /FATAL_ERROR\|(.+)/g,
-        failed: /VALIDATION_FORMULA|VALIDATION_RULE|REQUIRED_FIELD_MISSING/g
+        validation: /^.*\|(VALIDATION_FORMULA|VALIDATION_RULE|VF_PAGE_MESSAGE)\|/gm
       };
 
       let hasError = false;
       let errorCount = 0;
       const errorTypes = new Set();
 
-      // Detect exceptions
+      // Detect exceptions (primary error source)
       let match;
       while ((match = errorPatterns.exception.exec(logContent)) !== null) {
         hasError = true;
@@ -104,19 +104,21 @@
         errorTypes.add(match[1]);
       }
 
-      // Detect fatal errors
-      errorPatterns.fatal.lastIndex = 0;
-      while ((match = errorPatterns.fatal.exec(logContent)) !== null) {
-        hasError = true;
-        errorCount++;
-        errorTypes.add('FATAL_ERROR');
+      // Detect fatal errors only if no EXCEPTION_THROWN found (avoids double-counting)
+      if (errorCount === 0) {
+        errorPatterns.fatal.lastIndex = 0;
+        while ((match = errorPatterns.fatal.exec(logContent)) !== null) {
+          hasError = true;
+          errorCount++;
+          errorTypes.add('FATAL_ERROR');
+        }
       }
 
-      // Detect validation errors
-      errorPatterns.failed.lastIndex = 0;
-      if (errorPatterns.failed.test(logContent)) {
+      // Detect validation events (line-level match to avoid matching inside EXCEPTION_THROWN text)
+      errorPatterns.validation.lastIndex = 0;
+      if (errorPatterns.validation.test(logContent)) {
         hasError = true;
-        errorCount++;
+        if (errorCount === 0) errorCount++;
         errorTypes.add('VALIDATION_ERROR');
       }
 
