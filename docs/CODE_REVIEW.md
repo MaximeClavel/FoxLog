@@ -1,4 +1,4 @@
-# 🦊 FoxLog - Code Review & Freemium Strategy
+# 🦊 FoxLog - Code Review 
 
 **Date :** 26 mars 2026  
 **Version analysée :** 1.3.1  
