@@ -28,5 +28,5 @@ tmp/
 *.crx
 *.zip
 
-# Salesforce
-*.sfdx/
+# Salesforce stuff
+*.sfdx

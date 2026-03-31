@@ -494,6 +494,9 @@
         </div>
         <div class="sf-panel-footer">
           <span id="sf-version-display">v${window.FoxLog.VERSION}</span>
+          <a href="https://ko-fi.com/maxclv" target="_blank" rel="noopener noreferrer" class="sf-kofi-link" title="${i18n.supportOnKofi || 'Support FoxLog on Ko-fi'}">
+            <img src="${ICONS.KOFI || ''}" alt="Ko-fi" class="sf-kofi-logo">
+          </a>
           <span id="sf-last-update">${i18n.neverUpdated || 'Never updated'}</span>
         </div>
       `;

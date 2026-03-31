@@ -54,7 +54,8 @@
     FOXLOG: chrome.runtime.getURL('src/assets/icon128.png'),
     TAIL: chrome.runtime.getURL('src/assets/tail128.png'),
     TRASH: chrome.runtime.getURL('src/assets/trash.png'),
-    REFRESH: chrome.runtime.getURL('src/assets/refresh.png')
+    REFRESH: chrome.runtime.getURL('src/assets/refresh.png'),
+    KOFI: chrome.runtime.getURL('src/assets/logomarkLogo.png')
   };
   
   // ============================================
