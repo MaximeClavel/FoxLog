@@ -16,6 +16,10 @@ for (Account a : accs) {
 }
 insert cons;
 
+// ============================================
+// 🔴 CRITICAL ANTI-PATTERNS
+// ============================================
+
 // Debug Statements (>20)
 for (Integer i = 1; i <= 25; i++) {
     System.debug('Debug ' + i);
@@ -36,6 +40,19 @@ for (Account a : accs) {
     a.Description = 'Updated ' + System.now();
     update a;
 }
+
+// Callout After DML (will throw error - that's expected)
+// Uncomment to test: requires a valid endpoint
+// insert new Account(Name = 'Before Callout');
+// Http h = new Http();
+// HttpRequest req = new HttpRequest();
+// req.setEndpoint('https://example.com');
+// req.setMethod('GET');
+// HttpResponse res = h.send(req); // Would cause uncommitted work pending
+
+// ============================================
+// 🟡 WARNING ANTI-PATTERNS
+// ============================================
 
 // SOQL no WHERE
 List<Account> noWhere = [SELECT Id FROM Account LIMIT 50];
@@ -60,15 +77,44 @@ try {
 // Large Query
 List<Account> large = [SELECT Id FROM Account LIMIT 500];
 
+// Schema Describe in Loop
+for (Integer i = 0; i < 5; i++) {
+    Schema.DescribeSObjectResult descResult = Account.SObjectType.getDescribe();
+    System.debug('Fields: ' + descResult.fields.getMap().size());
+}
+
+// Swallowed Exception (catch block with no debug/logging)
+try {
+    Integer result = 1 / 0;
+} catch (Exception e) {
+    // ❌ Intentionally empty - swallowed exception
+}
+
+// Empty Query Results (queries returning 0 rows)
+for (Integer i = 0; i < 4; i++) {
+    List<Account> empty = [SELECT Id FROM Account WHERE Name = 'FOXLOG_NONEXISTENT_' + i LIMIT 1];
+}
+
+// ============================================
+// 🔵 INFO ANTI-PATTERNS
+// ============================================
+
 // Validation Failure
 try {
     insert new Account();
 } catch (Exception e) { }
 
-// Governor Limits
+// ============================================
+// 📊 GOVERNOR LIMIT TRACKING
+// ============================================
+
+System.debug('=== Governor Limits Summary ===');
 System.debug('Queries: ' + Limits.getQueries() + '/' + Limits.getLimitQueries());
+System.debug('Query Rows: ' + Limits.getQueryRows() + '/' + Limits.getLimitQueryRows());
 System.debug('DML: ' + Limits.getDmlStatements() + '/' + Limits.getLimitDmlStatements());
-System.debug('CPU: ' + Limits.getCpuTime() + 'ms');
+System.debug('DML Rows: ' + Limits.getDmlRows() + '/' + Limits.getLimitDmlRows());
+System.debug('CPU: ' + Limits.getCpuTime() + 'ms/' + Limits.getLimitCpuTime() + 'ms');
+System.debug('Heap: ' + Limits.getHeapSize() + '/' + Limits.getLimitHeapSize());
 
 // Cleanup
 delete cons;

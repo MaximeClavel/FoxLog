@@ -4,6 +4,26 @@ All notable changes to FoxLog will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.1] - 2026-04-09
+
+### Added
+
+- **8 new anti-patterns**: Slow SOQL Query, Excessive Rows Fetched, DML Rows Limit, Empty Query Results, Describe in Loop, Exception Swallowed, Flow Recursion, Nested Loop Pattern (O(n²))
+- **Anti-pattern test suite**: Browser-based test runner (`tests/test-antipatterns.js`) with 26 tests covering all detectors
+- **Copilot instruction files**: Accessibility (a11y), JavaScript standards, CommonMark Markdown, Performance optimization, Security & OWASP, Self-explanatory code commenting
+
+### Changed
+
+- **Docked panel toggle**: Reduced hover translate distance from 31px to 16px for subtler animation
+- **Copilot instructions**: Added rule for incremental modifications (max ~50 lines per edit)
+
+### Documentation
+
+- **Anti-pattern analysis doc**: Added documentation for all 8 new anti-patterns with thresholds and severity levels
+- **Test Apex file**: Added test cases for describe in loop, swallowed exception, callout after DML
+
+---
+
 ## [1.4.0] - 2026-04-09
 
 ### Added
