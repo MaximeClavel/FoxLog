@@ -1345,19 +1345,19 @@
 
 /* Ajustements spécifiques UNIQUEMENT si docké et PAS en drag */
 #sf-foxlog-toggle[data-docked="left"]:not([data-dragging="true"]):hover {
-    transform: translateX(31px) !important;
+    transform: translateX(16px) !important;
 }
 
 #sf-foxlog-toggle[data-docked="right"]:not([data-dragging="true"]):hover {
-    transform: translateX(-31px) !important;
+    transform: translateX(-16px) !important;
 }
 
 #sf-foxlog-toggle[data-docked="top"]:not([data-dragging="true"]):hover {
-    transform: translateY(31px) !important;
+    transform: translateY(16px) !important;
 }
 
 #sf-foxlog-toggle[data-docked="bottom"]:not([data-dragging="true"]):hover {
-    transform: translateY(-31px) !important;
+    transform: translateY(-16px) !important;
 }
 
 #sf-foxlog-toggle:active {
