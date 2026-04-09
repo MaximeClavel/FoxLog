@@ -4,6 +4,18 @@ All notable changes to FoxLog will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.0] - 2026-04-09
+
+### Added
+- **Local log import**: Import raw .txt/.log files via drag & drop or file picker for offline analysis
+- **Tabbed panel**: New tab system in the side panel — Salesforce (cloud) and Files (local imports)
+- **Import history**: Persistent history of imported logs stored in chrome.storage.local with 10 MB quota
+- **Storage management**: Visual storage bar, automatic eviction of oldest entries when quota exceeded
+- **Delete imports**: Delete individual imports or clear all history
+- **Full analysis on import**: Imported logs open the analysis modal with all tabs (Summary, Analysis, Calls, Raw)
+
+---
+
 ## [1.3.2] - 2026-03-31
 
 ### Added

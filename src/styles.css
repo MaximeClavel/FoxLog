@@ -1389,3 +1389,251 @@
     transform: scale(1);
   }
 }
+
+/* ============================================
+   PANEL TABS (Salesforce / Import)
+   ============================================ */
+
+.sf-panel-tabs {
+  display: flex !important;
+  background: #f9fafb !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+.sf-panel-tab-btn {
+  flex: 1 !important;
+  padding: 10px 12px !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #6b7280 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+}
+
+.sf-panel-tab-btn:hover {
+  color: #374151 !important;
+  background: #f3f4f6 !important;
+}
+
+.sf-panel-tab-btn.active {
+  color: #0176d3 !important;
+  border-bottom-color: #0176d3 !important;
+  background: white !important;
+  font-weight: 600 !important;
+}
+
+/* Tab content visibility */
+.sf-panel-tab-content {
+  display: none !important;
+}
+
+.sf-panel-tab-content.active {
+  display: block !important;
+}
+
+/* ============================================
+   IMPORT TAB CONTENT
+   ============================================ */
+
+.sf-import-zone {
+  border: 2px dashed #d1d5db !important;
+  border-radius: 10px !important;
+  padding: 24px 16px !important;
+  text-align: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  background: #fafbff !important;
+  margin: 12px !important;
+}
+
+.sf-import-zone:hover {
+  border-color: #0176d3 !important;
+  background: #f0f6ff !important;
+}
+
+.sf-import-zone.sf-import-dragover {
+  border-color: #0176d3 !important;
+  background: #e0edff !important;
+  box-shadow: 0 0 0 4px rgba(1, 118, 211, 0.1) !important;
+}
+
+.sf-import-zone-icon {
+  font-size: 32px !important;
+  margin-bottom: 8px !important;
+}
+
+.sf-import-zone-text {
+  font-size: 13px !important;
+  color: #6b7280 !important;
+  line-height: 1.5 !important;
+}
+
+.sf-import-zone-text strong {
+  color: #0176d3 !important;
+  font-weight: 600 !important;
+}
+
+/* Import history list */
+.sf-import-history {
+  padding: 0 12px 12px !important;
+}
+
+.sf-import-history-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 8px 0 !important;
+  margin-bottom: 4px !important;
+}
+
+.sf-import-history-title {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #374151 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.sf-import-delete-all-btn {
+  font-size: 11px !important;
+  color: #ef4444 !important;
+  background: none !important;
+  border: none !important;
+  cursor: pointer !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  transition: all 0.2s ease !important;
+}
+
+.sf-import-delete-all-btn:hover {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+}
+
+/* Import log item */
+.sf-import-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px 12px !important;
+  background: white !important;
+  border: 1px solid #e5e5e5 !important;
+  border-radius: 8px !important;
+  margin-bottom: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.sf-import-item:hover {
+  background: #f9fafb !important;
+  border-color: #d1d5db !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+  transform: translateX(4px) !important;
+}
+
+.sf-import-item-info {
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+.sf-import-item-name {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #1f2937 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.sf-import-item-meta {
+  font-size: 11px !important;
+  color: #6b7280 !important;
+  margin-top: 2px !important;
+}
+
+.sf-import-item-delete {
+  flex-shrink: 0 !important;
+  width: 28px !important;
+  height: 28px !important;
+  background: none !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  color: #9ca3af !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  font-size: 14px !important;
+}
+
+.sf-import-item-delete:hover {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  color: #ef4444 !important;
+}
+
+/* Storage bar */
+.sf-import-storage {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 12px !important;
+  margin: 0 12px 8px !important;
+  background: #f9fafb !important;
+  border-radius: 8px !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.sf-import-storage-bar {
+  flex: 1 !important;
+  height: 6px !important;
+  background: #e5e7eb !important;
+  border-radius: 3px !important;
+  overflow: hidden !important;
+}
+
+.sf-import-storage-fill {
+  height: 100% !important;
+  background: linear-gradient(90deg, #0176d3 0%, #10b981 100%) !important;
+  border-radius: 3px !important;
+  transition: width 0.3s ease !important;
+  min-width: 0 !important;
+}
+
+.sf-import-storage-fill.sf-storage-warning {
+  background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%) !important;
+}
+
+.sf-import-storage-text {
+  font-size: 11px !important;
+  color: #6b7280 !important;
+  white-space: nowrap !important;
+}
+
+/* Import empty state */
+.sf-import-empty {
+  text-align: center !important;
+  padding: 20px !important;
+  color: #9ca3af !important;
+}
+
+.sf-import-empty p {
+  margin: 4px 0 !important;
+  font-size: 13px !important;
+}
+
+.sf-import-empty .sf-hint {
+  font-size: 12px !important;
+  color: #9ca3af !important;
+}
