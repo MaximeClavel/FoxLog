@@ -465,33 +465,75 @@
             <button id="sf-close-panel" title="${i18n.close || 'Close'}">×</button>
           </div>
         </div>
-        <div class="sf-panel-status">
-          <span id="sf-status-indicator" class="sf-status-disconnected">●</span>
-          <span id="sf-status-text">${i18n.ready || 'Ready'}</span>
-        </div>
-        <div class="sf-panel-filters">
-          <select id="sf-user-select" class="sf-user-picklist" title="🟢 = TraceFlag + logs | 🟡 = TraceFlag | 📋 = Logs | ⚪ = No logs">
-            <option value="">${i18n.loading || 'Loading...'}</option>
-          </select>
+        
+        <div class="sf-panel-tabs">
+          <button class="sf-panel-tab-btn active" data-panel-tab="salesforce">&#9729;&#65039; ${i18n.tabSalesforce || 'Salesforce'}</button>
+          <button class="sf-panel-tab-btn" data-panel-tab="import">&#128196; ${i18n.tabImport || 'Files'}</button>
         </div>
         
-        <div class="sf-debug-control">
-          <label class="sf-debug-toggle-label">
-            <input type="checkbox" id="sf-debug-logs-toggle" class="sf-debug-toggle-input" disabled>
-            <span class="sf-debug-toggle-slider"></span>
-            <span class="sf-debug-toggle-text">${i18n.debugLogs || 'Debug Logs'}</span>
-          </label>
-          <span id="sf-debug-status" class="sf-debug-status">
-            ⚪ ${i18n.unknown || 'Unknown'}
-          </span>
-        </div>
-        
-        <div class="sf-panel-content" id="sf-logs-list">
-          <div class="sf-empty-state">
-            <p>👋 ${i18n.welcome || 'Welcome to FoxLog!'}</p>
-            <p class="sf-hint">${i18n.selectUser || 'Select a user'}</p>
+        <div id="sf-tab-salesforce" class="sf-panel-tab-content active">
+          <div class="sf-panel-status">
+            <span id="sf-status-indicator" class="sf-status-disconnected">●</span>
+            <span id="sf-status-text">${i18n.ready || 'Ready'}</span>
+          </div>
+          <div class="sf-panel-filters">
+            <select id="sf-user-select" class="sf-user-picklist" title="🟢 = TraceFlag + logs | 🟡 = TraceFlag | 📋 = Logs | ⚪ = No logs">
+              <option value="">${i18n.loading || 'Loading...'}</option>
+            </select>
+          </div>
+          
+          <div class="sf-debug-control">
+            <label class="sf-debug-toggle-label">
+              <input type="checkbox" id="sf-debug-logs-toggle" class="sf-debug-toggle-input" disabled>
+              <span class="sf-debug-toggle-slider"></span>
+              <span class="sf-debug-toggle-text">${i18n.debugLogs || 'Debug Logs'}</span>
+            </label>
+            <span id="sf-debug-status" class="sf-debug-status">
+              ⚪ ${i18n.unknown || 'Unknown'}
+            </span>
+          </div>
+          
+          <div class="sf-panel-content" id="sf-logs-list">
+            <div class="sf-empty-state">
+              <p>👋 ${i18n.welcome || 'Welcome to FoxLog!'}</p>
+              <p class="sf-hint">${i18n.selectUser || 'Select a user'}</p>
+            </div>
           </div>
         </div>
+        
+        <div id="sf-tab-import" class="sf-panel-tab-content">
+          <div class="sf-import-zone" id="sf-import-dropzone">
+            <div class="sf-import-zone-icon">📂</div>
+            <div class="sf-import-zone-text">
+              <strong>${i18n.importFile || 'Import a file'}</strong><br>
+              ${i18n.importDropOrClick || 'Drag & drop a .txt or .log file here, or click to browse'}
+            </div>
+            <input type="file" id="sf-import-file-input" accept=".txt,.log" style="display:none;">
+          </div>
+          
+          <div class="sf-import-storage" id="sf-import-storage">
+            <div class="sf-import-storage-bar">
+              <div class="sf-import-storage-fill" id="sf-import-storage-fill" style="width:0%"></div>
+            </div>
+            <span class="sf-import-storage-text" id="sf-import-storage-text">0 KB ${i18n.importStorageLimit || 'of 10 MB'}</span>
+          </div>
+          
+          <div class="sf-import-history" id="sf-import-history">
+            <div class="sf-import-history-header">
+              <span class="sf-import-history-title">${i18n.importHistory || 'Import History'}</span>
+              <button class="sf-import-delete-all-btn" id="sf-import-delete-all" style="display:none;">
+                🗑️ ${i18n.importDeleteAll || 'Delete all'}
+              </button>
+            </div>
+            <div id="sf-import-list">
+              <div class="sf-import-empty">
+                <p>📭 ${i18n.importNoHistory || 'No imported logs'}</p>
+                <p class="sf-hint">${i18n.importNoHistoryHint || 'Import a log file to get started'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <div class="sf-panel-footer">
           <span id="sf-version-display">v${window.FoxLog.VERSION}</span>
           <a href="https://ko-fi.com/maxclv" target="_blank" rel="noopener noreferrer" class="sf-kofi-link" title="${i18n.supportOnKofi || 'Support FoxLog on Ko-fi'}">
@@ -540,6 +582,79 @@
           }
         }
       });
+      
+      // Panel tab switching
+      this.panel.querySelectorAll('.sf-panel-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tabId = btn.dataset.panelTab;
+          this._switchPanelTab(tabId);
+        });
+      });
+      
+      // Import: dropzone click
+      const dropzone = this.panel.querySelector('#sf-import-dropzone');
+      const fileInput = this.panel.querySelector('#sf-import-file-input');
+      
+      if (dropzone && fileInput) {
+        dropzone.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            this._handleImportFile(file);
+            fileInput.value = '';
+          }
+        });
+        
+        // Drag & drop
+        dropzone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dropzone.classList.add('sf-import-dragover');
+        });
+        
+        dropzone.addEventListener('dragleave', () => {
+          dropzone.classList.remove('sf-import-dragover');
+        });
+        
+        dropzone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropzone.classList.remove('sf-import-dragover');
+          const file = e.dataTransfer.files[0];
+          if (file) {
+            this._handleImportFile(file);
+          }
+        });
+      }
+      
+      // Import: delete all
+      this.panel.querySelector('#sf-import-delete-all')?.addEventListener('click', () => {
+        this._deleteAllImports();
+      });
+      
+      // Import: click on history item
+      this.panel.querySelector('#sf-import-list')?.addEventListener('click', (e) => {
+        // Delete button
+        const deleteBtn = e.target.closest('.sf-import-item-delete');
+        if (deleteBtn) {
+          e.stopPropagation();
+          const importId = deleteBtn.dataset.importId;
+          if (importId) this._deleteImport(importId);
+          return;
+        }
+        // Click on item -> open modal
+        const item = e.target.closest('.sf-import-item');
+        if (item) {
+          const importId = item.dataset.importId;
+          if (importId) {
+            document.dispatchEvent(new CustomEvent('foxlog:viewImportedLog', {
+              detail: { importId }
+            }));
+          }
+        }
+      });
+      
+      // Load import history on startup
+      this._loadImportHistory();
     }
 
     _showEmptyState() {
@@ -622,6 +737,238 @@
         });
         lastUpdateElement.textContent = `${i18n.lastUpdate || 'Last update:'} ${timeString}`;
       }
+    }
+
+    // ============================================
+    // PANEL TABS
+    // ============================================
+
+    /**
+     * Switch between panel tabs (salesforce / import)
+     * @param {string} tabId - The tab to activate
+     */
+    _switchPanelTab(tabId) {
+      // Update tab buttons
+      this.panel.querySelectorAll('.sf-panel-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.panelTab === tabId);
+      });
+      
+      // Update tab content
+      this.panel.querySelectorAll('.sf-panel-tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === `sf-tab-${tabId}`);
+      });
+      
+      // Refresh import history when switching to import tab
+      if (tabId === 'import') {
+        this._loadImportHistory();
+      }
+      
+      logger.log(`Panel tab switched to: ${tabId}`);
+    }
+
+    // ============================================
+    // IMPORT FILE HANDLING
+    // ============================================
+
+    /**
+     * Handle imported file
+     * @param {File} file - The file to import
+     * @private
+     */
+    _handleImportFile(file) {
+      const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+      const validExtensions = ['.txt', '.log'];
+      
+      // Validate file type
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (!validExtensions.includes(ext)) {
+        this._showStatusMessage('⚠️ ' + (i18n.importInvalidType || 'Invalid file type. Use .txt or .log'), 'warning');
+        return;
+      }
+      
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        this._showStatusMessage('⚠️ ' + (i18n.importFileTooLarge || 'File too large (max 5 MB)'), 'warning');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const content = e.target.result;
+        const importEntry = {
+          id: 'imp_' + Date.now(),
+          filename: file.name,
+          date: new Date().toISOString(),
+          size: file.size,
+          content: content
+        };
+        
+        await this._saveImport(importEntry);
+        this._loadImportHistory();
+        
+        // Dispatch event to open modal with analysis
+        document.dispatchEvent(new CustomEvent('foxlog:viewImportedLog', {
+          detail: { importId: importEntry.id }
+        }));
+        
+        this._showStatusMessage('✅ ' + (i18n.importSuccess || 'Log imported successfully!'), 'success');
+        logger.success(`File imported: ${file.name} (${this._formatSize(file.size)})`);
+      };
+      
+      reader.onerror = () => {
+        this._showStatusMessage('❌ ' + (i18n.importError || 'Import error'), 'error');
+        logger.error('Failed to read imported file');
+      };
+      
+      reader.readAsText(file);
+    }
+
+    /**
+     * Save import to chrome.storage.local, evicting oldest if > 10MB
+     * @param {Object} entry - The import entry to save
+     * @private
+     */
+    async _saveImport(entry) {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(['importedLogs'], (result) => {
+          const imports = result.importedLogs || [];
+          const MAX_STORAGE = 10 * 1024 * 1024; // 10 MB
+          
+          // Add the new entry
+          imports.unshift(entry);
+          
+          // Evict oldest entries until under limit
+          let totalSize = imports.reduce((sum, imp) => sum + (imp.size || 0), 0);
+          while (totalSize > MAX_STORAGE && imports.length > 1) {
+            const removed = imports.pop();
+            totalSize -= (removed.size || 0);
+            logger.log(`Evicted old import: ${removed.filename}`);
+          }
+          
+          chrome.storage.local.set({ importedLogs: imports }, resolve);
+        });
+      });
+    }
+
+    /**
+     * Load and render import history
+     * @private
+     */
+    _loadImportHistory() {
+      chrome.storage.local.get(['importedLogs'], (result) => {
+        const imports = result.importedLogs || [];
+        this._renderImportHistory(imports);
+        this._updateStorageBar(imports);
+      });
+    }
+
+    /**
+     * Render import history list
+     * @param {Array} imports - Array of import entries
+     * @private
+     */
+    _renderImportHistory(imports) {
+      const listContainer = this.panel.querySelector('#sf-import-list');
+      const deleteAllBtn = this.panel.querySelector('#sf-import-delete-all');
+      if (!listContainer) return;
+      
+      if (imports.length === 0) {
+        listContainer.innerHTML = `
+          <div class="sf-import-empty">
+            <p>📭 ${i18n.importNoHistory || 'No imported logs'}</p>
+            <p class="sf-hint">${i18n.importNoHistoryHint || 'Import a log file to get started'}</p>
+          </div>
+        `;
+        if (deleteAllBtn) deleteAllBtn.style.display = 'none';
+        return;
+      }
+      
+      if (deleteAllBtn) deleteAllBtn.style.display = 'inline-block';
+      const escapeHtml = window.FoxLog.escapeHtml || ((s) => s);
+      
+      listContainer.innerHTML = imports.map(imp => {
+        const date = new Date(imp.date);
+        const dateStr = date.toLocaleDateString(this.locale, { day: '2-digit', month: '2-digit', year: '2-digit' });
+        const timeStr = date.toLocaleTimeString(this.locale, { hour: '2-digit', minute: '2-digit' });
+        
+        return `
+          <div class="sf-import-item" data-import-id="${escapeHtml(imp.id)}">
+            <div class="sf-import-item-info">
+              <div class="sf-import-item-name">📄 ${escapeHtml(imp.filename)}</div>
+              <div class="sf-import-item-meta">${dateStr} ${timeStr} · ${this._formatSize(imp.size)}</div>
+            </div>
+            <button class="sf-import-item-delete" data-import-id="${escapeHtml(imp.id)}" title="${i18n.importDelete || 'Delete'}">✕</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /**
+     * Update storage usage bar
+     * @param {Array} imports - Array of import entries
+     * @private
+     */
+    _updateStorageBar(imports) {
+      const MAX_STORAGE = 10 * 1024 * 1024; // 10 MB
+      const totalSize = imports.reduce((sum, imp) => sum + (imp.size || 0), 0);
+      const percentage = Math.min((totalSize / MAX_STORAGE) * 100, 100);
+      
+      const fill = this.panel.querySelector('#sf-import-storage-fill');
+      const text = this.panel.querySelector('#sf-import-storage-text');
+      
+      if (fill) {
+        fill.style.width = percentage + '%';
+        fill.classList.toggle('sf-storage-warning', percentage > 80);
+      }
+      
+      if (text) {
+        const usedStr = totalSize < 1024 * 1024
+          ? (totalSize / 1024).toFixed(1) + ' KB'
+          : (totalSize / (1024 * 1024)).toFixed(2) + ' MB';
+        text.textContent = `${usedStr} ${i18n.importStorageLimit || 'of 10 MB'}`;
+      }
+    }
+
+    /**
+     * Delete a single import entry
+     * @param {string} importId - The ID of the import to delete
+     * @private
+     */
+    _deleteImport(importId) {
+      chrome.storage.local.get(['importedLogs'], (result) => {
+        const imports = (result.importedLogs || []).filter(imp => imp.id !== importId);
+        chrome.storage.local.set({ importedLogs: imports }, () => {
+          this._renderImportHistory(imports);
+          this._updateStorageBar(imports);
+          logger.log(`Import deleted: ${importId}`);
+        });
+      });
+    }
+
+    /**
+     * Delete all imported logs
+     * @private
+     */
+    _deleteAllImports() {
+      chrome.storage.local.set({ importedLogs: [] }, () => {
+        this._renderImportHistory([]);
+        this._updateStorageBar([]);
+        logger.success('All imports deleted');
+      });
+    }
+
+    /**
+     * Get an imported log by ID (for viewing)
+     * @param {string} importId - The ID of the import
+     * @returns {Promise<Object|null>} The import entry or null
+     */
+    getImportedLog(importId) {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(['importedLogs'], (result) => {
+          const imports = result.importedLogs || [];
+          resolve(imports.find(imp => imp.id === importId) || null);
+        });
+      });
     }
   }
 

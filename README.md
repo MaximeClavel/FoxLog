@@ -34,6 +34,14 @@
 - **Log counter** per user
 - **One-click TraceFlag toggle** to enable/disable debug logs
 
+### 📂 Local Log Import
+- **Import raw log files** (.txt, .log) directly via drag & drop or file picker
+- **Tabbed panel interface**: switch between Salesforce (cloud logs) and Files (local imports)
+- **Persistent import history** stored in chrome.storage.local
+- **Storage management**: 10 MB quota with automatic eviction of oldest entries
+- **Visual storage bar** showing used space at a glance
+- **One-click analysis**: imported logs open the full analysis modal (Summary, Calls, Analysis, Raw)
+
 ### 🌳 Advanced Visualization
 - **4 complementary views**:
   - **Summary**: Overview with statistics and metadata
@@ -72,10 +80,11 @@
 3. The panel opens with your recent logs
 4. **You are automatically selected** in the dropdown list (marked with "You")
 5. If you have no active TraceFlag, use the toggle to enable debug logs
-6. Click "Details" to analyze a log in depth
-7. Explore the different tabs: Summary, Calls, Analysis, Raw Log
-8. Use the **Analysis tab** to detect anti-patterns and export reports (PDF/MD/TXT)
-9. Use the export button in the Calls tab to generate a performance report
+6. Switch to the **Files** tab to import and analyze local .txt/.log files
+7. Click "Details" to analyze a log in depth
+8. Explore the different tabs: Summary, Calls, Analysis, Raw Log
+9. Use the **Analysis tab** to detect anti-patterns and export reports (PDF/MD/TXT)
+10. Use the export button in the Calls tab to generate a performance report
 
 ## 🧪 Testing
 
