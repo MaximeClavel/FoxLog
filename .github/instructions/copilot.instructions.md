@@ -76,6 +76,7 @@ Pour les opérations lourdes (>100ms), utiliser un Worker :
 3. **Mettre à jour la doc** : Proposer une mise à jour de la documentation après les changements significatifs
 4. **Code lisible** : Écrire du code clair, bien commenté, compréhensible par d'autres développeurs
 5. **Tests** : Les fichiers de test sont dans `tests/` - vérifier que les changements n'impactent pas les tests existants
+6. **Modifications incrémentales** : Toujours faire des modifications par petits morceaux (max ~50 lignes par édition ou création de contenu). Le firewall du réseau bloque les réponses trop volumineuses (erreur `ERR_HTTP2_PROTOCOL_ERROR`). Découper chaque tâche en étapes successives plutôt qu'un seul gros bloc.
 
 ## 🔗 Fichiers clés à connaître
 

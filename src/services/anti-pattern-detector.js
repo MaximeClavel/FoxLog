@@ -40,7 +40,15 @@
     VALIDATION_FAILURES: 'validation_failures',
     DEBUG_STATEMENTS: 'debug_statements',
     CALLOUT_AFTER_DML: 'callout_after_dml',
-    LARGE_QUERY_RESULT: 'large_query_result'
+    LARGE_QUERY_RESULT: 'large_query_result',
+    SLOW_QUERY: 'slow_query',
+    EXCESSIVE_ROWS_FETCHED: 'excessive_rows_fetched',
+    DML_ROWS_LIMIT: 'dml_rows_limit',
+    EMPTY_QUERY_RESULT: 'empty_query_result',
+    DESCRIBE_IN_LOOP: 'describe_in_loop',
+    EXCEPTION_SWALLOWED: 'exception_swallowed',
+    FLOW_RECURSION: 'flow_recursion',
+    NESTED_LOOP_PATTERN: 'nested_loop_pattern'
   };
 
   class AntiPatternDetector {
@@ -59,7 +67,14 @@
         futureThreshold: 5,        // Excessive @future calls
         validationFailureThreshold: 3, // Multiple validation failures
         debugStatementsThreshold: 20,  // More than 20 debug statements
-        largeQueryResultThreshold: 200 // Query returning > 200 records
+        largeQueryResultThreshold: 200, // Query returning > 200 records
+        slowQueryMs: 2000,             // SOQL taking > 2s
+        excessiveRowsFetchedPercent: 70, // > 70% of 50000 row limit
+        dmlRowsPercent: 70,            // > 70% of 10000 DML rows limit
+        emptyQueryThreshold: 3,        // More than 3 empty result queries
+        describeInLoopThreshold: 3,    // Same describe > 3 times
+        flowRecursionLimit: 3,         // Same flow > 3 times
+        nestedLoopDmlSoqlThreshold: 2  // SOQL/DML within nested method calls
       };
     }
 
@@ -93,6 +108,14 @@
       this._detectDebugStatements(lines);
       this._detectCalloutAfterDml(lines);
       this._detectLargeQueryResults(lines);
+      this._detectSlowQueries(lines);
+      this._detectExcessiveRowsFetched(lines, stats);
+      this._detectDmlRowsLimit(lines, stats);
+      this._detectEmptyQueryResults(lines);
+      this._detectDescribeInLoop(lines);
+      this._detectExceptionSwallowed(lines);
+      this._detectFlowRecursion(lines);
+      this._detectNestedLoopPattern(lines);
       
       // If call tree available, run advanced analysis
       if (callTree) {
@@ -677,7 +700,9 @@
         
         if (matches) {
           // Verify it looks like a Salesforce ID (starts with valid prefix)
-          const validPrefixes = ['001', '003', '005', '006', '00Q', '500', '701', '00G', '00D'];
+          const validPrefixes = ['001', '003', '005', '006', '00Q', '500', '701', '00G', '00D', 
+                                  '00e', '00T', '00U', '012', 'a0', '01I', '01p', '01q', 
+                                  '00k', '00K', '04t', '800', '801'];
           for (const match of matches) {
             const id = match.replace(/['"]/g, '');
             if (validPrefixes.some(p => id.startsWith(p))) {
@@ -859,6 +884,385 @@
           suggestion: 'Add more filters to WHERE clause or use LIMIT to reduce result size',
           impact: 'Large result sets consume heap memory and may cause performance issues'
         });
+      }
+    }
+
+    /**
+     * Detect slow SOQL queries (long execution time)
+     * @private
+     */
+    _detectSlowQueries(lines) {
+      const soqlBegins = {};
+      const slowQueries = [];
+
+      for (const line of lines) {
+        if (line.type === 'SOQL_EXECUTE_BEGIN') {
+          soqlBegins[line.index] = line;
+        }
+
+        if (line.type === 'SOQL_EXECUTE_END' || line.content?.includes('SOQL_EXECUTE_END')) {
+          // Find the closest preceding SOQL_EXECUTE_BEGIN
+          const beginIndices = Object.keys(soqlBegins).map(Number).sort((a, b) => b - a);
+          const matchedIndex = beginIndices.find(idx => idx < line.index);
+
+          if (matchedIndex !== undefined) {
+            const beginLine = soqlBegins[matchedIndex];
+            delete soqlBegins[matchedIndex];
+
+            // Calculate duration from nanosecond timestamps
+            if (beginLine.duration !== undefined && line.duration !== undefined) {
+              const durationNs = line.duration - beginLine.duration;
+              const durationMs = durationNs / 1000000;
+
+              if (durationMs >= this.thresholds.slowQueryMs) {
+                slowQueries.push({
+                  line: beginLine.index,
+                  query: beginLine.details.query || beginLine.content,
+                  durationMs: Math.round(durationMs)
+                });
+              }
+            }
+          }
+        }
+      }
+
+      for (const sq of slowQueries) {
+        this.patterns.push({
+          type: PATTERN_TYPES.SLOW_QUERY,
+          severity: sq.durationMs >= 5000 ? SEVERITY.CRITICAL : SEVERITY.WARNING,
+          title: 'Slow SOQL Query',
+          description: `Query took ${sq.durationMs}ms to execute`,
+          query: this._truncateQuery(sq.query),
+          durationMs: sq.durationMs,
+          lines: [sq.line],
+          suggestion: 'Add selective filters on indexed fields, reduce result set with LIMIT, or add custom indexes',
+          impact: 'Slow queries degrade user experience and increase CPU time consumption'
+        });
+      }
+    }
+
+    /**
+     * Detect total rows fetched approaching the 50,000 governor limit
+     * @private
+     */
+    _detectExcessiveRowsFetched(lines, stats) {
+      let totalRowsFetched = 0;
+      const maxRows = 50000;
+
+      for (const line of lines) {
+        if (line.type === 'SOQL_EXECUTE_END' || line.content?.includes('SOQL_EXECUTE_END')) {
+          const content = line.content || '';
+          const rowMatch = content.match(/Rows[:\s]*(\d+)/i);
+          if (rowMatch) {
+            totalRowsFetched += parseInt(rowMatch[1], 10);
+          } else if (line.details?.rows) {
+            totalRowsFetched += line.details.rows;
+          }
+        }
+      }
+
+      const rowPercent = (totalRowsFetched / maxRows) * 100;
+      if (rowPercent >= this.thresholds.excessiveRowsFetchedPercent) {
+        this.patterns.push({
+          type: PATTERN_TYPES.EXCESSIVE_ROWS_FETCHED,
+          severity: rowPercent >= 90 ? SEVERITY.CRITICAL : SEVERITY.WARNING,
+          title: 'High Total Rows Fetched',
+          description: `Fetched ${totalRowsFetched.toLocaleString()}/${maxRows.toLocaleString()} total rows across all queries (${rowPercent.toFixed(0)}%)`,
+          current: totalRowsFetched,
+          max: maxRows,
+          percent: rowPercent,
+          suggestion: 'Reduce the number of records fetched by adding filters and LIMIT clauses, or use SOQL for loops for batch processing',
+          impact: 'Risk of hitting the 50,000 total rows governor limit'
+        });
+      }
+    }
+
+    /**
+     * Detect total DML rows approaching the 10,000 governor limit
+     * @private
+     */
+    _detectDmlRowsLimit(lines, stats) {
+      let totalDmlRows = 0;
+      const maxDmlRows = 10000;
+
+      for (const line of lines) {
+        if (line.type === 'DML_BEGIN') {
+          const rows = line.details?.rows || 0;
+          totalDmlRows += rows;
+        }
+      }
+
+      const dmlRowPercent = (totalDmlRows / maxDmlRows) * 100;
+      if (dmlRowPercent >= this.thresholds.dmlRowsPercent) {
+        this.patterns.push({
+          type: PATTERN_TYPES.DML_ROWS_LIMIT,
+          severity: dmlRowPercent >= 90 ? SEVERITY.CRITICAL : SEVERITY.WARNING,
+          title: 'High DML Rows Usage',
+          description: `${totalDmlRows.toLocaleString()}/${maxDmlRows.toLocaleString()} DML rows processed (${dmlRowPercent.toFixed(0)}%)`,
+          current: totalDmlRows,
+          max: maxDmlRows,
+          percent: dmlRowPercent,
+          suggestion: 'Process fewer records per transaction, or move bulk operations to Batch Apex',
+          impact: 'Risk of hitting the 10,000 DML rows governor limit'
+        });
+      }
+    }
+
+    /**
+     * Detect SOQL queries returning 0 rows (wasted queries)
+     * @private
+     */
+    _detectEmptyQueryResults(lines) {
+      const emptyQueries = [];
+
+      // Match SOQL_EXECUTE_BEGIN with their corresponding END
+      let pendingBegin = null;
+
+      for (const line of lines) {
+        if (line.type === 'SOQL_EXECUTE_BEGIN') {
+          pendingBegin = line;
+        }
+        if ((line.type === 'SOQL_EXECUTE_END' || line.content?.includes('SOQL_EXECUTE_END')) && pendingBegin) {
+          const content = line.content || '';
+          const rowMatch = content.match(/Rows[:\s]*(\d+)/i);
+          const rows = rowMatch ? parseInt(rowMatch[1], 10) : (line.details?.rows ?? -1);
+
+          if (rows === 0) {
+            emptyQueries.push({
+              line: pendingBegin.index,
+              query: pendingBegin.details.query || pendingBegin.content
+            });
+          }
+          pendingBegin = null;
+        }
+      }
+
+      if (emptyQueries.length >= this.thresholds.emptyQueryThreshold) {
+        this.patterns.push({
+          type: PATTERN_TYPES.EMPTY_QUERY_RESULT,
+          severity: SEVERITY.INFO,
+          title: 'Empty SOQL Results',
+          description: `${emptyQueries.length} queries returned 0 rows - wasted SOQL governor limit`,
+          occurrences: emptyQueries.length,
+          queries: emptyQueries.slice(0, 5).map(q => this._truncateQuery(q.query)),
+          lines: emptyQueries.map(q => q.line),
+          suggestion: 'Check if these queries are necessary, or validate data existence before querying',
+          impact: `${emptyQueries.length} SOQL queries consumed without returning data`
+        });
+      }
+    }
+
+    /**
+     * Detect Schema.describe calls in loops
+     * @private
+     */
+    _detectDescribeInLoop(lines) {
+      const describeCalls = [];
+
+      for (const line of lines) {
+        const content = (line.content || '').toLowerCase();
+        if (line.type === 'METHOD_ENTRY' || line.type === 'SYSTEM_METHOD_ENTRY') {
+          if (content.includes('describe') && (
+            content.includes('schema') || 
+            content.includes('sobjecttype') || 
+            content.includes('getdescribe') ||
+            content.includes('describeSObjects'.toLowerCase()) ||
+            content.includes('getglobaldescribe')
+          )) {
+            describeCalls.push(line);
+          }
+        }
+        // Also match specific describe log events
+        if (content.includes('DESCRIBE_RESULT') || content.includes('DESCRIBE_SOBJECT')) {
+          describeCalls.push(line);
+        }
+      }
+
+      if (describeCalls.length >= this.thresholds.describeInLoopThreshold) {
+        const isInLoop = this._checkSequentialExecution(describeCalls);
+        if (isInLoop) {
+          this.patterns.push({
+            type: PATTERN_TYPES.DESCRIBE_IN_LOOP,
+            severity: SEVERITY.WARNING,
+            title: 'Schema Describe in Loop',
+            description: `${describeCalls.length} Schema.describe calls detected in sequence - likely in a loop`,
+            occurrences: describeCalls.length,
+            lines: describeCalls.map(l => l.index).slice(0, 10),
+            suggestion: 'Cache describe results in a static variable and reuse them instead of calling describe repeatedly',
+            impact: 'Schema.describe calls are expensive on CPU time and count toward describe limits'
+          });
+        }
+      }
+    }
+
+    /**
+     * Detect exceptions that appear to be swallowed (caught but not handled)
+     * @private
+     */
+    _detectExceptionSwallowed(lines) {
+      const exceptions = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.type === 'EXCEPTION_THROWN' || line.content?.includes('EXCEPTION_THROWN')) {
+          // Look at the following lines (within 10 lines) for indicators of handling
+          let handled = false;
+          const exceptionContent = line.content || '';
+
+          for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
+            const nextLine = lines[j];
+            const nextContent = (nextLine.content || '').toLowerCase();
+
+            // Consider exception handled if there's a debug/log, DML, another throw, or fatal
+            if (nextContent.includes('user_debug') ||
+                nextContent.includes('system.debug') ||
+                nextContent.includes('logger') ||
+                nextContent.includes('exception') ||
+                nextLine.type === 'FATAL_ERROR' ||
+                nextContent.includes('fatal_error')) {
+              handled = true;
+              break;
+            }
+          }
+
+          if (!handled) {
+            exceptions.push({
+              line: line.index,
+              exception: exceptionContent
+            });
+          }
+        }
+      }
+
+      if (exceptions.length > 0) {
+        this.patterns.push({
+          type: PATTERN_TYPES.EXCEPTION_SWALLOWED,
+          severity: exceptions.length >= 3 ? SEVERITY.CRITICAL : SEVERITY.WARNING,
+          title: 'Possibly Swallowed Exception',
+          description: `${exceptions.length} exception(s) thrown with no visible handling (no debug, log, or re-throw)`,
+          occurrences: exceptions.length,
+          exceptions: exceptions.slice(0, 5).map(e => this._truncateQuery(e.exception)),
+          lines: exceptions.map(e => e.line),
+          suggestion: 'Ensure all exceptions are properly logged, handled, or re-thrown. Silent catch blocks hide bugs',
+          impact: 'Swallowed exceptions make debugging extremely difficult and may hide data integrity issues'
+        });
+      }
+    }
+
+    /**
+     * Detect Flow / Process Builder recursion
+     * @private
+     */
+    _detectFlowRecursion(lines) {
+      const flowExecutions = {};
+
+      for (const line of lines) {
+        const content = line.content || '';
+
+        // Detect Flow start events
+        if (line.type === 'FLOW_START_INTERVIEW_BEGIN' ||
+            line.type === 'FLOW_CREATE_INTERVIEW_BEGIN' ||
+            content.includes('FLOW_START_INTERVIEW') ||
+            content.includes('Flow:') ||
+            content.includes('Process_Builder') ||
+            (line.type === 'CODE_UNIT_STARTED' && content.includes('Flow'))) {
+          
+          // Extract flow name
+          const flowMatch = content.match(/Flow[:\s]+(\w[\w\s-]*\w)/i) ||
+                           content.match(/FLOW_START_INTERVIEW_BEGIN\|.*\|(\w+)/i) ||
+                           content.match(/([\w_]+(?:Flow|Process)[\w_]*)/i);
+          
+          const flowName = flowMatch ? flowMatch[1].trim() : 'Unknown Flow';
+
+          if (!flowExecutions[flowName]) {
+            flowExecutions[flowName] = { name: flowName, lines: [] };
+          }
+          flowExecutions[flowName].lines.push(line.index);
+        }
+      }
+
+      for (const [name, data] of Object.entries(flowExecutions)) {
+        if (data.lines.length > this.thresholds.flowRecursionLimit) {
+          this.patterns.push({
+            type: PATTERN_TYPES.FLOW_RECURSION,
+            severity: data.lines.length > 10 ? SEVERITY.CRITICAL : SEVERITY.WARNING,
+            title: 'Flow/Process Builder Recursion',
+            description: `"${data.name}" executed ${data.lines.length} times - likely recursive`,
+            flowName: data.name,
+            occurrences: data.lines.length,
+            lines: data.lines.slice(0, 10),
+            suggestion: 'Add an entry condition to prevent re-execution (e.g., check $Record__Prior values or use a checkbox field as guard)',
+            impact: 'Recursive flows consume governor limits and may cause infinite loops'
+          });
+        }
+      }
+    }
+
+    /**
+     * Detect nested loop patterns (O(n²)) via SOQL/DML within nested METHOD_ENTRY
+     * @private
+     */
+    _detectNestedLoopPattern(lines) {
+      // Strategy: Find methods that call SOQL/DML AND are called by another method
+      // that itself is called multiple times. This indicates a nested loop pattern.
+      const methodCallCounts = {};
+      const methodContainsSoqlDml = {};
+      let currentMethodStack = [];
+
+      for (const line of lines) {
+        if (line.type === 'METHOD_ENTRY') {
+          const signature = `${line.details.class || ''}.${line.details.method || ''}`;
+          currentMethodStack.push(signature);
+          
+          if (!methodCallCounts[signature]) {
+            methodCallCounts[signature] = 0;
+          }
+          methodCallCounts[signature]++;
+        }
+
+        if (line.type === 'METHOD_EXIT') {
+          currentMethodStack.pop();
+        }
+
+        // Track if current method context triggers SOQL or DML
+        if ((line.type === 'SOQL_EXECUTE_BEGIN' || line.type === 'DML_BEGIN') && currentMethodStack.length >= 2) {
+          const innerMethod = currentMethodStack[currentMethodStack.length - 1];
+          const outerMethod = currentMethodStack[currentMethodStack.length - 2];
+
+          if (!methodContainsSoqlDml[innerMethod]) {
+            methodContainsSoqlDml[innerMethod] = { type: line.type, calledFrom: new Set() };
+          }
+          methodContainsSoqlDml[innerMethod].calledFrom.add(outerMethod);
+        }
+      }
+
+      // Find methods that contain SOQL/DML and are called multiple times from a method also called multiple times
+      for (const [method, data] of Object.entries(methodContainsSoqlDml)) {
+        const innerCalls = methodCallCounts[method] || 0;
+        
+        for (const outerMethod of data.calledFrom) {
+          const outerCalls = methodCallCounts[outerMethod] || 0;
+
+          if (innerCalls >= this.thresholds.nestedLoopDmlSoqlThreshold && 
+              outerCalls >= this.thresholds.nestedLoopDmlSoqlThreshold &&
+              method !== outerMethod) {
+            
+            const opType = data.type === 'SOQL_EXECUTE_BEGIN' ? 'SOQL' : 'DML';
+
+            this.patterns.push({
+              type: PATTERN_TYPES.NESTED_LOOP_PATTERN,
+              severity: SEVERITY.WARNING,
+              title: `Nested Loop with ${opType}`,
+              description: `${method} (called ${innerCalls}x) contains ${opType}, called from ${outerMethod} (called ${outerCalls}x) — possible O(n²) pattern`,
+              innerMethod: method,
+              outerMethod: outerMethod,
+              innerCalls,
+              outerCalls,
+              suggestion: `Refactor to collect data in the outer loop and perform ${opType} operations in bulk after the loop`,
+              impact: `O(n²) complexity: ${innerCalls}×${outerCalls} potential ${opType} operations`
+            });
+          }
+        }
       }
     }
 

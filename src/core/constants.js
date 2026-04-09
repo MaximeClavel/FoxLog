@@ -283,6 +283,23 @@
     validationFailures: isFrench ? 'Échecs de validation' : 'Multiple Validation Failures',
     debugStatements: isFrench ? 'Statements debug excessifs' : 'Excessive Debug Statements',
     calloutAfterDml: isFrench ? 'Callout après DML' : 'Callout After DML',
-    largeQueryResult: isFrench ? 'Résultats volumineux' : 'Large Query Results'
+    largeQueryResult: isFrench ? 'Résultats volumineux' : 'Large Query Results',
+    
+    // Import tab
+    tabSalesforce: 'Salesforce',
+    tabImport: isFrench ? 'Fichiers' : 'Files',
+    importFile: isFrench ? 'Importer un fichier' : 'Import a file',
+    importDropOrClick: isFrench ? 'Glissez-déposez un fichier .txt ou .log ici, ou cliquez pour parcourir' : 'Drag & drop a .txt or .log file here, or click to browse',
+    importHistory: isFrench ? 'Historique des imports' : 'Import History',
+    importNoHistory: isFrench ? 'Aucun log importé' : 'No imported logs',
+    importNoHistoryHint: isFrench ? 'Importez un fichier de log pour commencer' : 'Import a log file to get started',
+    importStorageUsed: isFrench ? 'Stockage utilisé' : 'Storage used',
+    importStorageLimit: isFrench ? 'sur 10 MB' : 'of 10 MB',
+    importDelete: isFrench ? 'Supprimer' : 'Delete',
+    importDeleteAll: isFrench ? 'Tout supprimer' : 'Delete all',
+    importFileTooLarge: isFrench ? 'Fichier trop volumineux (max 5 MB)' : 'File too large (max 5 MB)',
+    importInvalidType: isFrench ? 'Type de fichier invalide. Utilisez .txt ou .log' : 'Invalid file type. Use .txt or .log',
+    importSuccess: isFrench ? 'Log importé avec succès !' : 'Log imported successfully!',
+    importError: isFrench ? 'Erreur lors de l\'import' : 'Import error'
   };
 })();

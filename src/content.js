@@ -426,6 +426,11 @@
         await this.refreshLogs();
       });
 
+      // Imported log view
+      document.addEventListener('foxlog:viewImportedLog', async (e) => {
+        await this._viewImportedLog(e.detail.importId);
+      });
+
       // Listen for messages from popup
       chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === 'toggleButton') {
@@ -710,6 +715,47 @@
       }
       
       this.logger.success('Log navigation completed');
+    }
+
+    /**
+     * View an imported log from history
+     * @param {string} importId - The import ID
+     * @private
+     */
+    async _viewImportedLog(importId) {
+      const { panelManager, modalManager, logParser } = window.FoxLog;
+      
+      try {
+        const importEntry = await panelManager.getImportedLog(importId);
+        if (!importEntry) {
+          this.logger.error('Imported log not found:', importId);
+          return;
+        }
+        
+        this.logger.log(`Viewing imported log: ${importEntry.filename}`);
+        
+        // Create fake metadata for the parser
+        const fakeMetadata = {
+          Id: importEntry.id,
+          Operation: importEntry.filename,
+          StartTime: importEntry.date,
+          Status: 'Import',
+          DurationMilliseconds: 0,
+          LogLength: importEntry.size
+        };
+        
+        if (logParser && modalManager) {
+          const parsedLog = logParser.parse(importEntry.content, fakeMetadata);
+          modalManager.setLogsList([], -1, null);
+          modalManager.showParsedLog(parsedLog, logParser);
+        } else if (modalManager) {
+          modalManager.showRawLog(importEntry.content);
+        }
+        
+        this.logger.success('Imported log displayed');
+      } catch (error) {
+        this.logger.error('Failed to display imported log', error);
+      }
     }
 
     clearLogs() {

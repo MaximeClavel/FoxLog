@@ -443,6 +443,241 @@ for (List<Account> batch : [SELECT Id FROM Account WHERE Industry = 'Tech']) {
 
 ---
 
+#### Slow SOQL Query
+**Sévérité** : Critique (>5s) ou Warning (>2s)  
+**Ce qu'on observe** : Le temps entre `SOQL_EXECUTE_BEGIN` et `SOQL_EXECUTE_END` dépasse 2 secondes.  
+**Ce que ça indique** : Requête non optimisée, manque d'index, ou volume de données trop important.
+
+**Exemple de log** :
+```
+10:15:32.045 (12345)|SOQL_EXECUTE_BEGIN|SELECT Id, Name FROM Account WHERE Custom__c = 'value'
+10:15:34.850 (2817345)|SOQL_EXECUTE_END|Rows:5000
+// ❌ 2.8 secondes pour une requête !
+```
+
+**Solutions** :
+```apex
+// ❌ Requête lente sans index
+[SELECT Id FROM Account WHERE Custom__c = 'value']
+
+// ✅ Ajouter un custom index (demander au support Salesforce)
+// ✅ Ajouter un filtre sur champ indexé
+[SELECT Id FROM Account WHERE Custom__c = 'value' AND CreatedDate = LAST_N_DAYS:30]
+
+// ✅ Réduire le volume avec LIMIT
+[SELECT Id FROM Account WHERE Custom__c = 'value' LIMIT 200]
+```
+
+---
+
+#### High Total Rows Fetched
+**Sévérité** : Critique (>90%) ou Warning (>70%)  
+**Ce qu'on observe** : Le total cumulé des lignes retournées par toutes les requêtes SOQL approche la limite de 50 000.  
+**Ce que ça indique** : Trop de données récupérées dans la transaction.
+
+**Limite** : 50 000 rows max par transaction (sync).
+
+| Seuil | État |
+|-------|------|
+| >70% (35 000+) | 🟡 Warning |
+| >90% (45 000+) | 🔴 Critique |
+
+**Solutions** :
+```apex
+// ❌ Récupérer trop de données
+List<Account> all = [SELECT Id FROM Account]; // 40 000 rows !
+List<Contact> allC = [SELECT Id FROM Contact]; // 15 000 rows → 💥 Limite !
+
+// ✅ Filtrer et limiter
+List<Account> filtered = [SELECT Id FROM Account WHERE Active__c = true LIMIT 1000];
+
+// ✅ Batch Apex pour gros volumes
+Database.executeBatch(new MyBatchClass(), 200);
+```
+
+---
+
+#### High DML Rows Usage
+**Sévérité** : Critique (>90%) ou Warning (>70%)  
+**Ce qu'on observe** : Le total des lignes impactées par les opérations DML approche la limite de 10 000.  
+**Ce que ça indique** : Trop de records modifiés dans une seule transaction.
+
+**Limite** : 10 000 DML rows max par transaction.
+
+**Solutions** :
+```apex
+// ❌ Mise à jour massive en une transaction
+List<Account> accounts = [SELECT Id FROM Account LIMIT 10000];
+update accounts; // ❌ 10 000 DML rows en une opération
+
+// ✅ Utiliser Batch Apex
+global class UpdateBatch implements Database.Batchable<SObject> {
+    global Database.QueryLocator start(Database.BatchableContext bc) {
+        return Database.getQueryLocator('SELECT Id FROM Account');
+    }
+    global void execute(Database.BatchableContext bc, List<Account> scope) {
+        update scope; // ✅ 200 records à la fois
+    }
+}
+```
+
+---
+
+### 🟡 Warnings (nouveaux)
+
+#### Schema Describe in Loop
+**Ce qu'on observe** : Plusieurs appels `Schema.getGlobalDescribe()`, `Schema.describeSObjects()` ou `SObjectType.getDescribe()` apparaissent en séquence rapide dans le log.  
+**Ce que ça indique** : Des appels describe coûteux dans une boucle — non mis en cache.
+
+**Exemple de log** :
+```
+METHOD_ENTRY|Schema.getGlobalDescribe()
+METHOD_ENTRY|Schema.getGlobalDescribe()
+METHOD_ENTRY|Schema.getGlobalDescribe()
+// ❌ 3 appels describe identiques !
+```
+
+**Solutions** :
+```apex
+// ❌ Describe dans une boucle
+for (Account acc : accounts) {
+    Schema.DescribeSObjectResult describe = Account.SObjectType.getDescribe();
+    // ...
+}
+
+// ✅ Mise en cache statique
+private static Schema.DescribeSObjectResult accountDescribe;
+static {
+    accountDescribe = Account.SObjectType.getDescribe();
+}
+
+// ✅ Ou utiliser une variable locale hors boucle
+Schema.DescribeSObjectResult describe = Account.SObjectType.getDescribe();
+for (Account acc : accounts) {
+    // Utiliser describe ici
+}
+```
+
+---
+
+#### Exception potentiellement avalée
+**Sévérité** : Warning (1-2 exceptions) ou Critique (3+)  
+**Ce qu'on observe** : Un `EXCEPTION_THROWN` non suivi d'un `USER_DEBUG`, `System.debug`, ou d'un `FATAL_ERROR` dans les lignes suivantes.  
+**Ce que ça indique** : Une exception attrapée par un bloc `catch` vide ou sans logging.
+
+**Exemple de log** :
+```
+EXCEPTION_THROWN|System.NullPointerException: Attempt to de-reference a null object
+METHOD_EXIT|... // ← Pas de debug ni de log après l'exception !
+```
+
+**Impact** : Les exceptions avalées sont la cause #1 de bugs silencieux en production.
+
+**Solutions** :
+```apex
+// ❌ Exception avalée
+try {
+    // code risqué
+} catch (Exception e) {
+    // RIEN — l'erreur est perdue !
+}
+
+// ✅ Au minimum logger l'erreur
+try {
+    // code risqué
+} catch (Exception e) {
+    System.debug(LoggingLevel.ERROR, 'Erreur: ' + e.getMessage());
+    // ou logger dans un objet custom
+    ErrorLog__c.create(e);
+}
+```
+
+---
+
+#### Flow/Process Builder Recursion
+**Sévérité** : Warning (>3 exécutions) ou Critique (>10)  
+**Ce qu'on observe** : Le même Flow ou Process Builder apparaît plus de 3 fois dans les `FLOW_START_INTERVIEW` ou `CODE_UNIT_STARTED`.  
+**Ce que ça indique** : Le Flow se redéclenche lui-même en boucle, souvent à cause d'une mise à jour du même record.
+
+**Exemple de log** :
+```
+FLOW_START_INTERVIEW_BEGIN|UpdateAccountFlow
+  DML_BEGIN|Op:Update|Type:Account
+    FLOW_START_INTERVIEW_BEGIN|UpdateAccountFlow  ← Récursion !
+      DML_BEGIN|Op:Update|Type:Account
+        FLOW_START_INTERVIEW_BEGIN|UpdateAccountFlow  ← Récursion !
+```
+
+**Solutions** :
+- Ajouter une condition d'entrée vérifiant `$Record__Prior` (le record *avant* modification)
+- Utiliser un champ checkbox comme garde (ex: `Is_Processing__c`)
+- Convertir en Apex trigger avec protection anti-récursion
+
+---
+
+#### Nested Loop Pattern (O(n²))
+**Sévérité** : Warning  
+**Ce qu'on observe** : Une méthode contenant des SOQL ou DML est appelée depuis une autre méthode, et les deux sont appelées plusieurs fois.  
+**Ce que ça indique** : Pattern O(n²) — boucle imbriquée avec opération de base de données.
+
+**Exemple conceptuel** :
+```
+MethodA (called 10x) → calls MethodB (called 10x)
+  MethodB contains SOQL_EXECUTE_BEGIN
+  → 100 SOQL queries potentielles !
+```
+
+**Solutions** :
+```apex
+// ❌ O(n²) — SOQL dans méthode appelée dans boucle
+for (Account acc : accounts) {
+    processAccount(acc); // → contient un SOQL
+}
+
+// ✅ Collecter et bulkifier
+Set<Id> allIds = new Set<Id>();
+for (Account acc : accounts) {
+    allIds.add(acc.RelatedId__c);
+}
+Map<Id, RelatedObj__c> relatedMap = new Map<Id, RelatedObj__c>(
+    [SELECT Id FROM RelatedObj__c WHERE Id IN :allIds]
+);
+for (Account acc : accounts) {
+    processAccount(acc, relatedMap); // Pas de SOQL
+}
+```
+
+---
+
+### 🔵 Informations (nouveaux)
+
+#### Requêtes SOQL vides
+**Ce qu'on observe** : Plusieurs requêtes SOQL retournent `Rows:0` dans le `SOQL_EXECUTE_END`.  
+**Ce que ça indique** : Des requêtes consomment la governor limit SOQL sans retourner de données.
+
+**Exemple de log** :
+```
+SOQL_EXECUTE_BEGIN|SELECT Id FROM Contact WHERE Email = 'notfound@test.com'
+SOQL_EXECUTE_END|Rows:0
+SOQL_EXECUTE_BEGIN|SELECT Id FROM Contact WHERE Email = 'also@notfound.com'
+SOQL_EXECUTE_END|Rows:0
+// ❌ 2 requêtes gaspillées
+```
+
+**Solutions** :
+```apex
+// ❌ Requête individuelle qui peut être vide
+Account acc = [SELECT Id FROM Account WHERE Name = :searchTerm LIMIT 1]; // peut être vide
+
+// ✅ Vérifier l'existence avant ou combiner
+List<Account> results = [SELECT Id FROM Account WHERE Name IN :searchTerms LIMIT 200];
+if (!results.isEmpty()) {
+    // Traiter
+}
+```
+
+---
+
 ## Récapitulatif des détections
 
 | Anti-pattern | Sévérité | Ce qu'on cherche dans le log |
@@ -455,13 +690,21 @@ for (List<Account> batch : [SELECT Id FROM Account WHERE Industry = 'Tech']) {
 | Callout After DML | 🔴 Critique | CALLOUT_REQUEST après DML sans commit |
 | Method Recursion | 🔴/🟡 | Même méthode >10 fois |
 | Governor Limits | 🔴/🟡 | CUMULATIVE_LIMIT_USAGE >70%/90% |
+| Slow SOQL Query | 🔴/🟡 | Durée SOQL >2s (warning) ou >5s (critique) |
+| Total Rows Fetched | 🔴/🟡 | Total rows >70% de 50 000 |
+| DML Rows Limit | 🔴/🟡 | Total DML rows >70% de 10 000 |
+| Exception Swallowed | 🔴/🟡 | EXCEPTION_THROWN sans handling visible |
 | SOQL no LIMIT | 🟡 Warning | SELECT sans LIMIT |
 | SOQL no WHERE | 🟡 Warning | SELECT sans WHERE |
 | Non-Selective | 🟡 Warning | Indicateurs de full table scan |
 | Multiple Callouts | 🟡 Warning | CALLOUT_REQUEST répétés |
 | Excessive Async | 🟡 Warning | >5 @future/Queueable |
 | Hardcoded IDs | 🟡 Warning | IDs 15/18 chars dans SOQL |
+| Describe in Loop | 🟡 Warning | Schema.describe répétés en séquence |
+| Flow Recursion | 🟡/🔴 | Même Flow >3 fois |
+| Nested Loop (O(n²)) | 🟡 Warning | SOQL/DML dans méthodes imbriquées appelées N fois |
 | Large Query Results | 🟡/🔵 | SOQL_EXECUTE_END avec Rows >200 |
+| Empty SOQL Results | 🔵 Info | SOQL_EXECUTE_END avec Rows:0 (3+) |
 | Too Many Fields | 🔵 Info | SELECT avec >15 champs |
 | Deep Call Stack | 🔵 Info | Profondeur >50 niveaux |
 | Validation Failures | 🔵 Info | VALIDATION_FAIL multiples |
@@ -509,12 +752,26 @@ Les seuils de détection sont configurables dans le constructeur :
 
 ```javascript
 this.thresholds = {
-  recursionLimit: 10,        // Appels de méthode avant alerte
-  excessiveSoqlPercent: 70,  // % de la limite SOQL
-  excessiveDmlPercent: 70,   // % de la limite DML
-  cpuPercent: 80,            // % de la limite CPU
-  heapPercent: 80,           // % de la limite Heap
-  loopIterationThreshold: 3  // Répétitions pour détecter une boucle
+  recursionLimit: 10,            // Appels de méthode avant alerte
+  triggerRecursionLimit: 3,      // Même trigger > 3 fois
+  excessiveSoqlPercent: 70,      // % de la limite SOQL
+  excessiveDmlPercent: 70,       // % de la limite DML
+  cpuPercent: 80,                // % de la limite CPU
+  heapPercent: 80,               // % de la limite Heap
+  loopIterationThreshold: 3,     // Répétitions pour détecter une boucle
+  nPlusOneThreshold: 5,          // N+1 si même requête >= 5 fois
+  calloutThreshold: 3,           // Seuil callouts multiples
+  futureThreshold: 5,            // Seuil @future excessifs
+  validationFailureThreshold: 3, // Échecs de validation multiples
+  debugStatementsThreshold: 20,  // Plus de 20 USER_DEBUG
+  largeQueryResultThreshold: 200,// Query retournant > 200 records
+  slowQueryMs: 2000,             // Query SOQL > 2 secondes
+  excessiveRowsFetchedPercent: 70, // % de la limite 50 000 rows
+  dmlRowsPercent: 70,            // % de la limite 10 000 DML rows
+  emptyQueryThreshold: 3,        // Plus de 3 requêtes vides
+  describeInLoopThreshold: 3,    // Schema.describe > 3 fois en séquence
+  flowRecursionLimit: 3,         // Même Flow > 3 fois
+  nestedLoopDmlSoqlThreshold: 2  // SOQL/DML dans méthodes imbriquées
 };
 ```
 
