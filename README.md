@@ -43,15 +43,26 @@
 - **One-click analysis**: imported logs open the full analysis modal (Summary, Calls, Analysis, Raw)
 
 ### 🌳 Advanced Visualization
-- **4 complementary views**:
+- **5 complementary views**:
   - **Summary**: Overview with statistics and metadata
   - **Calls**: Hierarchical call tree with performance analysis (built via Web Worker)
   - **Analysis**: Anti-pattern detection with severity and suggestions
   - **Raw Log**: Original log content with copy/export options
+  - **Diff**: [NEW] Side-by-side comparison of two logs to identify execution divergences
 - **Top 5 Slowest Nodes**: Instantly identify performance bottlenecks
 - **Log navigation**: Previous/Next buttons to switch between logs without closing the modal
 - **Advanced filtering**: errors only, search in tree
 - **Export reports**: Export call tree and performance data in `.txt` or `.md` format
+
+### 🔀 Log Diffing [NEW]
+- **Side-by-side comparison** of two call trees to spot execution divergences
+- **LCS-based alignment** matching nodes by signature across different logs
+- **Color-coded differences**: added (green), removed (red), changed (orange), match (grey)
+- **Divergence navigation**: Prev/Next buttons to jump between differences
+- **Import directly from Diff tab**: import a `.txt` or `.log` file without leaving the modal
+- **Select from existing imports**: dropdown lists all previously imported logs
+- **Auto-sync with Files tab**: imports from the Diff tab appear in the panel's Files history
+- **Web Worker powered**: diff computation runs off the main thread with a 10s timeout
 
 ### ⚡ Performance
 - **Smart caching** to avoid redundant requests
@@ -84,7 +95,8 @@
 7. Click "Details" to analyze a log in depth
 8. Explore the different tabs: Summary, Calls, Analysis, Raw Log
 9. Use the **Analysis tab** to detect anti-patterns and export reports (PDF/MD/TXT)
-10. Use the export button in the Calls tab to generate a performance report
+10. Use the **Diff tab** to compare execution with an imported log from another environment
+11. Use the export button in the Calls tab to generate a performance report
 
 ## 🧪 Testing
 
@@ -100,7 +112,7 @@ Contributions are welcome!
 
 ## ℹ️ About
 
-By Claude Sonnet 4.5 and occasionally Maxime Clavel
+By Claude Opus 4.6 and occasionally Maxime Clavel
 Contact : FoxLog.Extension@proton.me
 
 ## 📄 License

@@ -156,6 +156,7 @@
             </button>
             <button class="sf-tab-btn" data-tab="calls">${i18n.calls || 'Calls'}</button>
             <button class="sf-tab-btn" data-tab="raw">${i18n.rawLog || 'Raw Log'}</button>
+            <button class="sf-tab-btn" data-tab="diff">${i18n.diffTab || 'Diff'}</button>
           </div>
           
           <div class="sf-modal-body-tabs">
@@ -177,6 +178,22 @@
             <div id="tab-raw" class="sf-tab-content">
               ${this._renderRawTab(parsedLog)}
             </div>
+
+            <div id="tab-diff" class="sf-tab-content">
+              <div class="sf-diff-select-container">
+                <div class="sf-diff-top-bar">
+                  <select class="sf-diff-log-select" aria-label="${i18n.diffSelectLog || 'Select an imported log to compare'}">
+                    <option value="">-- ${i18n.diffSelectLog || 'Select an imported log'} --</option>
+                  </select>
+                  <span class="sf-diff-or">${i18n.diffOr || 'or'}</span>
+                  <label class="sf-diff-import-btn" tabindex="0" role="button" aria-label="${i18n.diffImportFile || 'Import a file'}">
+                    📂 ${i18n.diffImportFile || 'Import a file'}
+                    <input type="file" class="sf-diff-file-input" accept=".txt,.log" hidden />
+                  </label>
+                </div>
+                <div class="sf-diff-content-area"></div>
+              </div>
+            </div>
           </div>
         </div>
       `;
@@ -184,6 +201,7 @@
       this._attachModal(modal);
       this._setupTabs(modal);
       this._setupCallsTab(modal, parsedLog);
+      this._setupDiffTab(modal, parsedLog);
 
       this._setupExportButtons(modal, parsedLog);
       
@@ -261,6 +279,27 @@
       const rawTab = modal.querySelector('#tab-raw');
       if (rawTab) {
         rawTab.innerHTML = this._renderRawTab(parsedLog);
+      }
+      
+      // Reset Diff tab
+      const diffTab = modal.querySelector('#tab-diff');
+      if (diffTab) {
+        diffTab.innerHTML = `
+          <div class="sf-diff-select-container">
+            <div class="sf-diff-top-bar">
+              <select class="sf-diff-log-select" aria-label="${i18n.diffSelectLog || 'Select an imported log to compare'}">
+                <option value="">-- ${i18n.diffSelectLog || 'Select an imported log'} --</option>
+              </select>
+              <span class="sf-diff-or">${i18n.diffOr || 'or'}</span>
+              <label class="sf-diff-import-btn" tabindex="0" role="button" aria-label="${i18n.diffImportFile || 'Import a file'}">
+                📂 ${i18n.diffImportFile || 'Import a file'}
+                <input type="file" class="sf-diff-file-input" accept=".txt,.log" hidden />
+              </label>
+            </div>
+            <div class="sf-diff-content-area"></div>
+          </div>
+        `;
+        this._setupDiffTab(modal, parsedLog);
       }
       
       // Re-setup export buttons
@@ -1395,6 +1434,255 @@
             </div>
           `;
         }
+      });
+    }
+
+    /**
+     * Configure le lazy-loading de l'onglet Diff
+     * @private
+     */
+    async _setupDiffTab(modal, parsedLogA) {
+      const { callTreeBuilder, LogDiffView } = window.FoxLog;
+
+      const diffBtn = modal.querySelector('[data-tab="diff"]');
+      if (!diffBtn) return;
+
+      let diffInitialized = false;
+
+      diffBtn.addEventListener('click', async () => {
+        if (diffInitialized) return;
+        diffInitialized = true;
+        await this._populateDiffImportSelect(modal, parsedLogA);
+      });
+    }
+
+    /**
+     * Load imported logs list into the Diff tab dropdown
+     * @private
+     */
+    async _populateDiffImportSelect(modal, parsedLogA) {
+      const select = modal.querySelector('.sf-diff-log-select');
+      const fileInput = modal.querySelector('.sf-diff-file-input');
+
+      // Wire inline file import
+      if (fileInput) {
+        fileInput.addEventListener('change', async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          await this._handleDiffImport(modal, parsedLogA, file);
+          fileInput.value = '';
+        });
+      }
+
+      if (!select) return;
+
+      try {
+        const result = await new Promise(resolve => {
+          chrome.storage.local.get('importedLogs', resolve);
+        });
+
+        const imports = result.importedLogs || [];
+
+        imports.forEach(imp => {
+          const option = document.createElement('option');
+          option.value = imp.id;
+          const date = new Date(imp.date).toLocaleString();
+          option.textContent = `${imp.filename} (${date})`;
+          select.appendChild(option);
+        });
+
+        select.addEventListener('change', async () => {
+          const importId = select.value;
+          if (!importId) return;
+          await this._runDiff(modal, parsedLogA, importId);
+        });
+      } catch (error) {
+        logger.error('Failed to load imported logs for diff', error);
+      }
+    }
+
+    /**
+     * Import a file directly from the Diff tab, save to storage, then run diff
+     * @private
+     */
+    async _handleDiffImport(modal, parsedLogA, file) {
+      const MAX_FILE_SIZE = 5 * 1024 * 1024;
+      const validExtensions = ['.txt', '.log'];
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+
+      if (!validExtensions.includes(ext)) {
+        this._showToast(i18n.importInvalidType || 'Invalid file type. Use .txt or .log', 'error');
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        this._showToast(i18n.importFileTooLarge || 'File too large (max 5 MB)', 'error');
+        return;
+      }
+
+      const content = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsText(file);
+      });
+
+      const importEntry = {
+        id: 'imp_' + Date.now(),
+        filename: file.name,
+        date: new Date().toISOString(),
+        size: file.size,
+        content
+      };
+
+      // Save to storage (same logic as panel-manager)
+      await new Promise(resolve => {
+        chrome.storage.local.get(['importedLogs'], (result) => {
+          const imports = result.importedLogs || [];
+          const MAX_STORAGE = 10 * 1024 * 1024;
+          imports.unshift(importEntry);
+
+          let totalSize = imports.reduce((sum, imp) => sum + (imp.size || 0), 0);
+          while (totalSize > MAX_STORAGE && imports.length > 1) {
+            const removed = imports.pop();
+            totalSize -= (removed.size || 0);
+          }
+
+          chrome.storage.local.set({ importedLogs: imports }, resolve);
+        });
+      });
+
+      // Refresh the Files panel if open
+      document.dispatchEvent(new CustomEvent('foxlog:importListChanged'));
+
+      // Add option to dropdown and select it
+      const select = modal.querySelector('.sf-diff-log-select');
+      if (select) {
+        const option = document.createElement('option');
+        option.value = importEntry.id;
+        const date = new Date(importEntry.date).toLocaleString();
+        option.textContent = `${importEntry.filename} (${date})`;
+        select.insertBefore(option, select.options[1]);
+        select.value = importEntry.id;
+      }
+
+      logger.success(`File imported from Diff tab: ${file.name}`);
+
+      // Run diff immediately
+      await this._runDiff(modal, parsedLogA, importEntry.id);
+    }
+
+    /**
+     * Execute diff between current log and selected imported log
+     * @private
+     */
+    async _runDiff(modal, parsedLogA, importId) {
+      const { callTreeBuilder, LogDiffView, logParser } = window.FoxLog;
+      const contentArea = modal.querySelector('.sf-diff-content-area');
+      if (!contentArea) return;
+
+      contentArea.innerHTML = `
+        <div class="sf-calls-loading">
+          <div class="sf-spinner"></div>
+          <div class="sf-loading-text">${i18n.diffComputing || 'Computing diff...'}</div>
+        </div>
+      `;
+
+      try {
+        const result = await new Promise(resolve => {
+          chrome.storage.local.get('importedLogs', resolve);
+        });
+        const imports = result.importedLogs || [];
+        const importData = imports.find(imp => imp.id === importId);
+
+        if (!importData || !importData.content) {
+          throw new Error('Imported log content not found');
+        }
+
+        const parsedLogB = logParser.parse(importData.content, {
+          id: importData.id,
+          filename: importData.filename
+        });
+
+        if (!callTreeBuilder) {
+          throw new Error('CallTreeBuilder not available');
+        }
+
+        const [treeA, treeB] = await Promise.all([
+          callTreeBuilder.buildTree(parsedLogA),
+          callTreeBuilder.buildTree(parsedLogB)
+        ]);
+
+        const diffResult = await this._runDiffWorker(treeA, treeB);
+
+        contentArea.innerHTML = '<div class="sf-diff-view-container"></div>';
+        const container = contentArea.querySelector('.sf-diff-view-container');
+
+        const metaA = {
+          filename: parsedLogA.metadata?.operation || 'Log A'
+        };
+        const metaB = {
+          filename: importData.filename || 'Log B'
+        };
+
+        const diffView = new LogDiffView(container, diffResult, metaA, metaB);
+        diffView.render();
+
+        logger.success('Diff view rendered');
+      } catch (error) {
+        logger.error('Diff computation failed', error);
+        contentArea.innerHTML = `
+          <div class="sf-empty-state">
+            <p style="color: #ef4444; font-weight: 600;">⚠️ ${i18n.error || 'Error'}</p>
+            <p style="color: #666;">${i18n.diffError || 'Diff computation error'}</p>
+            <p class="sf-hint">${error.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    /**
+     * Run diff in a Web Worker with timeout
+     * @private
+     */
+    async _runDiffWorker(treeA, treeB) {
+      const timeout = window.FoxLog.CONFIG?.DIFF_WORKER_TIMEOUT ?? 10000;
+
+      // Fetch worker code and create Blob URL (same pattern as call-tree-builder)
+      const workerUrl = chrome.runtime.getURL('src/workers/log-diff-worker.js');
+      const response = await fetch(workerUrl);
+      const workerCode = await response.text();
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      const blobUrl = URL.createObjectURL(blob);
+
+      return new Promise((resolve, reject) => {
+        const worker = new Worker(blobUrl);
+        const requestId = Date.now().toString();
+
+        const timer = setTimeout(() => {
+          worker.terminate();
+          URL.revokeObjectURL(blobUrl);
+          reject(new Error(i18n.diffTimeout || 'Diff computation timed out'));
+        }, timeout);
+
+        worker.onmessage = (event) => {
+          clearTimeout(timer);
+          worker.terminate();
+          URL.revokeObjectURL(blobUrl);
+          if (event.data.type === 'error') {
+            reject(new Error(event.data.error));
+          } else {
+            resolve(event.data.result);
+          }
+        };
+
+        worker.onerror = (error) => {
+          clearTimeout(timer);
+          worker.terminate();
+          URL.revokeObjectURL(blobUrl);
+          reject(error);
+        };
+
+        worker.postMessage({ type: 'diff', treeA, treeB, requestId });
       });
     }
 
