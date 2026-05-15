@@ -133,6 +133,7 @@
           this.selectedUserId = users[0].id;
           userSelect.value = users[0].id;
         } else {
+          userSelect.value = currentUserId;
           this.selectedUserId = currentUserId;
         }
 
@@ -655,6 +656,11 @@
       
       // Load import history on startup
       this._loadImportHistory();
+
+      // Refresh import list when a file is imported from the Diff tab
+      document.addEventListener('foxlog:importListChanged', () => {
+        this._loadImportHistory();
+      });
     }
 
     _showEmptyState() {
