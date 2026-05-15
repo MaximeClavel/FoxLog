@@ -48,7 +48,13 @@
     DESCRIBE_IN_LOOP: 'describe_in_loop',
     EXCEPTION_SWALLOWED: 'exception_swallowed',
     FLOW_RECURSION: 'flow_recursion',
-    NESTED_LOOP_PATTERN: 'nested_loop_pattern'
+    NESTED_LOOP_PATTERN: 'nested_loop_pattern',
+    // Security patterns
+    SOQL_INJECTION_RISK: 'soql_injection_risk',
+    CRUD_FLS_BYPASS: 'crud_fls_bypass',
+    INSECURE_ENDPOINT: 'insecure_endpoint',
+    SYSTEM_MODE_USAGE: 'system_mode_usage',
+    WITHOUT_SHARING: 'without_sharing'
   };
 
   class AntiPatternDetector {
@@ -116,6 +122,11 @@
       this._detectExceptionSwallowed(lines);
       this._detectFlowRecursion(lines);
       this._detectNestedLoopPattern(lines);
+      this._detectSoqlInjectionRisk(lines);
+      this._detectCrudFlsBypass(lines);
+      this._detectInsecureEndpoint(lines);
+      this._detectSystemModeUsage(lines);
+      this._detectWithoutSharing(lines);
       
       // If call tree available, run advanced analysis
       if (callTree) {
@@ -1263,6 +1274,186 @@
             });
           }
         }
+      }
+    }
+
+    /**
+     * Detect dynamic SOQL (Database.query) which may indicate SOQL injection risk
+     * @private
+     */
+    _detectSoqlInjectionRisk(lines) {
+      // Reliable detection: in Salesforce logs, inline SOQL uses :tmpVarN bind
+      // variables, while Database.query() shows interpolated values directly.
+      // A SOQL_EXECUTE_BEGIN without :tmpVar patterns indicates dynamic SOQL.
+      const soqlLines = lines.filter(l => l.type === 'SOQL_EXECUTE_BEGIN');
+
+      const dynamicSoqlLines = soqlLines.filter(l => {
+        const query = l.details?.query || l.content || '';
+        // Inline SOQL uses :tmpVar1, :tmpVar2 etc. in the logged query
+        const hasBindVariable = /:tmpVar\d+/i.test(query);
+        // Skip aggregate queries (COUNT, SUM, etc.) — often legitimately dynamic
+        const isAggregate = /\b(COUNT|SUM|AVG|MIN|MAX)\s*\(/i.test(query);
+        return !hasBindVariable && !isAggregate;
+      });
+
+      // Exclude queries with WITH SECURITY_ENFORCED / USER_MODE / SYSTEM_MODE
+      // since those are clearly written as inline SOQL with mode keywords
+      const suspectedDynamic = dynamicSoqlLines.filter(l => {
+        const query = (l.details?.query || l.content || '').toUpperCase();
+        // Inline SOQL with security keywords is explicitly written — not dynamic
+        const hasSecurityKeyword = query.includes('WITH SECURITY_ENFORCED') ||
+                                   query.includes('WITH USER_MODE') ||
+                                   query.includes('WITH SYSTEM_MODE');
+        return !hasSecurityKeyword;
+      });
+
+      if (suspectedDynamic.length > 0) {
+        this.patterns.push({
+          type: PATTERN_TYPES.SOQL_INJECTION_RISK,
+          severity: SEVERITY.WARNING,
+          title: 'Dynamic SOQL — Injection Risk',
+          description: `${suspectedDynamic.length} SOQL query(ies) executed without bind variables — likely Database.query() with string concatenation`,
+          occurrences: suspectedDynamic.length,
+          lines: suspectedDynamic.map(l => l.index).slice(0, 10),
+          suggestion: 'Use bind variables (:var), Database.queryWithBinds(), or inline SOQL instead of string concatenation',
+          impact: 'SOQL injection can expose or modify unauthorized data'
+        });
+      }
+    }
+
+    /**
+     * Detect SOQL queries without CRUD/FLS enforcement (pre-API v67 code)
+     * In API v67+, user mode is default — WITH SECURITY_ENFORCED is legacy
+     * @private
+     */
+    _detectCrudFlsBypass(lines) {
+      const soqlLines = lines.filter(l => l.type === 'SOQL_EXECUTE_BEGIN');
+
+      if (soqlLines.length === 0) return;
+
+      // Detect legacy WITH SECURITY_ENFORCED usage (deprecated in v67+)
+      const legacySecurityEnforced = soqlLines.filter(l => {
+        const query = (l.details?.query || l.content || '').toUpperCase();
+        return query.includes('WITH SECURITY_ENFORCED');
+      });
+
+      if (legacySecurityEnforced.length > 0) {
+        this.patterns.push({
+          type: PATTERN_TYPES.CRUD_FLS_BYPASS,
+          severity: SEVERITY.INFO,
+          title: 'Legacy WITH SECURITY_ENFORCED',
+          description: `${legacySecurityEnforced.length} queries use WITH SECURITY_ENFORCED — deprecated since API v67 (Summer '26), user mode is now the default`,
+          occurrences: legacySecurityEnforced.length,
+          lines: legacySecurityEnforced.map(l => l.index).slice(0, 10),
+          suggestion: 'Remove WITH SECURITY_ENFORCED (redundant in API v67+). Use WITH USER_MODE for explicit intent, or WITH SYSTEM_MODE only when bypassing is justified',
+          impact: 'Technical debt — no security risk, but code should be modernized'
+        });
+      }
+    }
+
+    /**
+     * Detect explicit SYSTEM_MODE usage that bypasses FLS/CRUD enforcement
+     * @private
+     */
+    _detectSystemModeUsage(lines) {
+      // Only check structural log line types — not USER_DEBUG or CONTINUATION
+      const structuralTypes = new Set([
+        'SOQL_EXECUTE_BEGIN', 'DML_BEGIN', 'METHOD_ENTRY',
+        'CODE_UNIT_STARTED', 'CONSTRUCTOR_ENTRY'
+      ]);
+
+      // Check SOQL with SYSTEM_MODE
+      const soqlSystemMode = lines.filter(l =>
+        l.type === 'SOQL_EXECUTE_BEGIN' &&
+        (l.details?.query || l.content || '').toUpperCase().includes('WITH SYSTEM_MODE')
+      );
+
+      // Check DML with "as system"
+      const dmlSystemMode = lines.filter(l =>
+        l.type === 'DML_BEGIN' &&
+        (l.content || '').toLowerCase().includes('as system')
+      );
+
+      // Check Database methods with AccessLevel.SYSTEM_MODE (METHOD_ENTRY only)
+      const dbSystemMode = lines.filter(l =>
+        structuralTypes.has(l.type) &&
+        (l.content?.includes('AccessLevel.SYSTEM_MODE') ||
+         l.content?.includes('AccessLevel.System_mode'))
+      );
+
+      const allSystemMode = [...soqlSystemMode, ...dmlSystemMode, ...dbSystemMode];
+
+      if (allSystemMode.length > 0) {
+        this.patterns.push({
+          type: PATTERN_TYPES.SYSTEM_MODE_USAGE,
+          severity: SEVERITY.WARNING,
+          title: 'Explicit System Mode — FLS Bypassed',
+          description: `${allSystemMode.length} operation(s) explicitly bypass CRUD/FLS via SYSTEM_MODE or "as system"`,
+          occurrences: allSystemMode.length,
+          lines: allSystemMode.map(l => l.index).slice(0, 10),
+          suggestion: 'Verify each SYSTEM_MODE usage is justified. Prefer USER_MODE (default in API v67+) unless a legitimate service-layer bypass is needed',
+          impact: 'Users may access or modify records/fields they should not — review for least-privilege compliance'
+        });
+      }
+    }
+
+    /**
+     * Detect "without sharing" class execution in the log
+     * @private
+     */
+    _detectWithoutSharing(lines) {
+      // Only detect in structural log lines — exclude USER_DEBUG to avoid false positives
+      const relevantTypes = new Set([
+        'CODE_UNIT_STARTED', 'CODE_UNIT_FINISHED',
+        'METHOD_ENTRY', 'CONSTRUCTOR_ENTRY',
+        'SYSTEM_METHOD_ENTRY', 'VF_PAGE_MESSAGE'
+      ]);
+
+      const allMatches = lines.filter(l =>
+        relevantTypes.has(l.type) &&
+        /\bwithout\s+sharing\b/i.test(l.content || '')
+      );
+
+      if (allMatches.length > 0) {
+        this.patterns.push({
+          type: PATTERN_TYPES.WITHOUT_SHARING,
+          severity: SEVERITY.INFO,
+          title: 'Without Sharing Context',
+          description: `${allMatches.length} reference(s) to "without sharing" — record-level security bypassed`,
+          occurrences: allMatches.length,
+          lines: allMatches.map(l => l.index).slice(0, 10),
+          suggestion: 'In API v67+, undecorated classes default to "with sharing". Audit existing "without sharing" declarations for least-privilege compliance',
+          impact: 'Code can access records the current user should not see — verify this is intentional'
+        });
+      }
+    }
+
+    /**
+     * Detect HTTP callouts to non-HTTPS endpoints
+     * @private
+     */
+    _detectInsecureEndpoint(lines) {
+      const callouts = lines.filter(l =>
+        l.type === 'CALLOUT_REQUEST' ||
+        l.content?.includes('CALLOUT_REQUEST')
+      );
+
+      const insecureCallouts = callouts.filter(l => {
+        const content = l.content || '';
+        return /http:\/\/(?!localhost|127\.0\.0\.1)/i.test(content);
+      });
+
+      if (insecureCallouts.length > 0) {
+        this.patterns.push({
+          type: PATTERN_TYPES.INSECURE_ENDPOINT,
+          severity: SEVERITY.WARNING,
+          title: 'Insecure HTTP Endpoint',
+          description: `${insecureCallouts.length} callout(s) to non-HTTPS endpoint(s) — data transmitted in clear text`,
+          occurrences: insecureCallouts.length,
+          lines: insecureCallouts.map(l => l.index).slice(0, 10),
+          suggestion: 'Use HTTPS for all external callouts to encrypt data in transit',
+          impact: 'Sensitive data (tokens, PII) can be intercepted via man-in-the-middle attacks'
+        });
       }
     }
 
