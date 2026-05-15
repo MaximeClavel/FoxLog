@@ -396,6 +396,102 @@ try {
   }
 } catch (e) { console.error('❌ Erreur Test 26:', e); failed++; }
 
+// ---- Test 27: SOQL Injection Risk (dynamic SOQL without bind variables) ----
+console.log('\n%c🔒 Test 27: SOQL Injection Risk', 'background:#333;color:white;padding:4px;font-weight:bold');
+try {
+  const lines = [
+    // Dynamic SOQL: no :tmpVar — values interpolated directly
+    makeLine(0, 'SOQL_EXECUTE_BEGIN', '[19]|Aggregations:0|SELECT Id FROM Account WHERE Name LIKE \'%Acme%\' LIMIT 5', { query: 'SELECT Id FROM Account WHERE Name LIKE \'%Acme%\' LIMIT 5' }),
+    makeLine(1, 'SOQL_EXECUTE_BEGIN', '[24]|Aggregations:0|SELECT Id FROM Account WHERE Industry = \'Technology\' LIMIT 5', { query: 'SELECT Id FROM Account WHERE Industry = \'Technology\' LIMIT 5' }),
+    // Inline SOQL: uses :tmpVar bind variables
+    makeLine(2, 'SOQL_EXECUTE_BEGIN', '[92]|Aggregations:0|SELECT Id FROM Account WHERE Name = :tmpVar1 LIMIT 5', { query: 'SELECT Id FROM Account WHERE Name = :tmpVar1 LIMIT 5' })
+  ];
+  const result = detector.analyze({ lines, stats: makeStats() });
+  const injection = result.patterns.find(p => p.type === 'soql_injection_risk');
+  assert(!!injection, 'Détecte SOQL sans bind variables (dynamic SOQL)');
+  assert(injection && injection.severity === 'warning', 'Sévérité warning');
+  assert(injection && injection.occurrences === 2, 'Seulement 2 (exclut :tmpVar)');
+} catch (e) { console.error('❌ Erreur Test 27:', e); failed++; }
+
+// ---- Test 28: Legacy WITH SECURITY_ENFORCED detection ----
+console.log('\n%c🔒 Test 28: Legacy WITH SECURITY_ENFORCED', 'background:#333;color:white;padding:4px;font-weight:bold');
+try {
+  const lines = [];
+  for (let i = 0; i < 5; i++) {
+    lines.push(makeLine(i, 'SOQL_EXECUTE_BEGIN', `[${i}]|SELECT Id FROM Account WITH SECURITY_ENFORCED`, { query: 'SELECT Id FROM Account WITH SECURITY_ENFORCED' }));
+  }
+  const result = detector.analyze({ lines, stats: makeStats() });
+  const fls = result.patterns.find(p => p.type === 'crud_fls_bypass');
+  assert(!!fls, 'Détecte WITH SECURITY_ENFORCED legacy (déprécié en API v67+)');
+  assert(fls && fls.severity === 'info', 'Sévérité info');
+} catch (e) { console.error('❌ Erreur Test 28:', e); failed++; }
+
+// ---- Test 29: SYSTEM_MODE explicit bypass ----
+console.log('\n%c🔒 Test 29: SYSTEM_MODE explicite', 'background:#333;color:white;padding:4px;font-weight:bold');
+try {
+  const lines = [
+    makeLine(0, 'SOQL_EXECUTE_BEGIN', '[5]|SELECT Id FROM Account WITH SYSTEM_MODE', { query: 'SELECT Id FROM Account WITH SYSTEM_MODE' }),
+    makeLine(1, 'SOQL_EXECUTE_BEGIN', '[10]|SELECT Id FROM Contact WITH SYSTEM_MODE', { query: 'SELECT Id FROM Contact WITH SYSTEM_MODE' })
+  ];
+  const result = detector.analyze({ lines, stats: makeStats() });
+  const sysMode = result.patterns.find(p => p.type === 'system_mode_usage');
+  assert(!!sysMode, 'Détecte WITH SYSTEM_MODE (bypass FLS)');
+  assert(sysMode && sysMode.severity === 'warning', 'Sévérité warning');
+} catch (e) { console.error('❌ Erreur Test 29:', e); failed++; }
+
+// ---- Test 30: Without Sharing detection ----
+console.log('\n%c🔒 Test 30: Without Sharing', 'background:#333;color:white;padding:4px;font-weight:bold');
+try {
+  const lines = [
+    makeLine(0, 'CODE_UNIT_STARTED', '[EXTERNAL]|01p000000000001|MyService without sharing', {}),
+    makeLine(1, 'METHOD_ENTRY', '[15]|MyClass.without sharing.doWork', {})
+  ];
+  const result = detector.analyze({ lines, stats: makeStats() });
+  const ws = result.patterns.find(p => p.type === 'without_sharing');
+  assert(!!ws, 'Détecte contexte without sharing');
+  assert(ws && ws.severity === 'info', 'Sévérité info');
+} catch (e) { console.error('❌ Erreur Test 30:', e); failed++; }
+
+// ---- Test 31: Insecure HTTP Endpoint ----
+console.log('\n%c🔒 Test 31: Insecure HTTP Endpoint', 'background:#333;color:white;padding:4px;font-weight:bold');
+try {
+  const lines = [
+    makeLine(0, 'CALLOUT_REQUEST', '[EXTERNAL]|CALLOUT_REQUEST http://api.example.com/data', {}),
+    makeLine(1, 'CALLOUT_REQUEST', '[EXTERNAL]|CALLOUT_REQUEST http://external.service.io/v2/users', {})
+  ];
+  const result = detector.analyze({ lines, stats: makeStats() });
+  const insecure = result.patterns.find(p => p.type === 'insecure_endpoint');
+  assert(!!insecure, 'Détecte callout HTTP non-sécurisé');
+  assert(insecure && insecure.severity === 'warning', 'Sévérité warning');
+  assert(insecure && insecure.occurrences === 2, '2 occurrences détectées');
+} catch (e) { console.error('❌ Erreur Test 31:', e); failed++; }
+
+// ---- Test 32: HTTPS Endpoint OK ----
+console.log('\n%c🔒 Test 32: HTTPS Endpoint OK', 'background:#333;color:white;padding:4px;font-weight:bold');
+try {
+  const lines = [
+    makeLine(0, 'CALLOUT_REQUEST', '[EXTERNAL]|CALLOUT_REQUEST https://api.example.com/data', {}),
+    makeLine(1, 'CALLOUT_REQUEST', '[EXTERNAL]|CALLOUT_REQUEST https://secure.service.io/v2', {})
+  ];
+  const result = detector.analyze({ lines, stats: makeStats() });
+  const insecure = result.patterns.find(p => p.type === 'insecure_endpoint');
+  assert(!insecure, 'Pas de détection si HTTPS utilisé');
+} catch (e) { console.error('❌ Erreur Test 32:', e); failed++; }
+
+// ---- Test 33: USER_MODE OK (no warning) ----
+console.log('\n%c🔒 Test 33: USER_MODE - pas de warning', 'background:#333;color:white;padding:4px;font-weight:bold');
+try {
+  const lines = [];
+  for (let i = 0; i < 5; i++) {
+    lines.push(makeLine(i, 'SOQL_EXECUTE_BEGIN', `[${i}]|SELECT Id FROM Account WITH USER_MODE`, { query: 'SELECT Id FROM Account WITH USER_MODE' }));
+  }
+  const result = detector.analyze({ lines, stats: makeStats() });
+  const sysMode = result.patterns.find(p => p.type === 'system_mode_usage');
+  const fls = result.patterns.find(p => p.type === 'crud_fls_bypass');
+  assert(!sysMode, 'Pas de warning SYSTEM_MODE si USER_MODE');
+  assert(!fls, 'Pas de warning legacy si USER_MODE');
+} catch (e) { console.error('❌ Erreur Test 33:', e); failed++; }
+
 // ============================================
 // RÉSUMÉ
 // ============================================

@@ -777,6 +777,135 @@ this.thresholds = {
 
 ---
 
+### 🔒 Sécurité Apex
+
+> **Note Summer '26 (API v67.0)** : Depuis cette version, Apex s'exécute en **User Mode** par défaut.
+> Les permissions CRUD/FLS sont appliquées automatiquement. Les classes sans déclaration explicite
+> de sharing s'exécutent en `with sharing`. `WITH SECURITY_ENFORCED` est désormais redondant.
+
+#### Dynamic SOQL — Injection Risk
+**Sévérité** : Warning
+**Ce qu'on observe** : Des appels à `Database.query()` ou `Database.countQuery()` dans le log (METHOD_ENTRY).
+**Ce que ça indique** : La requête SOQL est construite dynamiquement, ce qui peut être vulnérable à l'injection SOQL si des entrées utilisateur sont concaténées directement.
+
+**Exemple de log** :
+```
+METHOD_ENTRY|[15]|Database.query(SELECT Id FROM Account WHERE Name = 'UserInput')
+SOQL_EXECUTE_BEGIN|SELECT Id FROM Account WHERE Name = 'UserInput'
+```
+
+**Code à risque** :
+```apex
+// ❌ Injection possible via concaténation
+String userInput = ApexPages.currentPage().getParameters().get('name');
+String query = 'SELECT Id FROM Account WHERE Name = \'' + userInput + '\'';
+List<Account> results = Database.query(query);
+```
+
+**Solution** :
+```apex
+// ✅ Utiliser des bind variables
+String userInput = ApexPages.currentPage().getParameters().get('name');
+List<Account> results = [SELECT Id FROM Account WHERE Name = :userInput];
+
+// ✅ Ou Database.queryWithBinds pour le SOQL dynamique
+String query = 'SELECT Id FROM Account WHERE Name = :name';
+List<Account> results = Database.queryWithBinds(
+    query, new Map<String, Object>{'name' => userInput}, AccessLevel.USER_MODE
+);
+```
+
+---
+
+#### Explicit System Mode — FLS Bypassed
+**Sévérité** : Warning
+**Ce qu'on observe** : Des requêtes SOQL avec `WITH SYSTEM_MODE`, des opérations DML avec `as system`, ou des appels `Database.query(q, AccessLevel.SYSTEM_MODE)`.
+**Ce que ça indique** : Le code contourne explicitement les permissions CRUD/FLS de l'utilisateur courant.
+
+**Exemple de log** :
+```
+SOQL_EXECUTE_BEGIN|SELECT Id, SSN__c, Salary__c FROM Contact WITH SYSTEM_MODE
+DML_BEGIN|insert as system|Account
+```
+
+**Code à auditer** :
+```apex
+// ⚠️ Bypass explicite — justifié seulement pour les services internes
+List<Account> accs = [SELECT Id, Sensitive__c FROM Account WITH SYSTEM_MODE];
+insert as system new Account(Name = 'Internal');
+Database.query(query, AccessLevel.SYSTEM_MODE);
+```
+
+**Quand c'est acceptable** :
+```apex
+// ✅ Service layer interne avec contrôle d'accès en amont
+public without sharing class InternalBatchService {
+    // Justifié : traitement batch système sans contexte utilisateur
+    public void processRecords() {
+        List<Record__c> records = [SELECT Id FROM Record__c WITH SYSTEM_MODE];
+    }
+}
+```
+
+---
+
+#### Without Sharing Context
+**Sévérité** : Info
+**Ce qu'on observe** : Références à `without sharing` dans les CODE_UNIT_STARTED ou METHOD_ENTRY.
+**Ce que ça indique** : Le code s'exécute sans vérification de partage au niveau enregistrement.
+
+**Impact API v67+** : Les classes sans déclaration explicite sont désormais `with sharing` par défaut. Les classes `without sharing` existantes doivent être auditées.
+
+**Quand auditer** :
+- Le code accède à des données sensibles (finances, PII)
+- Le code est appelé depuis un contexte LWC/Aura (`@AuraEnabled`)
+- Le code traite des données cross-org
+
+---
+
+#### Legacy WITH SECURITY_ENFORCED
+**Sévérité** : Info
+**Ce qu'on observe** : Des requêtes SOQL contenant `WITH SECURITY_ENFORCED` dans le log.
+**Ce que ça indique** : Code pré-API v67 qui utilise l'ancienne méthode d'enforcement FLS, désormais redondante.
+
+**Avant (API ≤ v66)** :
+```apex
+// Ancienne approche — redondant en v67+
+List<Account> accs = [SELECT Id FROM Account WITH SECURITY_ENFORCED];
+```
+
+**Après (API v67+)** :
+```apex
+// ✅ User Mode est le défaut — pas besoin de clause supplémentaire
+List<Account> accs = [SELECT Id FROM Account];
+
+// ✅ Ou explicitement si on veut être clair sur l'intention
+List<Account> accs = [SELECT Id FROM Account WITH USER_MODE];
+```
+
+---
+
+#### Insecure HTTP Endpoint
+**Sévérité** : Warning
+**Ce qu'on observe** : Un `CALLOUT_REQUEST` dans le log contient une URL en `http://` au lieu de `https://`.
+**Ce que ça indique** : Les données (tokens, PII, payloads) sont transmises en clair et vulnérables aux attaques man-in-the-middle.
+
+**Exemple de log** :
+```
+CALLOUT_REQUEST|[EXTERNAL]|http://api.example.com/v2/customers?token=abc123
+```
+
+**Solution** :
+```apex
+// ✅ Toujours utiliser HTTPS
+HttpRequest req = new HttpRequest();
+req.setEndpoint('https://api.example.com/v2/customers');
+
+// ✅ Dans Remote Site Settings / Named Credentials, n'autoriser que HTTPS
+```
+
+---
+
 ## Export PDF
 
 ### Comment exporter

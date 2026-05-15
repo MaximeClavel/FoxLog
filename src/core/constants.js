@@ -290,6 +290,11 @@
     debugStatements: isFrench ? 'Statements debug excessifs' : 'Excessive Debug Statements',
     calloutAfterDml: isFrench ? 'Callout après DML' : 'Callout After DML',
     largeQueryResult: isFrench ? 'Résultats volumineux' : 'Large Query Results',
+    soqlInjectionRisk: isFrench ? 'Risque d\'injection SOQL' : 'Dynamic SOQL — Injection Risk',
+    crudFlsBypass: isFrench ? 'SECURITY_ENFORCED legacy' : 'Legacy WITH SECURITY_ENFORCED',
+    insecureEndpoint: isFrench ? 'Endpoint HTTP non sécurisé' : 'Insecure HTTP Endpoint',
+    systemModeUsage: isFrench ? 'Mode système explicite — FLS contourné' : 'Explicit System Mode — FLS Bypassed',
+    withoutSharing: isFrench ? 'Contexte without sharing' : 'Without Sharing Context',
     
     // Import tab
     tabSalesforce: 'Salesforce',
