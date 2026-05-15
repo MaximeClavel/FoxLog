@@ -44,7 +44,13 @@
     ENABLE_SUCCESS_LOGS: true,  // Show success messages (✅)
     ENABLE_INFO_LOGS: true,     // Show info messages
     ENABLE_WARN_LOGS: true,     // Show warnings (⚠️)
-    ENABLE_ERROR_LOGS: true     // Show errors (❌) - always recommended
+    ENABLE_ERROR_LOGS: true,    // Show errors (❌) - always recommended
+    
+    // Diff thresholds
+    DIFF_THRESHOLD_MS: 50,
+    DIFF_THRESHOLD_PERCENT: 200,
+    DIFF_IGNORE_SYSTEM: true,
+    DIFF_WORKER_TIMEOUT: 10000
   };
   
   // ============================================
@@ -284,6 +290,11 @@
     debugStatements: isFrench ? 'Statements debug excessifs' : 'Excessive Debug Statements',
     calloutAfterDml: isFrench ? 'Callout après DML' : 'Callout After DML',
     largeQueryResult: isFrench ? 'Résultats volumineux' : 'Large Query Results',
+    soqlInjectionRisk: isFrench ? 'Risque d\'injection SOQL' : 'Dynamic SOQL — Injection Risk',
+    crudFlsBypass: isFrench ? 'SECURITY_ENFORCED legacy' : 'Legacy WITH SECURITY_ENFORCED',
+    insecureEndpoint: isFrench ? 'Endpoint HTTP non sécurisé' : 'Insecure HTTP Endpoint',
+    systemModeUsage: isFrench ? 'Mode système explicite — FLS contourné' : 'Explicit System Mode — FLS Bypassed',
+    withoutSharing: isFrench ? 'Contexte without sharing' : 'Without Sharing Context',
     
     // Import tab
     tabSalesforce: 'Salesforce',
@@ -300,6 +311,24 @@
     importFileTooLarge: isFrench ? 'Fichier trop volumineux (max 5 MB)' : 'File too large (max 5 MB)',
     importInvalidType: isFrench ? 'Type de fichier invalide. Utilisez .txt ou .log' : 'Invalid file type. Use .txt or .log',
     importSuccess: isFrench ? 'Log importé avec succès !' : 'Log imported successfully!',
-    importError: isFrench ? 'Erreur lors de l\'import' : 'Import error'
+    importError: isFrench ? 'Erreur lors de l\'import' : 'Import error',
+    
+    // Diff tab
+    diffTab: 'Diff',
+    diffSelectLog: isFrench ? 'Sélectionner un log importé à comparer' : 'Select an imported log to compare',
+    diffNoImports: isFrench ? 'Importez un log d\'abord (onglet Fichiers)' : 'Import a log first (Files tab)',
+    diffImportFile: isFrench ? 'Importer un fichier' : 'Import a file',
+    diffOr: isFrench ? 'ou' : 'or',
+    diffAdded: isFrench ? 'Ajouté' : 'Added',
+    diffRemoved: isFrench ? 'Supprimé' : 'Removed',
+    diffChanged: isFrench ? 'Modifié' : 'Changed',
+    diffMatch: isFrench ? 'Identique' : 'Identical',
+    diffDivergences: isFrench ? 'divergences' : 'divergences',
+    diffNoDivergences: isFrench ? 'Aucune divergence' : 'No divergences',
+    diffPrev: isFrench ? 'Préc.' : 'Prev',
+    diffNext: isFrench ? 'Suiv.' : 'Next',
+    diffComputing: isFrench ? 'Calcul du diff...' : 'Computing diff...',
+    diffTimeout: isFrench ? 'Le calcul du diff a expiré' : 'Diff computation timed out',
+    diffError: isFrench ? 'Erreur lors du calcul du diff' : 'Diff computation error'
   };
 })();

@@ -4,6 +4,55 @@ All notable changes to FoxLog will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.5.2] - 2026-05-15
+
+### Added
+
+- **5 security anti-patterns** aligned with Summer '26 (API v67) Apex security model:
+  - **Dynamic SOQL — Injection Risk**: Detects queries without bind variables (`:tmpVar`) indicating `Database.query()` with string concatenation
+  - **Legacy WITH SECURITY_ENFORCED**: Flags deprecated `WITH SECURITY_ENFORCED` usage, redundant since API v67 (user mode is default)
+  - **Explicit System Mode — FLS Bypassed**: Detects `WITH SYSTEM_MODE`, `as system`, and `AccessLevel.SYSTEM_MODE` bypasses
+  - **Without Sharing Context**: Flags `without sharing` class execution in structural log lines
+  - **Insecure HTTP Endpoint**: Detects callouts to `http://` (non-HTTPS) endpoints
+- **Security test script**: `tests/test-security-antipatterns.apex` for Developer Console validation
+- **7 new unit tests** (Tests 27–33) covering all security detectors with positive and negative cases
+
+### Changed
+
+- **SOQL injection detection**: Uses reliable `:tmpVar` bind variable heuristic from Salesforce log format instead of METHOD_ENTRY scanning
+- **Without Sharing detector**: Only matches structural log types (`CODE_UNIT_STARTED`, `METHOD_ENTRY`) — no false positives from `USER_DEBUG` text
+- **System Mode detector**: Restricted to `SOQL_EXECUTE_BEGIN`, `DML_BEGIN`, and `METHOD_ENTRY` types
+
+### Documentation
+
+- **Anti-pattern analysis doc**: New "🔒 Sécurité Apex" section with Summer '26 context, examples, and remediation for all 5 patterns
+- **i18n**: Added FR/EN keys for all security pattern titles
+
+---
+
+## [1.5.1] - 2026-05-12
+
+### Added
+
+- **Log Diffing**: Side-by-side comparison of two call trees to identify execution divergences
+  - LCS-based alignment matching nodes by signature (`type:class.method`) across different logs
+  - Color-coded differences: added (green), removed (red), changed (orange), match (grey)
+  - Prev/Next navigation to jump between divergences
+  - Import directly from Diff tab: select a `.txt` or `.log` file without leaving the modal
+  - Select from existing imports: dropdown lists all previously imported logs
+  - Auto-sync with Files tab: imports from the Diff tab appear in the panel's Files history
+  - Web Worker powered: diff computation runs off the main thread with a 10s timeout
+- **New files**: `src/services/log-diff-engine.js`, `src/ui/log-diff-view.js`, `src/workers/log-diff-worker.js`
+- **Technical documentation**: `docs/tech-solution/log-diffing.md` with full algorithm and UI specs
+
+### Changed
+
+- **Modal**: 5th tab "Diff" added to the analysis modal (lazy-loaded)
+- **Panel**: `foxlog:importListChanged` event keeps Files tab in sync when importing from Diff tab
+- **README**: Updated view count from 4 to 5, added Log Diffing feature section
+
+---
+
 ## [1.4.1] - 2026-04-09
 
 ### Added
