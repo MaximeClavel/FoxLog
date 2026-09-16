@@ -7,7 +7,7 @@
 ## 🚀 Key Features
 
 ### 📊 Visualization and Analysis
-- **Real-time display** of Apex logs with automatic refresh
+- **Real-time display** of Apex logs with automatic refresh (every 5s)
 - **Intelligent parser** analyzing 15+ line types (METHOD_ENTRY, SOQL, DML, USER_DEBUG, EXCEPTION, etc.)
 - **Automatic error detection** with visual badges and counters
 - **Detailed statistics**: SOQL queries, DML statements, CPU time, Heap size with progress bars
@@ -24,10 +24,8 @@
 
 ### 👥 Multi-user Management
 - **User selection** via picklist with visual indicators:
-  - 🟢 TraceFlag active + logs available
-  - 🟡 TraceFlag active, no logs yet
-  - 📋 Logs available (no TraceFlag)
-  - ⚪ No TraceFlag, no logs (current user)
+  - ● Active (TraceFlag and/or logs available)
+  - ○ No activity (no TraceFlag, no logs)
 - **Current user always visible** in picklist (marked with "You" / "Moi")
 - **Current user selected by default** for easy TraceFlag activation
 - **Active TraceFlags display** per user
@@ -73,6 +71,7 @@
 ### 🎨 User Interface
 - **Side panel** with floating button
 - **Modern modal** with tabs
+- **Consistent SVG icon set** across the panel, modals, call tree and diff view — no more emoji-as-icons
 - **Responsive design** and intuitive
 - **Performance report export** in TXT and Markdown formats
 

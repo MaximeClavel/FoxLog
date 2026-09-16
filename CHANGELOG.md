@@ -4,6 +4,28 @@ All notable changes to FoxLog will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.5.3] - 2026-09-16
+
+### Added
+
+- **Shared SVG icon system** (`src/core/icons.js`): centralized `window.FoxLog.icon(name)` and `window.FoxLog.dot(tone)` helpers, replacing emoji used as icons throughout the panel, modals, call tree view, and log diff view
+- **`sf-debug-expired` status**: expired TraceFlags now get their own amber badge instead of sharing the grey "disabled" style
+
+### Changed
+
+- **Auto-refresh interval**: reduced from 10s to 5s (`CONFIG.REFRESH_INTERVAL` in `src/core/constants.js`)
+- **User picklist indicators**: replaced the 4-color emoji legend (🟢🟡📋⚪) with a simple `●`/`○` marker (native `<select>` options can't render colored icons)
+- **Toasts**: now render a real icon based on message type instead of an emoji prefixed to the text
+- **Severity markers** (Critical/Warning/Info) in the Analysis tab and exported reports: emoji dots replaced with CSS-driven colored dots, consistent with the rest of the UI
+- **Call tree & log diff node icons**: unified icon set between the two views (previously `METHOD_ENTRY` used different glyphs in each); method-related icons now use a `</>` code icon instead of a generic arrow/wrench
+- **Exported `.txt`/`.md`/PDF reports**: dropped decorative emoji in favor of plain section headers and `[TAG]`-style markers
+
+### Documentation
+
+- **README**: Updated user-picklist indicator legend and refresh interval to match the new UI
+
+---
+
 ## [1.5.2] - 2026-05-15
 
 ### Added

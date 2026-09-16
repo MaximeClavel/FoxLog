@@ -1010,6 +1010,9 @@
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
   z-index: 2147483650;
   opacity: 0;
@@ -1044,6 +1047,10 @@
 .sf-toast-info {
   background: #0176d3;
   color: white;
+}
+
+.sf-toast-icon {
+  flex-shrink: 0;
 }
 
 /* Animation d'apparition */
@@ -1607,6 +1614,12 @@
 .sf-filter-icon {
   font-size: 12px;
   line-height: 1;
+  display: inline-flex;
+}
+
+.sf-filter-icon .foxlog-icon {
+  width: 12px;
+  height: 12px;
 }
 
 .sf-filter-text {
@@ -1703,6 +1716,9 @@
   font-size: 13px;
   font-weight: 600;
   color: #92400e;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .sf-top-nodes-list {
@@ -1889,7 +1905,27 @@
   flex-shrink: 0;
   width: 24px;
   text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
 }
+
+/* Per-node-type icon color, shared by the call tree (.sf-node-icon) and log diff (.sf-diff-node-icon) views */
+.sf-node-icon.sf-icon-method-entry,
+.sf-diff-node-icon.sf-icon-method-entry { color: #3b82f6 !important; }
+.sf-node-icon.sf-icon-soql-execute-begin,
+.sf-node-icon.sf-icon-dml-begin,
+.sf-diff-node-icon.sf-icon-soql-execute-begin,
+.sf-diff-node-icon.sf-icon-dml-begin { color: #059669 !important; }
+.sf-node-icon.sf-icon-user-debug,
+.sf-diff-node-icon.sf-icon-user-debug { color: #7c3aed !important; }
+.sf-node-icon.sf-icon-exception-thrown,
+.sf-diff-node-icon.sf-icon-exception-thrown { color: #dc2626 !important; }
+.sf-node-icon.sf-icon-root,
+.sf-node-icon.sf-icon-code-unit-started,
+.sf-diff-node-icon.sf-icon-root,
+.sf-diff-node-icon.sf-icon-code-unit-started { color: #6b7280 !important; }
 
 /* Nom du nœud */
 .sf-node-name {
@@ -2282,8 +2318,8 @@
 }
 
 .sf-analysis-healthy .sf-healthy-icon {
-  font-size: 64px;
   line-height: 1;
+  color: #059669;
 }
 
 .sf-analysis-healthy .sf-healthy-text {
@@ -2464,8 +2500,8 @@
 }
 
 .sf-healthy-icon {
-  font-size: 48px;
   line-height: 1;
+  color: #059669;
 }
 
 .sf-healthy-text {
@@ -2983,6 +3019,9 @@
   font-weight: 600 !important;
   padding: 2px 8px !important;
   border-radius: 10px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
 }
 
 .sf-diff-stat-total {
@@ -3089,7 +3128,14 @@
   flex-shrink: 0 !important;
   width: 20px !important;
   text-align: center !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #9ca3af !important;
 }
+
+.sf-diff-node-icon.sf-icon-flow-start-interview-begin { color: #7c3aed !important; }
+.sf-diff-node-icon.sf-icon-validation-rule { color: #059669 !important; }
 
 .sf-diff-node-name {
   flex: 1 !important;

@@ -5,7 +5,47 @@
   --sf-surface: #f5f7fb;
   --sf-border: #e5e7eb;
   --sf-text: #1f2937;
+  --sf-text-muted: #6b7280;
+
+  /* Semantic tones — shared by icons, dots, badges and status text */
+  --sf-success: #10b981;
+  --sf-success-bg: #ecfdf5;
+  --sf-warning: #f59e0b;
+  --sf-warning-bg: #fffbeb;
+  --sf-danger: #ef4444;
+  --sf-danger-bg: #fef2f2;
+  --sf-info: #3b82f6;
+  --sf-info-bg: #eff6ff;
+  --sf-neutral: #9ca3af;
+  --sf-neutral-bg: #f3f4f6;
 }
+
+/* ========== Shared icon system (replaces emoji-as-icons) ========== */
+.foxlog-icon {
+  flex-shrink: 0;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.foxlog-icon--success { color: var(--sf-success); }
+.foxlog-icon--warning { color: var(--sf-warning); }
+.foxlog-icon--danger { color: var(--sf-danger); }
+.foxlog-icon--info { color: var(--sf-info); }
+.foxlog-icon--muted { color: var(--sf-text-muted); }
+
+.foxlog-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.foxlog-dot--critical { background: var(--sf-danger); }
+.foxlog-dot--warning { background: var(--sf-warning); }
+.foxlog-dot--info { background: var(--sf-info); }
+.foxlog-dot--success { background: var(--sf-success); }
+.foxlog-dot--neutral { background: var(--sf-neutral); }
 
 #sf-debug-panel {
   position: fixed !important;
@@ -1096,6 +1136,12 @@
 .sf-debug-enabled {
   background: #f3f4f6 !important;
   color: #059669 !important;
+  border: none !important;
+}
+
+.sf-debug-expired {
+  background: var(--sf-warning-bg) !important;
+  color: var(--sf-warning) !important;
   border: none !important;
 }
 

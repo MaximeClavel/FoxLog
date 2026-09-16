@@ -36,7 +36,7 @@
     AUTO_REFRESH_INTERVAL: 5000,
     MAX_LOGS: 100,
     CACHE_DURATION: 30000,
-    REFRESH_INTERVAL: 10000,
+    REFRESH_INTERVAL: 5000,
     
     // ✅ LOGGER CONFIGURATION
     // Set to false before publishing to production
@@ -99,6 +99,7 @@
     // Panel
     welcome: isFrench ? 'Bienvenue dans FoxLog !' : 'Welcome to FoxLog!',
     selectUser: isFrench ? 'Sélectionnez un utilisateur' : 'Select a user',
+    userPicklistLegend: isFrench ? '● = TraceFlag ou logs disponibles | ○ = Aucune activité' : '● = TraceFlag or logs available | ○ = No activity',
     noLogsFor: isFrench ? 'Aucun log pour' : 'No logs for',
     clickRefresh: isFrench ? 'Cliquez sur Actualiser' : 'Click Refresh',
     loading: isFrench ? 'Chargement...' : 'Loading...',
@@ -247,7 +248,7 @@
     // Anti-patterns
     antiPatterns: isFrench ? 'Anti-patterns détectés' : 'Detected Anti-patterns',
     noAntiPatterns: isFrench ? 'Aucun anti-pattern détecté' : 'No anti-patterns detected',
-    codeHealthy: isFrench ? 'Code sain ! ✨' : 'Code is healthy! ✨',
+    codeHealthy: isFrench ? 'Code sain !' : 'Code is healthy!',
     healthScore: isFrench ? 'Score de santé' : 'Health Score',
     critical: isFrench ? 'Critique' : 'Critical',
     warning: isFrench ? 'Attention' : 'Warning',

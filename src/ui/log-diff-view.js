@@ -95,8 +95,8 @@
           <span class="sf-diff-stat sf-diff-stat-total">${summary.totalDivergences} ${i18n.diffDivergences || 'divergences'}</span>
           ${summary.onlyInA ? `<span class="sf-diff-stat sf-diff-stat-removed">−${summary.onlyInA}</span>` : ''}
           ${summary.onlyInB ? `<span class="sf-diff-stat sf-diff-stat-added">+${summary.onlyInB}</span>` : ''}
-          ${summary.timingDiffs ? `<span class="sf-diff-stat sf-diff-stat-timing">⏱ ${summary.timingDiffs}</span>` : ''}
-          ${summary.errorDiffs ? `<span class="sf-diff-stat sf-diff-stat-error">❌ ${summary.errorDiffs}</span>` : ''}
+          ${summary.timingDiffs ? `<span class="sf-diff-stat sf-diff-stat-timing">${window.FoxLog.icon('zap', { size: 12 })} ${summary.timingDiffs}</span>` : ''}
+          ${summary.errorDiffs ? `<span class="sf-diff-stat sf-diff-stat-error">${window.FoxLog.icon('alert-circle', { size: 12 })} ${summary.errorDiffs}</span>` : ''}
         </div>
         <div class="sf-diff-panes">
           <div class="sf-diff-pane sf-diff-pane-a">
@@ -188,14 +188,15 @@
       let errorIcon = '';
       if (pair.status === 'changed' && pair.changes.hasError) {
         if ((side === 'a' && pair.changes.hasError.a) || (side === 'b' && pair.changes.hasError.b)) {
-          errorIcon = ' <span class="sf-diff-error-icon" aria-label="Error">❌</span>';
+          errorIcon = ` <span class="sf-diff-error-icon" aria-label="Error">${window.FoxLog.icon('alert-circle', { className: 'foxlog-icon--danger' })}</span>`;
         }
       } else if (node.hasError) {
-        errorIcon = ' <span class="sf-diff-error-icon" aria-label="Error">❌</span>';
+        errorIcon = ` <span class="sf-diff-error-icon" aria-label="Error">${window.FoxLog.icon('alert-circle', { className: 'foxlog-icon--danger' })}</span>`;
       }
 
+      const iconClass = `sf-icon-${(node.type || '').toLowerCase().replace(/_/g, '-')}`;
       row.innerHTML = `
-        <span class="sf-diff-node-icon">${icon}</span>
+        <span class="sf-diff-node-icon ${iconClass}">${icon}</span>
         <span class="sf-diff-node-name" title="${name}">${name}</span>
         <span class="sf-diff-node-duration">${durationStr}</span>
         ${badge}${errorIcon}
@@ -208,18 +209,18 @@
     }
 
     _getNodeIcon(type) {
-      const icons = {
-        'METHOD_ENTRY': '⚙️',
-        'SOQL_EXECUTE_BEGIN': '🔍',
-        'DML_BEGIN': '💾',
-        'EXCEPTION_THROWN': '❌',
-        'USER_DEBUG': '🐛',
-        'CODE_UNIT_STARTED': '📦',
-        'FLOW_START_INTERVIEW_BEGIN': '🔀',
-        'VALIDATION_RULE': '✅',
-        'ROOT': '🌳'
+      const iconNames = {
+        'METHOD_ENTRY': 'code',
+        'SOQL_EXECUTE_BEGIN': 'database',
+        'DML_BEGIN': 'database',
+        'EXCEPTION_THROWN': 'alert-triangle',
+        'USER_DEBUG': 'bug',
+        'CODE_UNIT_STARTED': 'package',
+        'FLOW_START_INTERVIEW_BEGIN': 'shuffle',
+        'VALIDATION_RULE': 'shield-check',
+        'ROOT': 'git-branch'
       };
-      return icons[type] || '▸';
+      return window.FoxLog.icon(iconNames[type] || 'info', { size: 14 });
     }
 
     _formatDuration(ms) {
