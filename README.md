@@ -41,15 +41,16 @@
 - **One-click analysis**: imported logs open the full analysis modal (Summary, Calls, Analysis, Raw)
 
 ### 🌳 Advanced Visualization
-- **5 complementary views**:
+- **6 complementary views**:
   - **Summary**: Overview with statistics and metadata
   - **Calls**: Hierarchical call tree with performance analysis (built via Web Worker)
+  - **Flow**: [NEW] Visual, pannable/zoomable execution graph (n8n-style node canvas) of methods/SOQL/DML/triggers/flows, with a searchable node list and a detail side panel
   - **Analysis**: Anti-pattern detection with severity and suggestions
   - **Raw Log**: Original log content with copy/export options
-  - **Diff**: [NEW] Side-by-side comparison of two logs to identify execution divergences
+  - **Diff**: Side-by-side comparison of two logs to identify execution divergences
 - **Top 5 Slowest Nodes**: Instantly identify performance bottlenecks
 - **Log navigation**: Previous/Next buttons to switch between logs without closing the modal
-- **Advanced filtering**: errors only, search in tree
+- **Advanced filtering**: errors only, search in tree, category filters in the Flow graph
 - **Export reports**: Export call tree and performance data in `.txt` or `.md` format
 
 ### 🔀 Log Diffing [NEW]
@@ -92,7 +93,7 @@
 5. If you have no active TraceFlag, use the toggle to enable debug logs
 6. Switch to the **Files** tab to import and analyze local .txt/.log files
 7. Click "Details" to analyze a log in depth
-8. Explore the different tabs: Summary, Calls, Analysis, Raw Log
+8. Explore the different tabs: Summary, Calls, Flow, Analysis, Raw Log
 9. Use the **Analysis tab** to detect anti-patterns and export reports (PDF/MD/TXT)
 10. Use the **Diff tab** to compare execution with an imported log from another environment
 11. Use the export button in the Calls tab to generate a performance report

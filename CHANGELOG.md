@@ -4,6 +4,38 @@ All notable changes to FoxLog will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.6.1] - 2026-09-17
+
+### Changed
+
+- **Tab order**: "Flow" now appears before "Calls" in the log analysis modal
+
+### Fixed
+
+- **Flow tab layout**: the graph canvas left a blank gap at the bottom of the modal — the container chain relied on `height: 100%` inside a flex column, which Chromium doesn't reliably resolve for flex items; switched to `flex: 1 1 auto; min-height: 0` throughout
+- **Flow tab filter chips**: active chips (Triggers & Flows, Apex, Database, Errors) rendered as white text on a white background; added explicit per-category background colors
+- **Flow tab search box**: the magnifying glass icon floated below the input instead of overlapping it, and the box shrank further while typing — both caused by reusing a `flex: 1` rule meant for a horizontal toolbar inside a vertical sidebar; the search box now sizes to its content
+- **Stray CSS brace**: removed an extra `}` left over at the end of the pre-existing Diff tab styles, which was silently dropping the very next CSS rule (Chromium parser behavior) — this was the root cause of the Flow layout bug above
+- **"Next"/"Previous" log navigation**: switching logs while already on the Flow tab (or the Calls tab) left the spinner spinning forever, since the tree/graph only ever (re)built inside the tab button's `click` handler, which navigation never fires; both tabs now rebuild immediately if they're already the active tab
+
+## [1.6.0] - 2026-09-16
+
+### Added
+
+- **New "Flow" tab** (`src/ui/call-graph-view.js`): a visual, n8n-style execution graph of the same `CallTree` used by the Calls tab
+  - Pannable/zoomable node canvas (drag to pan, scroll to zoom, +/- and Fit View controls) with methods, SOQL, DML, triggers/flows/workflow rules/validation rules and exceptions rendered as color-coded nodes connected by curved edges
+  - Left sidebar: search box + category filter chips (Triggers & Flows, Apex, Database, Errors, Debug) and a "Notable nodes" list (automation entry points, DML, SOQL, errors) to jump straight to a node
+  - Right sidebar: detail panel for the selected node (duration, exclusive duration, SOQL/DML counts, query/DML/exception specifics) with a "View in raw log" button that jumps to the matching line in the Raw Log tab
+  - Breadcrumb path from the transaction root to the selected node, clickable to re-select any ancestor
+  - Expand/Collapse per node (large subtrees start collapsed) plus Expand All / Collapse All, with a safety cap on very large trees to keep panning smooth
+  - Reuses the existing cached `CallTree` (built via the Calls tab's Web Worker) — no extra parsing cost
+
+### Changed
+
+- **manifest.json**: registered `src/ui/call-graph-view.js` as a content script (after `call-tree-view.js`)
+
+---
+
 ## [1.5.3] - 2026-09-16
 
 ### Added
