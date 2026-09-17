@@ -82,8 +82,8 @@
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
-            <h3>📄 ${i18n.rawLog || 'Raw Log'}</h3>
-            <button class="sf-modal-close-btn">✕</button>
+            <h3>${window.FoxLog.icon('file', { size: 16 })} ${i18n.rawLog || 'Raw Log'}</h3>
+            <button class="sf-modal-close-btn">${window.FoxLog.icon('x')}</button>
           </div>
           <div class="sf-modal-body">
             <pre class="sf-raw-log-content">${this._escapeHtml(content)}</pre>
@@ -143,15 +143,15 @@
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
-            <h3>📊 ${i18n.logAnalysis || 'Log Analysis'}</h3>
+            <h3>${window.FoxLog.icon('bar-chart', { size: 16 })} ${i18n.logAnalysis || 'Log Analysis'}</h3>
             ${this._renderNavigationButtons()}
-            <button class="sf-modal-close-btn">×</button>
+            <button class="sf-modal-close-btn">${window.FoxLog.icon('x')}</button>
           </div>
-          
+
           <div class="sf-modal-tabs">
             <button class="sf-tab-btn active" data-tab="summary">${i18n.summary || 'Summary'}</button>
             <button class="sf-tab-btn" data-tab="analysis">
-              🩺 ${i18n.analysis || 'Analysis'}
+              ${window.FoxLog.icon('activity', { size: 13 })} ${i18n.analysis || 'Analysis'}
               ${this._renderAnalysisBadge(antiPatternResults)}
             </button>
             <button class="sf-tab-btn" data-tab="calls">${i18n.calls || 'Calls'}</button>
@@ -187,7 +187,7 @@
                   </select>
                   <span class="sf-diff-or">${i18n.diffOr || 'or'}</span>
                   <label class="sf-diff-import-btn" tabindex="0" role="button" aria-label="${i18n.diffImportFile || 'Import a file'}">
-                    📂 ${i18n.diffImportFile || 'Import a file'}
+                    ${window.FoxLog.icon('folder', { size: 13 })} ${i18n.diffImportFile || 'Import a file'}
                     <input type="file" class="sf-diff-file-input" accept=".txt,.log" hidden />
                   </label>
                 </div>
@@ -257,7 +257,7 @@
       const analysisBtn = modal.querySelector('[data-tab="analysis"]');
       if (analysisBtn) {
         analysisBtn.innerHTML = `
-          🩺 ${i18n.analysis || 'Analysis'}
+          ${window.FoxLog.icon('activity', { size: 13 })} ${i18n.analysis || 'Analysis'}
           ${this._renderAnalysisBadge(antiPatternResults)}
         `;
       }
@@ -292,7 +292,7 @@
               </select>
               <span class="sf-diff-or">${i18n.diffOr || 'or'}</span>
               <label class="sf-diff-import-btn" tabindex="0" role="button" aria-label="${i18n.diffImportFile || 'Import a file'}">
-                📂 ${i18n.diffImportFile || 'Import a file'}
+                ${window.FoxLog.icon('folder', { size: 13 })} ${i18n.diffImportFile || 'Import a file'}
                 <input type="file" class="sf-diff-file-input" accept=".txt,.log" hidden />
               </label>
             </div>
@@ -332,10 +332,10 @@
         const blob = new Blob([parsedLog.rawContent], { type: 'text/plain' });
         this._downloadFile(blob, filename);
         this.logger.success('Raw log exported');
-        this._showToast(`✅ ${i18n.toastExportSuccess || 'Exported successfully!'}`);
+        this._showToast(i18n.toastExportSuccess || 'Exported successfully!');
       } catch (error) {
         this.logger.error('Export failed', error);
-        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
+        this._showToast(i18n.toastExportError || 'Export error', 'error');
       }
     }
 
@@ -359,10 +359,10 @@
         }, 2000);
 
         this.logger.success('Copied to clipboard');
-        this._showToast(`✅ ${i18n.copySuccess || 'Copied to clipboard!'}`);
+        this._showToast(i18n.copySuccess || 'Copied to clipboard!');
       } catch (error) {
         this.logger.error('Copy failed', error);
-        this._showToast(`❌ ${i18n.copyError || 'Copy error'}`, 'error');
+        this._showToast(i18n.copyError || 'Copy error', 'error');
       }
     }
 
@@ -392,9 +392,17 @@
         existingToast.remove();
       }
 
+      const toastIcons = {
+        success: 'check-circle',
+        error: 'alert-circle',
+        warning: 'alert-triangle',
+        info: 'info'
+      };
+
       const toast = document.createElement('div');
       toast.className = `sf-toast sf-toast-${type}`;
-      toast.textContent = message;
+      toast.innerHTML = `${window.FoxLog.icon(toastIcons[type] || 'info', { size: 16, className: 'sf-toast-icon' })}<span class="sf-toast-message"></span>`;
+      toast.querySelector('.sf-toast-message').textContent = message;
       document.body.appendChild(toast);
 
       // Animation d'apparition
@@ -509,7 +517,7 @@
         }
       } catch (error) {
         this.logger.error('Navigation failed', error);
-        this._showToast(`❌ ${i18n.error || 'Error'}`, 'error');
+        this._showToast(i18n.error || 'Error', 'error');
         // Revert to previous state on error
         this._updateNavigationButtons(this.currentLogIndex);
       } finally {
@@ -764,7 +772,7 @@
           hasLog: !!this.currentParsedLog, 
           hasResults: !!this.currentAntiPatternResults 
         });
-        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
+        this._showToast(i18n.toastExportError || 'Export error', 'error');
         return;
       }
 
@@ -800,7 +808,7 @@
         };
 
         logger.success('[PDF Export] PDF export initiated');
-        this._showToast(`📄 ${i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog'}`);
+        this._showToast(i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog');
         
       } catch (error) {
         logger.error('[PDF Export] PDF export failed', error);
@@ -829,10 +837,10 @@
         try {
           iframe.contentWindow.focus();
           iframe.contentWindow.print();
-          this._showToast(`📄 ${i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog'}`);
+          this._showToast(i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog');
         } catch (e) {
           logger.error('[PDF Export] Iframe print failed', e);
-          this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
+          this._showToast(i18n.toastExportError || 'Export error', 'error');
         }
         
         // Remove iframe after a delay
@@ -848,7 +856,7 @@
      */
     _exportAnalysisMd() {
       if (!this.currentParsedLog || !this.currentAntiPatternResults) {
-        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
+        this._showToast(i18n.toastExportError || 'Export error', 'error');
         return;
       }
 
@@ -861,7 +869,7 @@
       const blob = new Blob([md], { type: 'text/markdown' });
       
       this._downloadFile(blob, filename);
-      this._showToast(`✅ ${i18n.analysisExportSuccess || 'Export successful'}`);
+      this._showToast(i18n.analysisExportSuccess || 'Export successful');
       logger.success('[MD Export] Markdown exported');
     }
 
@@ -871,7 +879,7 @@
      */
     _exportAnalysisTxt() {
       if (!this.currentParsedLog || !this.currentAntiPatternResults) {
-        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
+        this._showToast(i18n.toastExportError || 'Export error', 'error');
         return;
       }
 
@@ -884,7 +892,7 @@
       const blob = new Blob([txt], { type: 'text/plain' });
       
       this._downloadFile(blob, filename);
-      this._showToast(`✅ ${i18n.analysisExportSuccess || 'Export successful'}`);
+      this._showToast(i18n.analysisExportSuccess || 'Export successful');
       logger.success('[TXT Export] Text file exported');
     }
 
@@ -897,34 +905,34 @@
       const warningPatterns = patterns.filter(p => p.severity === 'warning');
       const infoPatterns = patterns.filter(p => p.severity === 'info');
 
-      let md = `# 🦊 FoxLog - Analysis Report\n\n`;
+      let md = `# FoxLog - Analysis Report\n\n`;
       md += `**Generated:** ${date}\n\n`;
       md += `---\n\n`;
 
       // Score section
-      md += `## 📊 Health Score: ${summary.score}/100\n\n`;
+      md += `## Health Score: ${summary.score}/100\n\n`;
       md += `| Severity | Count |\n`;
       md += `|----------|-------|\n`;
-      md += `| 🔴 Critical | ${summary.critical} |\n`;
-      md += `| 🟡 Warning | ${summary.warnings} |\n`;
-      md += `| 🔵 Info | ${summary.info} |\n\n`;
+      md += `| Critical | ${summary.critical} |\n`;
+      md += `| Warning | ${summary.warnings} |\n`;
+      md += `| Info | ${summary.info} |\n\n`;
 
       // Metadata
-      md += `## 📋 Log Information\n\n`;
+      md += `## Log Information\n\n`;
       md += `- **Operation:** ${metadata.operation || '-'}\n`;
       md += `- **Status:** ${metadata.status || '-'}\n`;
       md += `- **Duration:** ${metadata.duration || 0}ms\n`;
       md += `- **Log ID:** ${metadata.id || '-'}\n\n`;
 
       if (patterns.length === 0) {
-        md += `## ✅ No Issues Detected\n\n`;
+        md += `## No Issues Detected\n\n`;
         md += `Great job! No anti-patterns were found in this log.\n`;
         return md;
       }
 
       // Critical patterns
       if (criticalPatterns.length > 0) {
-        md += `## 🔴 Critical Issues (${criticalPatterns.length})\n\n`;
+        md += `## Critical Issues (${criticalPatterns.length})\n\n`;
         criticalPatterns.forEach((p, i) => {
           md += this._formatPatternMd(p, i + 1);
         });
@@ -932,7 +940,7 @@
 
       // Warning patterns
       if (warningPatterns.length > 0) {
-        md += `## 🟡 Warnings (${warningPatterns.length})\n\n`;
+        md += `## Warnings (${warningPatterns.length})\n\n`;
         warningPatterns.forEach((p, i) => {
           md += this._formatPatternMd(p, i + 1);
         });
@@ -940,7 +948,7 @@
 
       // Info patterns
       if (infoPatterns.length > 0) {
-        md += `## 🔵 Info (${infoPatterns.length})\n\n`;
+        md += `## Info (${infoPatterns.length})\n\n`;
         infoPatterns.forEach((p, i) => {
           md += this._formatPatternMd(p, i + 1);
         });
@@ -973,7 +981,7 @@
       }
       
       if (pattern.suggestion) {
-        md += `> 💡 **Suggestion:** ${pattern.suggestion}\n\n`;
+        md += `> **Suggestion:** ${pattern.suggestion}\n\n`;
       }
       
       return md;
@@ -1100,7 +1108,7 @@
       // Use base64 logos if available, fallback to text
       const logoHtml = this.logoIconBase64 && this.logoTextBase64
         ? `<img src="${this.logoIconBase64}" alt="FoxLog" class="logo-icon" /><img src="${this.logoTextBase64}" alt="FoxLog" class="logo-text" />`
-        : `<span class="logo-fallback">🦊 FoxLog</span>`;
+        : `<span class="logo-fallback">FoxLog</span>`;
 
       return `
         <!DOCTYPE html>
@@ -1239,7 +1247,7 @@
               border-radius: 12px;
               border: 2px solid #10b981;
             }
-            .healthy-icon { font-size: 48px; margin-bottom: 10px; }
+            .healthy-icon { display: flex; justify-content: center; margin-bottom: 10px; }
             .healthy-text { font-size: 20px; font-weight: 700; color: #059669; }
             @media print {
               body { padding: 20px; }
@@ -1266,21 +1274,21 @@
             <div class="stats">
               <div class="stat stat-critical">
                 <div class="stat-value">${summary.critical}</div>
-                <div class="stat-label">🔴 ${i18n.critical || 'Critical'}</div>
+                <div class="stat-label">${i18n.critical || 'Critical'}</div>
               </div>
               <div class="stat stat-warning">
                 <div class="stat-value">${summary.warnings}</div>
-                <div class="stat-label">🟡 ${i18n.warning || 'Warning'}</div>
+                <div class="stat-label">${i18n.warning || 'Warning'}</div>
               </div>
               <div class="stat stat-info">
                 <div class="stat-value">${summary.info}</div>
-                <div class="stat-label">🔵 ${i18n.info || 'Info'}</div>
+                <div class="stat-label">${i18n.info || 'Info'}</div>
               </div>
             </div>
           </div>
 
           <div class="metadata">
-            <h3>📋 ${i18n.logInfo || 'Log Information'}</h3>
+            <h3>${i18n.logInfo || 'Log Information'}</h3>
             <div class="metadata-grid">
               <div class="metadata-item">
                 <span class="metadata-label">${i18n.operation || 'Operation'}:</span>
@@ -1303,28 +1311,30 @@
 
           ${patterns.length === 0 ? `
             <div class="healthy-message">
-              <div class="healthy-icon">✅</div>
-              <div class="healthy-text">${i18n.codeHealthy || 'Code is healthy!'} ✨</div>
+              <div class="healthy-icon">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <div class="healthy-text">${i18n.codeHealthy || 'Code is healthy!'}</div>
               <p>${i18n.noAntiPatterns || 'No anti-patterns detected'}</p>
             </div>
           ` : `
             ${criticalPatterns.length > 0 ? `
               <div class="pattern-group group-critical">
-                <h3>🔴 ${i18n.critical || 'Critical'} (${criticalPatterns.length})</h3>
+                <h3>${i18n.critical || 'Critical'} (${criticalPatterns.length})</h3>
                 ${criticalPatterns.map(p => this._renderPdfPatternItem(p, 'critical')).join('')}
               </div>
             ` : ''}
-            
+
             ${warningPatterns.length > 0 ? `
               <div class="pattern-group group-warning">
-                <h3>🟡 ${i18n.warning || 'Warning'} (${warningPatterns.length})</h3>
+                <h3>${i18n.warning || 'Warning'} (${warningPatterns.length})</h3>
                 ${warningPatterns.map(p => this._renderPdfPatternItem(p, 'warning')).join('')}
               </div>
             ` : ''}
-            
+
             ${infoPatterns.length > 0 ? `
               <div class="pattern-group group-info">
-                <h3>🔵 ${i18n.info || 'Info'} (${infoPatterns.length})</h3>
+                <h3>${i18n.info || 'Info'} (${infoPatterns.length})</h3>
                 ${infoPatterns.map(p => this._renderPdfPatternItem(p, 'info')).join('')}
               </div>
             ` : ''}
@@ -1349,7 +1359,7 @@
           <div class="pattern-desc">${pattern.description}</div>
           ${pattern.query ? `<div class="pattern-query">${this._escapeHtml(pattern.query)}</div>` : ''}
           ${pattern.occurrences ? `<div style="color: #6b7280; font-size: 11px; margin-bottom: 8px;">${i18n.occurrences || 'Occurrences'}: ${pattern.occurrences}</div>` : ''}
-          <div class="pattern-suggestion">💡 ${pattern.suggestion}</div>
+          <div class="pattern-suggestion"><strong>${i18n.suggestion || 'Suggestion'}:</strong> ${pattern.suggestion}</div>
         </div>
       `;
     }
@@ -1428,7 +1438,7 @@
           
           callsContainer.innerHTML = `
             <div class="sf-empty-state">
-              <p style="color: #ef4444; font-weight: 600;">⚠️ ${i18n.error || 'Error'}</p>
+              <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
               <p style="color: #666;">${i18n.callTreeError || 'Unable to build the call tree'}</p>
               <p class="sf-hint">${error.message}</p>
             </div>
@@ -1632,7 +1642,7 @@
         logger.error('Diff computation failed', error);
         contentArea.innerHTML = `
           <div class="sf-empty-state">
-            <p style="color: #ef4444; font-weight: 600;">⚠️ ${i18n.error || 'Error'}</p>
+            <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
             <p style="color: #666;">${i18n.diffError || 'Diff computation error'}</p>
             <p class="sf-hint">${error.message}</p>
           </div>
@@ -1694,14 +1704,14 @@
       const errorsSection = parsedLog.stats.errors.length > 0
         ? `
           <div class="sf-summary-section sf-summary-errors">
-            <h4>❌ ${(i18n.errors || 'Errors')} (${parsedLog.stats.errors.length})</h4>
+            <h4>${window.FoxLog.icon('alert-circle', { size: 14 })} ${(i18n.errors || 'Errors')} (${parsedLog.stats.errors.length})</h4>
             <div class="sf-errors-list">
               ${parsedLog.stats.errors.map(error => `
                 <div class="sf-error-item">
                   <div class="sf-error-type">${error.type}</div>
                   <div class="sf-error-details">
                     <div class="sf-error-message">${error.exceptionType || 'Exception'}: ${error.message}</div>
-                    ${error.method ? `<div class="sf-error-location">📍 ${(i18n.location || 'Location')}: <code>${error.method}</code></div>` : ''}
+                    ${error.method ? `<div class="sf-error-location">${window.FoxLog.icon('map-pin', { size: 12 })} ${(i18n.location || 'Location')}: <code>${error.method}</code></div>` : ''}
                     <div class="sf-error-time">${error.timestamp}</div>
                   </div>
                 </div>
@@ -1714,7 +1724,7 @@
       return `
         <div class="sf-summary-container">
           <div class="sf-summary-section">
-            <h4>ℹ️ ${i18n.generalInfo || 'General Information'}</h4>
+            <h4>${window.FoxLog.icon('info', { size: 14 })} ${i18n.generalInfo || 'General Information'}</h4>
             <div class="sf-summary-grid">
               <div class="sf-summary-item">
                 <span class="sf-label">${i18n.operation || 'Operation'}</span>
@@ -1736,7 +1746,7 @@
           </div>
 
           <div class="sf-summary-section">
-            <h4>📊 ${i18n.salesforceLimits || 'Salesforce Limits'}</h4>
+            <h4>${window.FoxLog.icon('bar-chart', { size: 14 })} ${i18n.salesforceLimits || 'Salesforce Limits'}</h4>
             <div class="sf-limits-grid">
               ${this._renderLimitBar(i18n.limitSoql || 'SOQL Queries', parsedLog.stats.limits.soqlQueries, parsedLog.stats.limits.maxSoqlQueries, summary.limits.soql)}
               ${this._renderLimitBar(i18n.limitDml || 'DML Statements', parsedLog.stats.limits.dmlStatements, parsedLog.stats.limits.maxDmlStatements, summary.limits.dml)}
@@ -1748,7 +1758,7 @@
           ${errorsSection}
 
           <div class="sf-summary-section">
-            <h4>🔧 ${(i18n.methods || 'Methods')} (${summary.methods})</h4>
+            <h4>${window.FoxLog.icon('code', { size: 14 })} ${(i18n.methods || 'Methods')} (${summary.methods})</h4>
             <div class="sf-methods-list">
               ${parsedLog.stats.methods.slice(0, 10).map(m => `
                 <div class="sf-method-item">
@@ -1786,7 +1796,7 @@
      */
     _renderAnalysisBadge(results) {
       if (!results || results.totalCount === 0) {
-        return '<span class="sf-tab-badge sf-badge-success">✓</span>';
+        return `<span class="sf-tab-badge sf-badge-success">${window.FoxLog.icon('check', { size: 10 })}</span>`;
       }
       
       if (results.hasCritical) {
@@ -1809,7 +1819,7 @@
         return `
           <div class="sf-analysis-container">
             <div class="sf-empty-state">
-              <p>⚠️ ${i18n.analysisUnavailable || 'Analysis unavailable'}</p>
+              <p>${window.FoxLog.icon('alert-triangle')} ${i18n.analysisUnavailable || 'Analysis unavailable'}</p>
             </div>
           </div>
         `;
@@ -1834,15 +1844,15 @@
                   </svg>
                 </button>
                 <div class="sf-analysis-export-menu" style="display: none;">
-                  <button class="sf-export-menu-item" data-action="export-pdf">📄 ${i18n.exportPdfShort || 'PDF'}</button>
-                  <button class="sf-export-menu-item" data-action="export-md">📝 ${i18n.exportMdShort || 'MD'}</button>
-                  <button class="sf-export-menu-item" data-action="export-txt">📃 ${i18n.exportTxtShort || 'TXT'}</button>
+                  <button class="sf-export-menu-item" data-action="export-pdf">${window.FoxLog.icon('file')} ${i18n.exportPdfShort || 'PDF'}</button>
+                  <button class="sf-export-menu-item" data-action="export-md">${window.FoxLog.icon('file-text')} ${i18n.exportMdShort || 'MD'}</button>
+                  <button class="sf-export-menu-item" data-action="export-txt">${window.FoxLog.icon('file')} ${i18n.exportTxtShort || 'TXT'}</button>
                 </div>
               </div>
             </div>
             <div class="sf-analysis-healthy">
-              <div class="sf-healthy-icon">✅</div>
-              <div class="sf-healthy-text">${i18n.codeHealthy || 'Code is healthy!'} ✨</div>
+              <div class="sf-healthy-icon">${window.FoxLog.icon('check-circle', { size: 40 })}</div>
+              <div class="sf-healthy-text">${i18n.codeHealthy || 'Code is healthy!'}</div>
               <div class="sf-health-score-large sf-score-${scoreClass}">
                 ${i18n.healthScore || 'Health Score'}: <strong>${summary.score}/100</strong>
               </div>
@@ -1865,9 +1875,9 @@
               <span class="sf-score-value">${summary.score}<span class="sf-score-max">/100</span></span>
             </div>
             <div class="sf-analysis-summary">
-              ${summary.critical > 0 ? `<div class="sf-ap-stat sf-ap-critical">🔴 ${summary.critical} ${i18n.critical || 'Critical'}</div>` : ''}
-              ${summary.warnings > 0 ? `<div class="sf-ap-stat sf-ap-warning">🟡 ${summary.warnings} ${i18n.warning || 'Warning'}</div>` : ''}
-              ${summary.info > 0 ? `<div class="sf-ap-stat sf-ap-info">🔵 ${summary.info} ${i18n.info || 'Info'}</div>` : ''}
+              ${summary.critical > 0 ? `<div class="sf-ap-stat sf-ap-critical">${window.FoxLog.dot('critical')} ${summary.critical} ${i18n.critical || 'Critical'}</div>` : ''}
+              ${summary.warnings > 0 ? `<div class="sf-ap-stat sf-ap-warning">${window.FoxLog.dot('warning')} ${summary.warnings} ${i18n.warning || 'Warning'}</div>` : ''}
+              ${summary.info > 0 ? `<div class="sf-ap-stat sf-ap-info">${window.FoxLog.dot('info')} ${summary.info} ${i18n.info || 'Info'}</div>` : ''}
             </div>
             <div class="sf-analysis-export-dropdown">
               <button class="sf-call-tree-btn sf-analysis-export-btn" data-action="toggle-analysis-export" title="${i18n.exportReport || 'Export Report'}">
@@ -1876,31 +1886,31 @@
                 </svg>
               </button>
               <div class="sf-analysis-export-menu" style="display: none;">
-                <button class="sf-export-menu-item" data-action="export-pdf">📄 ${i18n.exportPdfShort || 'PDF'}</button>
-                <button class="sf-export-menu-item" data-action="export-md">📝 ${i18n.exportMdShort || 'MD'}</button>
-                <button class="sf-export-menu-item" data-action="export-txt">📃 ${i18n.exportTxtShort || 'TXT'}</button>
+                <button class="sf-export-menu-item" data-action="export-pdf">${window.FoxLog.icon('file')} ${i18n.exportPdfShort || 'PDF'}</button>
+                <button class="sf-export-menu-item" data-action="export-md">${window.FoxLog.icon('file-text')} ${i18n.exportMdShort || 'MD'}</button>
+                <button class="sf-export-menu-item" data-action="export-txt">${window.FoxLog.icon('file')} ${i18n.exportTxtShort || 'TXT'}</button>
               </div>
             </div>
           </div>
-          
+
           <div class="sf-analysis-patterns">
             ${criticalPatterns.length > 0 ? `
               <div class="sf-pattern-group sf-group-critical">
-                <h4 class="sf-group-title">🔴 ${i18n.critical || 'Critical'} (${criticalPatterns.length})</h4>
+                <h4 class="sf-group-title">${window.FoxLog.dot('critical')} ${i18n.critical || 'Critical'} (${criticalPatterns.length})</h4>
                 ${this._renderPatternGroup(criticalPatterns, 'critical')}
               </div>
             ` : ''}
-            
+
             ${warningPatterns.length > 0 ? `
               <div class="sf-pattern-group sf-group-warning">
-                <h4 class="sf-group-title">🟡 ${i18n.warning || 'Warning'} (${warningPatterns.length})</h4>
+                <h4 class="sf-group-title">${window.FoxLog.dot('warning')} ${i18n.warning || 'Warning'} (${warningPatterns.length})</h4>
                 ${this._renderPatternGroup(warningPatterns, 'warning')}
               </div>
             ` : ''}
-            
+
             ${infoPatterns.length > 0 ? `
               <div class="sf-pattern-group sf-group-info">
-                <h4 class="sf-group-title">🔵 ${i18n.info || 'Info'} (${infoPatterns.length})</h4>
+                <h4 class="sf-group-title">${window.FoxLog.dot('info')} ${i18n.info || 'Info'} (${infoPatterns.length})</h4>
                 ${this._renderPatternGroup(infoPatterns, 'info')}
               </div>
             ` : ''}
@@ -1924,13 +1934,13 @@
      * @private
      */
     _renderPatternItem(pattern) {
-      const severityIcons = {
-        critical: '🔴',
-        warning: '🟡',
-        info: '🔵'
+      const severityTones = {
+        critical: 'critical',
+        warning: 'warning',
+        info: 'info'
       };
-      
-      const icon = severityIcons[pattern.severity] || '⚪';
+
+      const icon = window.FoxLog.dot(severityTones[pattern.severity] || 'neutral');
       
       // Build details section
       let detailsHtml = '';
@@ -1944,7 +1954,7 @@
       }
       
       if (pattern.method) {
-        detailsHtml += `<div class="sf-ap-method">📍 <code>${this._escapeHtml(pattern.method)}</code></div>`;
+        detailsHtml += `<div class="sf-ap-method">${window.FoxLog.icon('map-pin', { size: 12 })} <code>${this._escapeHtml(pattern.method)}</code></div>`;
       }
       
       if (pattern.percent !== undefined) {
@@ -1997,12 +2007,12 @@
           <div class="sf-ap-description">${pattern.description}</div>
           ${detailsHtml}
           <div class="sf-ap-suggestion">
-            <span class="sf-ap-suggestion-label">💡 ${i18n.suggestion || 'Suggestion'}:</span>
+            <span class="sf-ap-suggestion-label">${window.FoxLog.icon('lightbulb', { size: 13 })} ${i18n.suggestion || 'Suggestion'}:</span>
             ${pattern.suggestion}
           </div>
           ${pattern.impact ? `
             <div class="sf-ap-impact">
-              <span class="sf-ap-impact-label">⚡ ${i18n.impact || 'Impact'}:</span>
+              <span class="sf-ap-impact-label">${window.FoxLog.icon('zap', { size: 13 })} ${i18n.impact || 'Impact'}:</span>
               ${pattern.impact}
             </div>
           ` : ''}

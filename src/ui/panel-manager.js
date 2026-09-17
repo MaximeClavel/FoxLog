@@ -69,17 +69,17 @@
         this.usersCache = users;
 
         if (users.length === 0) {
-          userSelect.innerHTML = `<option value="">❌ ${i18n.noUsersFound || 'No users found'}</option>`;
+          userSelect.innerHTML = `<option value="">${i18n.noUsersFound || 'No users found'}</option>`;
           this.hideLoading();
           logger.warn('No users found');
-          
+
           const container = this.panel.querySelector('#sf-logs-list');
           if (container) {
             container.innerHTML = `
               <div class="sf-empty-state">
-                <p style="color: #f59e0b; font-weight: 600;">⚠️ ${i18n.noUsersFound || 'No users found'}</p>
+                <p style="color: #f59e0b; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.noUsersFound || 'No users found'}</p>
                 <p style="color: #666;">${i18n.noApexLogs || 'No Apex logs found.'}</p>
-                <p class="sf-hint">💡 ${i18n.ensureYouHave || 'Make sure you have:'}</p>
+                <p class="sf-hint">${window.FoxLog.icon('lightbulb')} ${i18n.ensureYouHave || 'Make sure you have:'}</p>
                 <ul style="text-align: left; color: #666; font-size: 13px; margin: 12px 0;">
                   <li>${i18n.apexLogs || 'Apex logs'}</li>
                   <li>${i18n.activeTraceFlag || 'Or an active TraceFlag'}</li>
@@ -96,22 +96,13 @@
         const options = users.map(user => {
           const selected = user.id === currentUserId ? 'selected' : '';
           
-          // Determine emoji based on status
-          let emoji = '';
-          if (user.hasTraceFlag && user.logCount > 0) {
-            emoji = '🟢'; // Vert : TraceFlag actif + logs
-          } else if (user.hasTraceFlag) {
-            emoji = '🟡'; // Jaune : TraceFlag actif mais pas de logs
-          } else if (user.logCount > 0) {
-            emoji = '📋'; // Clipboard : Seulement des logs
-          } else {
-            emoji = '⚪'; // Cercle gris : Pas de TraceFlag ni de logs
-          }
-          
+          // Plain marker for quick scanning (native <option> text can't render icons/color)
+          const marker = (user.hasTraceFlag || user.logCount > 0) ? '●' : '○';
+
           // Add "(You)" indicator for current user
           const youIndicator = user.isCurrentUser ? ` (${i18n.you || 'You'})` : '';
           const escapeHtml = window.FoxLog.escapeHtml || ((s) => s);
-          let label = `${emoji} ${escapeHtml(user.name)}${youIndicator}`;
+          let label = `${marker} ${escapeHtml(user.name)}${youIndicator}`;
           
           if (user.hasTraceFlag) {
             label += ` [${escapeHtml(user.debugLevel)}]`;
@@ -143,7 +134,7 @@
         logger.success(`Loaded ${users.length} users`);
       } catch (error) {
         logger.error('Failed to load users', error);
-        userSelect.innerHTML = `<option value="">❌ ${i18n.loadingError || 'Error loading logs'}</option>`;
+        userSelect.innerHTML = `<option value="">${i18n.loadingError || 'Error loading logs'}</option>`;
         userSelect.disabled = true;
         this.hideLoading();
       }
@@ -167,7 +158,7 @@
       if (!statusContainer) return;
 
       try {
-        statusContainer.textContent = '⏳';
+        statusContainer.textContent = i18n.loading || 'Loading...';
         if (debugToggle) {
           debugToggle.disabled = true;
         }
@@ -189,7 +180,7 @@
         logger.log('Debug status updated:', status);
       } catch (error) {
         logger.error('Failed to update debug status', error);
-        statusContainer.textContent = '❌ ' + (i18n.error || 'Error');
+        statusContainer.textContent = i18n.error || 'Error';
         if (debugToggle) {
           debugToggle.disabled = false;
         }
@@ -199,13 +190,13 @@
     async toggleDebugLogs() {
       const userId = this.selectedUserId;
       if (!userId) {
-        this._showStatusMessage('⚠️ ' + (i18n.noUserSelected || 'No user selected'), 'warning');
+        this._showStatusMessage(i18n.noUserSelected || 'No user selected', 'warning');
         return;
       }
 
       const { debugLevelManager } = window.FoxLog;
       if (!debugLevelManager) {
-        this._showStatusMessage('❌ ' + (i18n.debugManagerUnavailable || 'Debug manager unavailable'), 'error');
+        this._showStatusMessage(i18n.debugManagerUnavailable || 'Debug manager unavailable', 'error');
         return;
       }
 
@@ -214,19 +205,19 @@
 
       try {
         if (debugToggle) debugToggle.disabled = true;
-        statusContainer.textContent = '⏳ ' + (i18n.processing || 'Processing...');
+        statusContainer.textContent = i18n.processing || 'Processing...';
         this.showLoading();
-        this._showStatusMessage('⏳ ' + (i18n.processing || 'Processing...'), 'info');
+        this._showStatusMessage(i18n.processing || 'Processing...', 'info');
 
         const result = await debugLevelManager.toggleDebugLogs(userId, 60);
 
         if (result.success) {
-          
+
           if (result.enabled) {
-            this._showStatusMessage('✅ ' + (i18n.debugLogsEnabled || 'Debug logs enabled (60min)'), 'success');
+            this._showStatusMessage(i18n.debugLogsEnabled || 'Debug logs enabled (60min)', 'success');
             logger.success('Debug logs enabled for user:', userId);
           } else {
-            this._showStatusMessage('✅ ' + (i18n.debugLogsDisabled || 'Debug logs disabled'), 'success');
+            this._showStatusMessage(i18n.debugLogsDisabled || 'Debug logs disabled', 'success');
             logger.success('Debug logs disabled for user:', userId);
           }
 
@@ -245,13 +236,13 @@
 
       } catch (error) {
         logger.error('Failed to toggle debug logs', error);
-        this._showStatusMessage('❌ ' + (i18n.errorPrefix || 'Error:') + ' ' + error.message, 'error');
-        
+        this._showStatusMessage((i18n.errorPrefix || 'Error:') + ' ' + error.message, 'error');
+
         if (debugToggle) {
           debugToggle.checked = !debugToggle.checked;
           debugToggle.disabled = false;
         }
-        statusContainer.textContent = '❌ ' + (i18n.error || 'Error');
+        statusContainer.textContent = i18n.error || 'Error';
       }
       this.hideLoading();
     }
@@ -440,7 +431,7 @@
       if (container) {
         container.innerHTML = `
           <div class="sf-empty-state">
-            <p style="color: #ef4444; font-weight: 600;">⚠️ ${i18n.error || 'Error'}</p>
+            <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
             <p style="color: #666;">${message}</p>
           </div>
         `;
@@ -468,8 +459,8 @@
         </div>
         
         <div class="sf-panel-tabs">
-          <button class="sf-panel-tab-btn active" data-panel-tab="salesforce">&#9729;&#65039; ${i18n.tabSalesforce || 'Salesforce'}</button>
-          <button class="sf-panel-tab-btn" data-panel-tab="import">&#128196; ${i18n.tabImport || 'Files'}</button>
+          <button class="sf-panel-tab-btn active" data-panel-tab="salesforce">${window.FoxLog.icon('database')} ${i18n.tabSalesforce || 'Salesforce'}</button>
+          <button class="sf-panel-tab-btn" data-panel-tab="import">${window.FoxLog.icon('folder')} ${i18n.tabImport || 'Files'}</button>
         </div>
         
         <div id="sf-tab-salesforce" class="sf-panel-tab-content active">
@@ -478,7 +469,7 @@
             <span id="sf-status-text">${i18n.ready || 'Ready'}</span>
           </div>
           <div class="sf-panel-filters">
-            <select id="sf-user-select" class="sf-user-picklist" title="🟢 = TraceFlag + logs | 🟡 = TraceFlag | 📋 = Logs | ⚪ = No logs">
+            <select id="sf-user-select" class="sf-user-picklist" title="${i18n.userPicklistLegend || '● = TraceFlag or logs available | ○ = No activity'}">
               <option value="">${i18n.loading || 'Loading...'}</option>
             </select>
           </div>
@@ -490,13 +481,13 @@
               <span class="sf-debug-toggle-text">${i18n.debugLogs || 'Debug Logs'}</span>
             </label>
             <span id="sf-debug-status" class="sf-debug-status">
-              ⚪ ${i18n.unknown || 'Unknown'}
+              ● ${i18n.unknown || 'Unknown'}
             </span>
           </div>
           
           <div class="sf-panel-content" id="sf-logs-list">
             <div class="sf-empty-state">
-              <p>👋 ${i18n.welcome || 'Welcome to FoxLog!'}</p>
+              <p>${i18n.welcome || 'Welcome to FoxLog!'}</p>
               <p class="sf-hint">${i18n.selectUser || 'Select a user'}</p>
             </div>
           </div>
@@ -504,7 +495,7 @@
         
         <div id="sf-tab-import" class="sf-panel-tab-content">
           <div class="sf-import-zone" id="sf-import-dropzone">
-            <div class="sf-import-zone-icon">📂</div>
+            <div class="sf-import-zone-icon">${window.FoxLog.icon('folder', { size: 32, className: 'foxlog-icon--muted' })}</div>
             <div class="sf-import-zone-text">
               <strong>${i18n.importFile || 'Import a file'}</strong><br>
               ${i18n.importDropOrClick || 'Drag & drop a .txt or .log file here, or click to browse'}
@@ -523,12 +514,12 @@
             <div class="sf-import-history-header">
               <span class="sf-import-history-title">${i18n.importHistory || 'Import History'}</span>
               <button class="sf-import-delete-all-btn" id="sf-import-delete-all" style="display:none;">
-                🗑️ ${i18n.importDeleteAll || 'Delete all'}
+                ${window.FoxLog.icon('trash', { size: 12 })} ${i18n.importDeleteAll || 'Delete all'}
               </button>
             </div>
             <div id="sf-import-list">
               <div class="sf-import-empty">
-                <p>📭 ${i18n.importNoHistory || 'No imported logs'}</p>
+                <p>${window.FoxLog.icon('inbox')} ${i18n.importNoHistory || 'No imported logs'}</p>
                 <p class="sf-hint">${i18n.importNoHistoryHint || 'Import a log file to get started'}</p>
               </div>
             </div>
@@ -672,7 +663,7 @@
       
       if (selectedUser?.hasTraceFlag && selectedUser?.logCount === 0) {
         const traceMessage = i18n.traceFlagActive || 'TraceFlag active but no logs. Execute Apex code.';
-        hint = `🟡 ${traceMessage}`;
+        hint = `${window.FoxLog.icon('info', { className: 'foxlog-icon--warning' })} ${traceMessage}`;
       }
       
       container.innerHTML = `
@@ -788,13 +779,13 @@
       // Validate file type
       const ext = '.' + file.name.split('.').pop().toLowerCase();
       if (!validExtensions.includes(ext)) {
-        this._showStatusMessage('⚠️ ' + (i18n.importInvalidType || 'Invalid file type. Use .txt or .log'), 'warning');
+        this._showStatusMessage(i18n.importInvalidType || 'Invalid file type. Use .txt or .log', 'warning');
         return;
       }
       
       // Validate file size
       if (file.size > MAX_FILE_SIZE) {
-        this._showStatusMessage('⚠️ ' + (i18n.importFileTooLarge || 'File too large (max 5 MB)'), 'warning');
+        this._showStatusMessage(i18n.importFileTooLarge || 'File too large (max 5 MB)', 'warning');
         return;
       }
       
@@ -817,12 +808,12 @@
           detail: { importId: importEntry.id }
         }));
         
-        this._showStatusMessage('✅ ' + (i18n.importSuccess || 'Log imported successfully!'), 'success');
+        this._showStatusMessage(i18n.importSuccess || 'Log imported successfully!', 'success');
         logger.success(`File imported: ${file.name} (${this._formatSize(file.size)})`);
       };
       
       reader.onerror = () => {
-        this._showStatusMessage('❌ ' + (i18n.importError || 'Import error'), 'error');
+        this._showStatusMessage(i18n.importError || 'Import error', 'error');
         logger.error('Failed to read imported file');
       };
       
@@ -881,7 +872,7 @@
       if (imports.length === 0) {
         listContainer.innerHTML = `
           <div class="sf-import-empty">
-            <p>📭 ${i18n.importNoHistory || 'No imported logs'}</p>
+            <p>${window.FoxLog.icon('inbox')} ${i18n.importNoHistory || 'No imported logs'}</p>
             <p class="sf-hint">${i18n.importNoHistoryHint || 'Import a log file to get started'}</p>
           </div>
         `;
@@ -900,10 +891,10 @@
         return `
           <div class="sf-import-item" data-import-id="${escapeHtml(imp.id)}">
             <div class="sf-import-item-info">
-              <div class="sf-import-item-name">📄 ${escapeHtml(imp.filename)}</div>
+              <div class="sf-import-item-name">${window.FoxLog.icon('file', { className: 'foxlog-icon--muted' })} ${escapeHtml(imp.filename)}</div>
               <div class="sf-import-item-meta">${dateStr} ${timeStr} · ${this._formatSize(imp.size)}</div>
             </div>
-            <button class="sf-import-item-delete" data-import-id="${escapeHtml(imp.id)}" title="${i18n.importDelete || 'Delete'}">✕</button>
+            <button class="sf-import-item-delete" data-import-id="${escapeHtml(imp.id)}" title="${i18n.importDelete || 'Delete'}">${window.FoxLog.icon('x')}</button>
           </div>
         `;
       }).join('');

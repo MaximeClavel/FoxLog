@@ -182,10 +182,10 @@
               </button>
               <div class="sf-export-menu" style="display: none;">
                 <button class="sf-export-menu-item" data-action="export-txt">
-                  📄 ${i18n.exportTxt || 'Export (.txt)'}
+                  ${window.FoxLog.icon('file')} ${i18n.exportTxt || 'Export (.txt)'}
                 </button>
                 <button class="sf-export-menu-item" data-action="export-md">
-                  📝 ${i18n.exportMd || 'Export (.md)'}
+                  ${window.FoxLog.icon('file-text')} ${i18n.exportMd || 'Export (.md)'}
                 </button>
               </div>
             </div>
@@ -196,27 +196,27 @@
           <span class="sf-filters-label">${i18n.filterBy || 'Filter'}:</span>
           <div class="sf-filter-toggles">
             <button class="sf-filter-toggle sf-filter-methods sf-filter-active" data-filter="methods" title="${i18n.filterMethods || 'Methods'}">
-              <span class="sf-filter-icon">→</span>
+              <span class="sf-filter-icon">${window.FoxLog.icon('code')}</span>
               <span class="sf-filter-text">${i18n.methods || 'Methods'}</span>
             </button>
             <button class="sf-filter-toggle sf-filter-database sf-filter-active" data-filter="database" title="${i18n.filterDatabase || 'Database (SOQL/DML)'}">
-              <span class="sf-filter-icon">🔍</span>
+              <span class="sf-filter-icon">${window.FoxLog.icon('database')}</span>
               <span class="sf-filter-text">${i18n.database || 'Database'}</span>
             </button>
             <button class="sf-filter-toggle sf-filter-debug sf-filter-active" data-filter="debug" title="${i18n.filterDebug || 'Debug statements'}">
-              <span class="sf-filter-icon">🐛</span>
+              <span class="sf-filter-icon">${window.FoxLog.icon('bug')}</span>
               <span class="sf-filter-text">${i18n.debug || 'Debug'}</span>
             </button>
             <button class="sf-filter-toggle sf-filter-errors sf-filter-active" data-filter="errors" title="${i18n.filterErrors || 'Errors & Exceptions'}">
-              <span class="sf-filter-icon">❌</span>
+              <span class="sf-filter-icon">${window.FoxLog.icon('alert-circle')}</span>
               <span class="sf-filter-text">${i18n.errors || 'Errors'}</span>
             </button>
             <button class="sf-filter-toggle sf-filter-variables sf-filter-active" data-filter="variables" title="${i18n.filterVariables || 'Variables'}">
-              <span class="sf-filter-icon">📝</span>
+              <span class="sf-filter-icon">${window.FoxLog.icon('file-text')}</span>
               <span class="sf-filter-text">${i18n.variables || 'Variables'}</span>
             </button>
             <button class="sf-filter-toggle sf-filter-system sf-filter-active" data-filter="system" title="${i18n.filterSystem || 'System events'}">
-              <span class="sf-filter-icon">⚙️</span>
+              <span class="sf-filter-icon">${window.FoxLog.icon('settings')}</span>
               <span class="sf-filter-text">${i18n.system || 'System'}</span>
             </button>
           </div>
@@ -243,7 +243,7 @@
                 <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
               </svg>
             </button>
-            <span class="sf-top-nodes-title">⚡ ${i18n.topSlowestNodes || 'Top 5 Slowest Nodes'}</span>
+            <span class="sf-top-nodes-title">${window.FoxLog.icon('zap')} ${i18n.topSlowestNodes || 'Top 5 Slowest Nodes'}</span>
           </div>
           <div class="sf-top-nodes-list" style="${isCollapsed ? 'display: none;' : ''}">
             ${this.callTree.metadata.topSlowNodes.map((node, i) => `
@@ -821,16 +821,16 @@
      * @private
      */
     _getNodeIcon(type) {
-      const icons = {
-        'ROOT': '📦',
-        'METHOD_ENTRY': '→',
-        'SOQL_EXECUTE_BEGIN': '🔍',
-        'DML_BEGIN': '💾',
-        'EXCEPTION_THROWN': '⚠️',
-        'USER_DEBUG': '🐛',
-        'CODE_UNIT_STARTED': '📦'
+      const iconNames = {
+        'ROOT': 'package',
+        'METHOD_ENTRY': 'code',
+        'SOQL_EXECUTE_BEGIN': 'database',
+        'DML_BEGIN': 'database',
+        'EXCEPTION_THROWN': 'alert-triangle',
+        'USER_DEBUG': 'bug',
+        'CODE_UNIT_STARTED': 'package'
       };
-      return icons[type] || '•';
+      return window.FoxLog.icon(iconNames[type] || 'info', { size: 16 });
     }
 
     /**
@@ -903,15 +903,15 @@
       // Build node line
       const connector = isLast ? '└── ' : '├── ';
       const durationStr = node.duration > 0 ? ` (${node.duration.toFixed(2)}ms)` : '';
-      const errorMark = node.hasError ? ' ❌' : '';
+      const errorMark = node.hasError ? ' [ERROR]' : '';
       const soqlMark = node.soqlCount > 0 ? ` [${node.soqlCount} SOQL]` : '';
       const dmlMark = node.dmlCount > 0 ? ` [${node.dmlCount} DML]` : '';
-      
+
       let nodeLine;
       if (format === 'md') {
         // Markdown format with code styling
         const badges = [];
-        if (node.hasError) badges.push('❌');
+        if (node.hasError) badges.push('`ERROR`');
         if (node.soqlCount > 0) badges.push(`\`${node.soqlCount} SOQL\``);
         if (node.dmlCount > 0) badges.push(`\`${node.dmlCount} DML\``);
         const badgeStr = badges.length > 0 ? ' ' + badges.join(' ') : '';
@@ -978,12 +978,12 @@
         
         // Show toast via custom event
         document.dispatchEvent(new CustomEvent('foxlog:showToast', {
-          detail: { message: `✅ ${i18n.toastExportSuccess || 'Exported successfully!'}` }
+          detail: { message: i18n.toastExportSuccess || 'Exported successfully!' }
         }));
       } catch (error) {
         logger.error('Export failed', error);
         document.dispatchEvent(new CustomEvent('foxlog:showToast', {
-          detail: { message: `❌ ${i18n.toastExportError || 'Export error'}`, type: 'error' }
+          detail: { message: i18n.toastExportError || 'Export error', type: 'error' }
         }));
       }
     }
@@ -995,17 +995,17 @@
     _buildTextReport(metadata, topNodes, date) {
       const lines = [
         '╔══════════════════════════════════════════════════════════════════╗',
-        '║                    🦊 FoxLog - Performance Report                ║',
+        '║                     FoxLog - Performance Report                  ║',
         '╚══════════════════════════════════════════════════════════════════╝',
         '',
-        `📅 ${i18n.exportedOn || 'Exported on'}: ${date}`,
-        `📋 ${i18n.operation || 'Operation'}: ${this.parsedLog.metadata.operation || 'N/A'}`,
-        `⏱️  ${i18n.totalDuration || 'Total Duration'}: ${metadata.totalDuration?.toFixed(2) || 0}ms`,
-        `📊 ${i18n.totalNodes || 'Total Nodes'}: ${metadata.totalNodes || 0}`,
-        `❌ ${i18n.totalErrors || 'Errors'}: ${metadata.errorCount || 0}`,
+        `${i18n.exportedOn || 'Exported on'}: ${date}`,
+        `${i18n.operation || 'Operation'}: ${this.parsedLog.metadata.operation || 'N/A'}`,
+        `${i18n.totalDuration || 'Total Duration'}: ${metadata.totalDuration?.toFixed(2) || 0}ms`,
+        `${i18n.totalNodes || 'Total Nodes'}: ${metadata.totalNodes || 0}`,
+        `${i18n.totalErrors || 'Errors'}: ${metadata.errorCount || 0}`,
         '',
         '─'.repeat(70),
-        `⚡ ${i18n.topSlowestNodes || 'TOP 5 SLOWEST NODES'}`,
+        i18n.topSlowestNodes || 'TOP 5 SLOWEST NODES',
         '─'.repeat(70),
         ''
       ];
@@ -1023,7 +1023,7 @@
       
       // Add call tree
       lines.push('─'.repeat(70));
-      lines.push(`📂 ${i18n.callTree || 'CALL TREE'}`);
+      lines.push(i18n.callTree || 'CALL TREE');
       lines.push('─'.repeat(70));
       lines.push('');
       
@@ -1044,9 +1044,9 @@
      */
     _buildMarkdownReport(metadata, topNodes, date) {
       const lines = [
-        '# 🦊 FoxLog - Performance Report',
+        '# FoxLog - Performance Report',
         '',
-        '## 📋 Summary',
+        '## Summary',
         '',
         '| Metric | Value |',
         '|--------|-------|',
@@ -1056,7 +1056,7 @@
         `| ${i18n.totalNodes || 'Total Nodes'} | ${metadata.totalNodes || 0} |`,
         `| ${i18n.totalErrors || 'Errors'} | ${metadata.errorCount || 0} |`,
         '',
-        `## ⚡ ${i18n.topSlowestNodes || 'Top 5 Slowest Nodes'}`,
+        `## ${i18n.topSlowestNodes || 'Top 5 Slowest Nodes'}`,
         ''
       ];
       
@@ -1072,7 +1072,7 @@
       
       // Add call tree
       lines.push('');
-      lines.push(`## 📂 ${i18n.callTree || 'Call Tree'}`);
+      lines.push(`## ${i18n.callTree || 'Call Tree'}`);
       lines.push('');
       lines.push('```');
       
