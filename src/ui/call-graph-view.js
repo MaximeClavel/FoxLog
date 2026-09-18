@@ -273,8 +273,13 @@
           v.slot = leafCounter++;
         } else {
           v.children.forEach(assignSlot);
-          const slots = v.children.map(c => c.slot);
-          v.slot = (Math.min(...slots) + Math.max(...slots)) / 2;
+          let minSlot = Infinity;
+          let maxSlot = -Infinity;
+          v.children.forEach(c => {
+            if (c.slot < minSlot) minSlot = c.slot;
+            if (c.slot > maxSlot) maxSlot = c.slot;
+          });
+          v.slot = (minSlot + maxSlot) / 2;
         }
       };
       assignSlot(vroot);
@@ -292,8 +297,14 @@
       };
       walk(vroot);
 
-      const maxX = Math.max(...nodesFlat.map(n => n.x)) + this.NODE_WIDTH + this.PADDING;
-      const maxY = Math.max(...nodesFlat.map(n => n.y)) + this.NODE_HEIGHT + this.PADDING;
+      let maxNodeX = 0;
+      let maxNodeY = 0;
+      nodesFlat.forEach(n => {
+        if (n.x > maxNodeX) maxNodeX = n.x;
+        if (n.y > maxNodeY) maxNodeY = n.y;
+      });
+      const maxX = maxNodeX + this.NODE_WIDTH + this.PADDING;
+      const maxY = maxNodeY + this.NODE_HEIGHT + this.PADDING;
 
       this.lastLayout = { nodesFlat, edgesFlat, width: maxX, height: maxY };
 
@@ -550,9 +561,23 @@
     _toggleNode(nodeId) {
       if (this.expandedNodes.has(nodeId)) {
         this.expandedNodes.delete(nodeId);
-      } else {
-        this.expandedNodes.add(nodeId);
+        this._layoutAndRender();
+        return;
       }
+
+      // A node with an extreme fan-out (e.g. one debug/child call per record
+      // in a large batch) would reveal thousands of siblings in one shot,
+      // which is both unreadable and heavy to lay out. Cap it like _expandAll.
+      const node = this.nodeById.get(nodeId);
+      const childCount = node ? node.children.filter(c => this._passesFilter(c)).length : 0;
+      if (childCount > this.EXPAND_ALL_CAP) {
+        document.dispatchEvent(new CustomEvent('foxlog:showToast', {
+          detail: { message: i18n.graphTooLargeWarning || 'Large tree: expand depth capped to keep things smooth', type: 'warning' }
+        }));
+        return;
+      }
+
+      this.expandedNodes.add(nodeId);
       this._layoutAndRender();
     }
 

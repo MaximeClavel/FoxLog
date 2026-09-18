@@ -274,6 +274,10 @@
       // Reset Flow/Graph tab (will be rebuilt on click, or immediately if active)
       const graphTab = modal.querySelector('#tab-graph');
       if (graphTab) {
+        if (modal._foxlogGraphView) {
+          modal._foxlogGraphView.destroy();
+          modal._foxlogGraphView = null;
+        }
         graphTab.innerHTML = `
           <div class="sf-calls-loading">
             <div class="sf-spinner"></div>
@@ -605,11 +609,15 @@
      */
     close() {
       if (this.currentModal) {
+        if (this.currentModal._foxlogGraphView) {
+          this.currentModal._foxlogGraphView.destroy();
+          this.currentModal._foxlogGraphView = null;
+        }
         this.currentModal.remove();
         this.currentModal = null;
         this.logger.log('Modal closed');
       }
-      
+
       // Reset navigation state
       this.isLoadingNavigation = false;
     }
@@ -1422,6 +1430,12 @@
       const callsBtn = modal.querySelector('[data-tab="calls"]');
       if (!callsBtn) return;
 
+      // Bump the generation token so a stale build from a previous log
+      // navigation can detect it's no longer current and bail out instead of
+      // clobbering this log's content (same DOM node is reused across logs).
+      const generation = (modal._foxlogCallsGeneration || 0) + 1;
+      modal._foxlogCallsGeneration = generation;
+
       let callTreeBuilt = false;
 
       const buildCallTree = async () => {
@@ -1443,6 +1457,7 @@
 
           // Construire l'arbre (via Web Worker)
           const callTree = await callTreeBuilder.buildTree(parsedLog);
+          if (modal._foxlogCallsGeneration !== generation) return; // stale: navigated to another log meanwhile
 
           // Create the view
           callsContainer.innerHTML = '<div class="sf-call-tree-container"></div>';
@@ -1455,6 +1470,7 @@
         } catch (error) {
           callTreeBuilt = false; // allow a retry on the next click/navigation
           this.logger.error('Failed to build call tree', error);
+          if (modal._foxlogCallsGeneration !== generation) return; // stale error, another build is in charge now
 
           callsContainer.innerHTML = `
             <div class="sf-empty-state">
@@ -1497,6 +1513,12 @@
       const graphBtn = modal.querySelector('[data-tab="graph"]');
       if (!graphBtn) return;
 
+      // Bump the generation token so a stale build from a previous log
+      // navigation can detect it's no longer current and bail out instead of
+      // clobbering this log's content (same DOM node is reused across logs).
+      const generation = (modal._foxlogGraphGeneration || 0) + 1;
+      modal._foxlogGraphGeneration = generation;
+
       let graphBuilt = false;
 
       const buildGraph = async () => {
@@ -1517,6 +1539,7 @@
 
           // Reuses the same CallTree already built for the Calls tab (cached by logId)
           const callTree = await callTreeBuilder.buildTree(parsedLog);
+          if (modal._foxlogGraphGeneration !== generation) return; // stale: navigated to another log meanwhile
 
           graphContainer.innerHTML = '<div class="sf-call-graph-container"></div>';
           const container = graphContainer.querySelector('.sf-call-graph-container');
@@ -1524,10 +1547,23 @@
           const graphView = new CallGraphView(container, callTree, parsedLog);
           await graphView.init();
 
+          if (modal._foxlogGraphGeneration !== generation) {
+            // Navigated away again while init() was still rendering: tear
+            // down immediately instead of leaking its window listeners.
+            graphView.destroy();
+            return;
+          }
+
+          if (modal._foxlogGraphView) {
+            modal._foxlogGraphView.destroy();
+          }
+          modal._foxlogGraphView = graphView;
+
           this.logger.success('CallGraphView initialized');
         } catch (error) {
           graphBuilt = false; // allow a retry on the next click/navigation
           this.logger.error('Failed to build call graph', error);
+          if (modal._foxlogGraphGeneration !== generation) return; // stale error, another build is in charge now
 
           graphContainer.innerHTML = `
             <div class="sf-empty-state">
