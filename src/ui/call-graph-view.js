@@ -580,7 +580,7 @@
 
       this.expandedNodes.add(nodeId);
       this._layoutAndRender();
-      this._fitView();
+      this._fitViewToNode(nodeId);
     }
 
     _expandAll() {
@@ -735,6 +735,45 @@
       this.transform.scale = scale;
       this.transform.x = (rect.width - width * scale) / 2;
       this.transform.y = (rect.height - height * scale) / 2;
+      this._applyTransform();
+    }
+
+    /**
+     * Fit the view to a single node and its currently visible descendants,
+     * instead of the whole tree (used after expanding a card).
+     * @private
+     */
+    _fitViewToNode(nodeId) {
+      if (!this.lastLayout || !this.viewportEl) return;
+      const v = this.lastLayout.nodesFlat.find(n => n.id === nodeId);
+      if (!v) return;
+
+      let minX = v.x;
+      let maxX = v.x + this.NODE_WIDTH;
+      let minY = v.y;
+      let maxY = v.y + this.NODE_HEIGHT;
+      const walk = (n) => {
+        if (n.x < minX) minX = n.x;
+        if (n.x + this.NODE_WIDTH > maxX) maxX = n.x + this.NODE_WIDTH;
+        if (n.y < minY) minY = n.y;
+        if (n.y + this.NODE_HEIGHT > maxY) maxY = n.y + this.NODE_HEIGHT;
+        n.children.forEach(walk);
+      };
+      walk(v);
+
+      const rect = this.viewportEl.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+
+      const boxWidth = (maxX - minX) + this.PADDING * 2;
+      const boxHeight = (maxY - minY) + this.PADDING * 2;
+      const scale = Math.max(0.15, Math.min(2.5, Math.min(rect.width / boxWidth, rect.height / boxHeight, 1.1)));
+
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+
+      this.transform.scale = scale;
+      this.transform.x = rect.width / 2 - cx * scale;
+      this.transform.y = rect.height / 2 - cy * scale;
       this._applyTransform();
     }
 
