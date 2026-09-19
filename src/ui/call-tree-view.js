@@ -195,27 +195,27 @@
         <div class="sf-call-tree-filters">
           <span class="sf-filters-label">${i18n.filterBy || 'Filter'}:</span>
           <div class="sf-filter-toggles">
-            <button class="sf-filter-toggle sf-filter-methods sf-filter-active" data-filter="methods" title="${i18n.filterMethods || 'Methods'}">
+            <button class="sf-filter-toggle sf-filter-methods sf-filter-active" aria-pressed="true" data-filter="methods" title="${i18n.filterMethods || 'Methods'}">
               <span class="sf-filter-icon">${window.FoxLog.icon('code')}</span>
               <span class="sf-filter-text">${i18n.methods || 'Methods'}</span>
             </button>
-            <button class="sf-filter-toggle sf-filter-database sf-filter-active" data-filter="database" title="${i18n.filterDatabase || 'Database (SOQL/DML)'}">
+            <button class="sf-filter-toggle sf-filter-database sf-filter-active" aria-pressed="true" data-filter="database" title="${i18n.filterDatabase || 'Database (SOQL/DML)'}">
               <span class="sf-filter-icon">${window.FoxLog.icon('database')}</span>
               <span class="sf-filter-text">${i18n.database || 'Database'}</span>
             </button>
-            <button class="sf-filter-toggle sf-filter-debug sf-filter-active" data-filter="debug" title="${i18n.filterDebug || 'Debug statements'}">
+            <button class="sf-filter-toggle sf-filter-debug sf-filter-active" aria-pressed="true" data-filter="debug" title="${i18n.filterDebug || 'Debug statements'}">
               <span class="sf-filter-icon">${window.FoxLog.icon('bug')}</span>
               <span class="sf-filter-text">${i18n.debug || 'Debug'}</span>
             </button>
-            <button class="sf-filter-toggle sf-filter-errors sf-filter-active" data-filter="errors" title="${i18n.filterErrors || 'Errors & Exceptions'}">
+            <button class="sf-filter-toggle sf-filter-errors sf-filter-active" aria-pressed="true" data-filter="errors" title="${i18n.filterErrors || 'Errors & Exceptions'}">
               <span class="sf-filter-icon">${window.FoxLog.icon('alert-circle')}</span>
               <span class="sf-filter-text">${i18n.errors || 'Errors'}</span>
             </button>
-            <button class="sf-filter-toggle sf-filter-variables sf-filter-active" data-filter="variables" title="${i18n.filterVariables || 'Variables'}">
+            <button class="sf-filter-toggle sf-filter-variables sf-filter-active" aria-pressed="true" data-filter="variables" title="${i18n.filterVariables || 'Variables'}">
               <span class="sf-filter-icon">${window.FoxLog.icon('file-text')}</span>
               <span class="sf-filter-text">${i18n.variables || 'Variables'}</span>
             </button>
-            <button class="sf-filter-toggle sf-filter-system sf-filter-active" data-filter="system" title="${i18n.filterSystem || 'System events'}">
+            <button class="sf-filter-toggle sf-filter-system sf-filter-active" aria-pressed="true" data-filter="system" title="${i18n.filterSystem || 'System events'}">
               <span class="sf-filter-icon">${window.FoxLog.icon('settings')}</span>
               <span class="sf-filter-text">${i18n.system || 'System'}</span>
             </button>
@@ -472,7 +472,7 @@
       
       div.innerHTML = `
         ${hasChildren ? `
-          <button class="sf-node-toggle" data-node-id="${node.id}">
+          <button type="button" class="sf-node-toggle" data-node-id="${node.id}" aria-label="${isExpanded ? (i18n.collapseNode || 'Collapse') : (i18n.expandNode || 'Expand')}" aria-expanded="${isExpanded}">
             <svg viewBox="0 0 20 20" fill="currentColor" class="sf-toggle-icon ${isExpanded ? 'sf-expanded' : ''}">
               <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
             </svg>
@@ -674,8 +674,10 @@
         if (filterBtn) {
           if (this.typeFilters[filterType]) {
             filterBtn.classList.add('sf-filter-active');
+            filterBtn.setAttribute('aria-pressed', 'true');
           } else {
             filterBtn.classList.remove('sf-filter-active');
+            filterBtn.setAttribute('aria-pressed', 'false');
           }
         }
         

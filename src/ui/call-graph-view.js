@@ -168,23 +168,23 @@
               <div class="sf-call-tree-filters sf-graph-filters">
                 <span class="sf-filters-label">${i18n.filterBy || 'Filter'}:</span>
                 <div class="sf-filter-toggles">
-                  <button class="sf-filter-toggle sf-filter-active" data-filter="automation" title="${i18n.filterTriggersFlows || 'Triggers & Flows'}">
+                  <button class="sf-filter-toggle sf-filter-active" aria-pressed="true" data-filter="automation" title="${i18n.filterTriggersFlows || 'Triggers & Flows'}">
                     <span class="sf-filter-icon">${window.FoxLog.icon('zap')}</span>
                     <span class="sf-filter-text">${i18n.filterTriggersFlows || 'Triggers & Flows'}</span>
                   </button>
-                  <button class="sf-filter-toggle sf-filter-active" data-filter="apex" title="${i18n.filterApex || 'Apex'}">
+                  <button class="sf-filter-toggle sf-filter-active" aria-pressed="true" data-filter="apex" title="${i18n.filterApex || 'Apex'}">
                     <span class="sf-filter-icon">${window.FoxLog.icon('code')}</span>
                     <span class="sf-filter-text">${i18n.filterApex || 'Apex'}</span>
                   </button>
-                  <button class="sf-filter-toggle sf-filter-active" data-filter="database" title="${i18n.filterDatabase || 'Database'}">
+                  <button class="sf-filter-toggle sf-filter-active" aria-pressed="true" data-filter="database" title="${i18n.filterDatabase || 'Database'}">
                     <span class="sf-filter-icon">${window.FoxLog.icon('database')}</span>
                     <span class="sf-filter-text">${i18n.database || 'Database'}</span>
                   </button>
-                  <button class="sf-filter-toggle sf-filter-active" data-filter="errors" title="${i18n.filterErrors || 'Errors'}">
+                  <button class="sf-filter-toggle sf-filter-active" aria-pressed="true" data-filter="errors" title="${i18n.filterErrors || 'Errors'}">
                     <span class="sf-filter-icon">${window.FoxLog.icon('alert-circle')}</span>
                     <span class="sf-filter-text">${i18n.errors || 'Errors'}</span>
                   </button>
-                  <button class="sf-filter-toggle" data-filter="debug" title="${i18n.filterDebug || 'Debug'}">
+                  <button class="sf-filter-toggle" aria-pressed="false" data-filter="debug" title="${i18n.filterDebug || 'Debug'}">
                     <span class="sf-filter-icon">${window.FoxLog.icon('bug')}</span>
                     <span class="sf-filter-text">${i18n.debug || 'Debug'}</span>
                   </button>
@@ -616,7 +616,9 @@
     _syncFilterChipsUI() {
       Object.keys(this.groupFilters).forEach(group => {
         const btn = this.container.querySelector(`[data-filter="${group}"]`);
-        if (btn) btn.classList.toggle('sf-filter-active', this.groupFilters[group]);
+        if (!btn) return;
+        btn.classList.toggle('sf-filter-active', this.groupFilters[group]);
+        btn.setAttribute('aria-pressed', String(this.groupFilters[group]));
       });
     }
 
