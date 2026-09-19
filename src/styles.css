@@ -473,10 +473,7 @@
 }
 
 .sf-modal-header {
-  padding: 16px 20px;
-  height: 40px !important;
-  min-height: 40px !important;
-  max-height: 40px !important;
+  padding: 8px 20px;
   border-bottom: 1px solid #e0e0e0;
   display: flex;
   justify-content: space-between;

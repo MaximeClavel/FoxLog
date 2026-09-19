@@ -154,6 +154,7 @@
               ${window.FoxLog.icon('activity', { size: 13 })} ${i18n.analysis || 'Analysis'}
               ${this._renderAnalysisBadge(antiPatternResults)}
             </button>
+            <button class="sf-tab-btn" data-tab="graph">${i18n.flow || 'Flow'}</button>
             <button class="sf-tab-btn" data-tab="calls">${i18n.calls || 'Calls'}</button>
             <button class="sf-tab-btn" data-tab="raw">${i18n.rawLog || 'Raw Log'}</button>
             <button class="sf-tab-btn" data-tab="diff">${i18n.diffTab || 'Diff'}</button>
@@ -168,6 +169,13 @@
               ${this._renderAnalysisTab(antiPatternResults)}
             </div>
             
+            <div id="tab-graph" class="sf-tab-content">
+              <div class="sf-calls-loading">
+                <div class="sf-spinner"></div>
+                <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
+              </div>
+            </div>
+
             <div id="tab-calls" class="sf-tab-content">
               <div class="sf-calls-loading">
                 <div class="sf-spinner"></div>
@@ -200,6 +208,7 @@
       
       this._attachModal(modal);
       this._setupTabs(modal);
+      this._setupGraphTab(modal, parsedLog);
       this._setupCallsTab(modal, parsedLog);
       this._setupDiffTab(modal, parsedLog);
 
@@ -262,9 +271,29 @@
         `;
       }
       
-      // Reset Calls tab (will be rebuilt on click)
+      // Reset Flow/Graph tab (will be rebuilt on click, or immediately if active)
+      const graphTab = modal.querySelector('#tab-graph');
+      if (graphTab) {
+        if (modal._foxlogGraphView) {
+          modal._foxlogGraphView.destroy();
+          modal._foxlogGraphView = null;
+        }
+        graphTab.innerHTML = `
+          <div class="sf-calls-loading">
+            <div class="sf-spinner"></div>
+            <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
+          </div>
+        `;
+        this._setupGraphTab(modal, parsedLog);
+      }
+
+      // Reset Calls tab (will be rebuilt on click, or immediately if active)
       const callsTab = modal.querySelector('#tab-calls');
       if (callsTab) {
+        if (modal._foxlogCallsView) {
+          modal._foxlogCallsView.destroy();
+          modal._foxlogCallsView = null;
+        }
         callsTab.innerHTML = `
           <div class="sf-calls-loading">
             <div class="sf-spinner"></div>
@@ -274,7 +303,7 @@
         // Re-setup calls tab for the new log
         this._setupCallsTab(modal, parsedLog);
       }
-      
+
       // Update Raw tab
       const rawTab = modal.querySelector('#tab-raw');
       if (rawTab) {
@@ -584,11 +613,26 @@
      */
     close() {
       if (this.currentModal) {
+        // Bump both generation tokens so a Flow/Calls build still in flight
+        // (awaiting buildTree()/init()) sees itself as stale once it resumes,
+        // instead of attaching a freshly built view -- with its own window
+        // listeners -- to this now-detached modal.
+        this.currentModal._foxlogGraphGeneration = (this.currentModal._foxlogGraphGeneration || 0) + 1;
+        this.currentModal._foxlogCallsGeneration = (this.currentModal._foxlogCallsGeneration || 0) + 1;
+
+        if (this.currentModal._foxlogGraphView) {
+          this.currentModal._foxlogGraphView.destroy();
+          this.currentModal._foxlogGraphView = null;
+        }
+        if (this.currentModal._foxlogCallsView) {
+          this.currentModal._foxlogCallsView.destroy();
+          this.currentModal._foxlogCallsView = null;
+        }
         this.currentModal.remove();
         this.currentModal = null;
         this.logger.log('Modal closed');
       }
-      
+
       // Reset navigation state
       this.isLoadingNavigation = false;
     }
@@ -1401,11 +1445,17 @@
       const callsBtn = modal.querySelector('[data-tab="calls"]');
       if (!callsBtn) return;
 
-      let callTreeView = null;
+      // Bump the generation token so a stale build from a previous log
+      // navigation can detect it's no longer current and bail out instead of
+      // clobbering this log's content (same DOM node is reused across logs).
+      const generation = (modal._foxlogCallsGeneration || 0) + 1;
+      modal._foxlogCallsGeneration = generation;
+
       let callTreeBuilt = false;
 
-      callsBtn.addEventListener('click', async () => {
+      const buildCallTree = async () => {
         if (callTreeBuilt) return; // Already built
+        callTreeBuilt = true; // set before the first await to avoid re-entrant double-build
 
         const callsContainer = modal.querySelector('#tab-calls');
         if (!callsContainer) return;
@@ -1422,20 +1472,31 @@
 
           // Construire l'arbre (via Web Worker)
           const callTree = await callTreeBuilder.buildTree(parsedLog);
+          if (modal._foxlogCallsGeneration !== generation) return; // stale: navigated to another log meanwhile
 
           // Create the view
           callsContainer.innerHTML = '<div class="sf-call-tree-container"></div>';
           const container = callsContainer.querySelector('.sf-call-tree-container');
 
-          callTreeView = new CallTreeView(container, callTree, parsedLog);
+          const callTreeView = new CallTreeView(container, callTree, parsedLog);
           callTreeView.init();
 
-          callTreeBuilt = true;
+          if (modal._foxlogCallsGeneration !== generation) {
+            callTreeView.destroy();
+            return;
+          }
+
+          if (modal._foxlogCallsView) {
+            modal._foxlogCallsView.destroy();
+          }
+          modal._foxlogCallsView = callTreeView;
 
           this.logger.success('CallTree view initialized');
         } catch (error) {
+          callTreeBuilt = false; // allow a retry on the next click/navigation
           this.logger.error('Failed to build call tree', error);
-          
+          if (modal._foxlogCallsGeneration !== generation) return; // stale error, another build is in charge now
+
           callsContainer.innerHTML = `
             <div class="sf-empty-state">
               <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
@@ -1444,7 +1505,115 @@
             </div>
           `;
         }
-      });
+      };
+
+      // Avoid stacking a new listener on top of stale ones from a previous
+      // navigation (the tab button itself persists across log navigation).
+      if (callsBtn._foxlogCallsClickHandler) {
+        callsBtn.removeEventListener('click', callsBtn._foxlogCallsClickHandler);
+      }
+      callsBtn._foxlogCallsClickHandler = buildCallTree;
+      callsBtn.addEventListener('click', buildCallTree);
+
+      // Navigating to the previous/next log while the Calls tab is already
+      // active resets its content but never re-fires a click on the tab
+      // button, so nothing would otherwise trigger the rebuild — build now.
+      if (callsBtn.classList.contains('active')) {
+        buildCallTree();
+      }
+    }
+
+    /**
+     * Configure le lazy-loading de l'onglet Flow (graphe d'exécution visuel)
+     * @private
+     */
+    async _setupGraphTab(modal, parsedLog) {
+      const { callTreeBuilder, CallGraphView } = window.FoxLog;
+
+      if (!callTreeBuilder || !CallGraphView) {
+        logger.warn('[ModalManager] CallGraph components not available');
+        return;
+      }
+
+      const graphBtn = modal.querySelector('[data-tab="graph"]');
+      if (!graphBtn) return;
+
+      // Bump the generation token so a stale build from a previous log
+      // navigation can detect it's no longer current and bail out instead of
+      // clobbering this log's content (same DOM node is reused across logs).
+      const generation = (modal._foxlogGraphGeneration || 0) + 1;
+      modal._foxlogGraphGeneration = generation;
+
+      let graphBuilt = false;
+
+      const buildGraph = async () => {
+        if (graphBuilt) return;
+        graphBuilt = true; // set before the first await to avoid re-entrant double-build
+
+        const graphContainer = modal.querySelector('#tab-graph');
+        if (!graphContainer) return;
+
+        try {
+          graphContainer.innerHTML = `
+            <div class="sf-calls-loading">
+              <div class="sf-spinner"></div>
+              <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
+              <div class="sf-loading-subtext">${(i18n.analyzing || 'Analyzing')} ${parsedLog.lines.length} ${(i18n.lines || 'Lines').toLowerCase()}</div>
+            </div>
+          `;
+
+          // Reuses the same CallTree already built for the Calls tab (cached by logId)
+          const callTree = await callTreeBuilder.buildTree(parsedLog);
+          if (modal._foxlogGraphGeneration !== generation) return; // stale: navigated to another log meanwhile
+
+          graphContainer.innerHTML = '<div class="sf-call-graph-container"></div>';
+          const container = graphContainer.querySelector('.sf-call-graph-container');
+
+          const graphView = new CallGraphView(container, callTree, parsedLog);
+          await graphView.init();
+
+          if (modal._foxlogGraphGeneration !== generation) {
+            // Navigated away again while init() was still rendering: tear
+            // down immediately instead of leaking its window listeners.
+            graphView.destroy();
+            return;
+          }
+
+          if (modal._foxlogGraphView) {
+            modal._foxlogGraphView.destroy();
+          }
+          modal._foxlogGraphView = graphView;
+
+          this.logger.success('CallGraphView initialized');
+        } catch (error) {
+          graphBuilt = false; // allow a retry on the next click/navigation
+          this.logger.error('Failed to build call graph', error);
+          if (modal._foxlogGraphGeneration !== generation) return; // stale error, another build is in charge now
+
+          graphContainer.innerHTML = `
+            <div class="sf-empty-state">
+              <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
+              <p style="color: #666;">${i18n.flowGraphError || 'Unable to build the graph'}</p>
+              <p class="sf-hint">${error.message}</p>
+            </div>
+          `;
+        }
+      };
+
+      // Avoid stacking a new listener on top of stale ones from a previous
+      // navigation (the tab button itself persists across log navigation).
+      if (graphBtn._foxlogGraphClickHandler) {
+        graphBtn.removeEventListener('click', graphBtn._foxlogGraphClickHandler);
+      }
+      graphBtn._foxlogGraphClickHandler = buildGraph;
+      graphBtn.addEventListener('click', buildGraph);
+
+      // Navigating to the previous/next log while the Flow tab is already
+      // active resets its content but never re-fires a click on the tab
+      // button, so nothing would otherwise trigger the rebuild — build now.
+      if (graphBtn.classList.contains('active')) {
+        buildGraph();
+      }
     }
 
     /**

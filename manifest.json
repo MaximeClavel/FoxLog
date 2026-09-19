@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FoxLog - Salesforce Debug Log Viewer",
-  "version": "1.5.3",
+  "version": "1.6.1",
   "description": "Display Salesforce debug logs in a user-friendly format with error detection, anti-pattern analysis, and debug control.",
   
   "permissions": [
@@ -50,6 +50,7 @@
         "src/parsers/log-parser.js",
         "src/ui/filter-manager.js",
         "src/ui/call-tree-view.js",
+        "src/ui/call-graph-view.js",
         "src/ui/log-diff-view.js",
         "src/ui/modal-manager.js",
         "src/ui/panel-manager.js",

@@ -6,7 +6,7 @@
 .sf-modal-tabs {
     display: flex !important;
     gap: 4px !important;
-    padding: 12px 16px 0 !important;
+    padding: 6px 16px 0 !important;
     border-bottom: 1px solid #e5e7eb !important;
     background: #f9fafb !important;
     visibility: visible !important;
@@ -14,7 +14,7 @@
 
 .sf-tab-btn {
     display: inline-block !important;
-    padding: 10px 20px !important;
+    padding: 8px 20px !important;
     background: transparent !important;
     border: none !important;
     border-bottom: 2px solid transparent !important;
@@ -80,7 +80,7 @@
 }
 
 .sf-modal-body-tabs {
-  max-height: calc(80vh - 120px);
+  max-height: calc(80vh - 90px);
   overflow-y: auto;
 }
 
@@ -93,7 +93,7 @@
 .sf-tab-content.active {
   display: flex;
   flex-direction: column;
-  height: calc(80vh - 140px); /* Constrain height for virtualization */
+  height: calc(80vh - 110px); /* Constrain height for virtualization */
   overflow: hidden;
 }
 
@@ -3228,4 +3228,789 @@
   font-weight: 700 !important;
   color: #0176d3 !important;
 }
+
+/* ============================================
+   FLOW / EXECUTION GRAPH TAB
+   ============================================ */
+
+/*
+ * The container chain up to #tab-graph.active is a column flex layout with
+ * an explicit height. A plain `height: 100%` on a flex item does not
+ * reliably resolve against that (it collapses back to content size in
+ * Chromium), so every link in the chain uses `flex: 1 1 auto; min-height: 0`
+ * instead, which is the robust way to fill a flex column parent.
+ */
+.sf-call-graph-container {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  width: 100% !important;
+}
+
+.sf-graph-view {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  font-size: 13px;
+}
+
+/* Stats bar -- single compact line instead of stacked label/value blocks */
+.sf-graph-stats {
+  display: flex;
+  align-items: baseline;
+  padding: 6px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+  flex-shrink: 0;
+}
+
+.sf-graph-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding-right: 14px;
+  margin-right: 14px;
+  border-right: 1px solid #e2e8f0;
+}
+
+.sf-graph-stat:last-child {
+  padding-right: 0;
+  margin-right: 0;
+  border-right: none;
+}
+
+.sf-graph-stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6b7280;
+}
+
+.sf-graph-stat-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.sf-graph-stat--error .sf-graph-stat-value {
+  color: #dc2626;
+}
+
+/* Body: 3-column layout */
+.sf-graph-body {
+  display: flex !important;
+  flex-direction: row !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+.sf-graph-panel {
+  flex-shrink: 0;
+  width: 220px;
+  border-right: 1px solid #e5e7eb;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0;
+  background: #fff;
+  overflow: hidden;
+}
+
+.sf-graph-panel-right {
+  border-right: none;
+  border-left: 1px solid #e5e7eb;
+  width: 260px;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+/*
+ * The shared `.sf-call-tree-search .sf-search-icon` rule (defined above for
+ * the Calls tab) can lose the position/top fight against the host Salesforce
+ * page's own CSS. Re-assert it here, scoped to the Flow tab, with !important
+ * so the icon reliably overlaps the input instead of dropping to its own line.
+ */
+/*
+ * `.sf-call-tree-search` carries `flex: 1` for its original context (a row
+ * toolbar, where flex:1 grows the search box horizontally). Here it sits in
+ * a COLUMN flex sidebar, so that same `flex: 1` instead grows it VERTICALLY,
+ * ballooning its height and dragging the absolutely-positioned (top: 50%)
+ * icon far below the visible input. Force it back to content-sized.
+ */
+.sf-graph-search {
+  flex: 0 0 auto !important;
+  margin: 10px;
+  position: relative !important;
+}
+
+.sf-graph-search .sf-search-icon {
+  position: absolute !important;
+  left: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 16px !important;
+  height: 16px !important;
+  color: #9ca3af !important;
+  pointer-events: none !important;
+}
+
+.sf-graph-search .sf-graph-search-input {
+  display: block !important;
+  width: 100% !important;
+}
+
+.sf-graph-filters {
+  padding: 0 10px 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/*
+ * Active filter chips: the shared `.sf-filter-toggle.sf-filter-active` rule
+ * only sets white text — it relies on a per-name class (sf-filter-methods,
+ * sf-filter-database, ...) from the Calls tab to supply a colored
+ * background. The Flow tab's chips don't carry those classes, so without
+ * their own background here the white text sits on the default white chip
+ * background (invisible). Keyed off the existing data-filter attribute.
+ */
+.sf-graph-filters [data-filter].sf-filter-active {
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+.sf-graph-filters [data-filter="automation"].sf-filter-active {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+}
+
+.sf-graph-filters [data-filter="apex"].sf-filter-active {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+}
+
+.sf-graph-filters [data-filter="database"].sf-filter-active {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed) !important;
+}
+
+.sf-graph-filters [data-filter="errors"].sf-filter-active {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+}
+
+.sf-graph-filters [data-filter="debug"].sf-filter-active {
+  background: linear-gradient(135deg, #64748b, #475569) !important;
+}
+
+.sf-graph-list-label {
+  padding: 8px 12px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.sf-graph-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sf-graph-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.sf-graph-list-item:hover {
+  background: #f3f4f6;
+}
+
+.sf-graph-list-item--active {
+  background: #e0f2fe;
+}
+
+.sf-graph-list-icon {
+  flex-shrink: 0;
+  display: flex;
+}
+
+.sf-graph-list-item--trigger .sf-graph-list-icon,
+.sf-graph-list-item--flow .sf-graph-list-icon,
+.sf-graph-list-item--workflow .sf-graph-list-icon,
+.sf-graph-list-item--validation .sf-graph-list-icon,
+.sf-graph-list-item--codeunit .sf-graph-list-icon {
+  color: #16a34a;
+}
+
+.sf-graph-list-item--soql .sf-graph-list-icon {
+  color: #7c3aed;
+}
+
+.sf-graph-list-item--dml .sf-graph-list-icon {
+  color: #f97316;
+}
+
+.sf-graph-list-item--error .sf-graph-list-icon,
+.sf-graph-list-item--debug .sf-graph-list-icon {
+  color: #64748b;
+}
+
+.sf-graph-list-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.sf-graph-list-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sf-graph-list-sub {
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+.sf-graph-list-error {
+  color: #dc2626;
+  flex-shrink: 0;
+  display: flex;
+}
+
+.sf-graph-list-empty,
+.sf-graph-list-more {
+  padding: 14px 10px;
+  font-size: 11px;
+  color: #9ca3af;
+  text-align: center;
+}
+
+/* Main graph column */
+.sf-graph-main {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sf-graph-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.sf-graph-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #6b7280;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sf-graph-crumb {
+  border: none;
+  background: transparent;
+  color: #0176d3;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-graph-crumb:hover {
+  background: rgba(1, 118, 211, 0.08);
+  text-decoration: underline;
+}
+
+.sf-graph-crumb-sep {
+  color: #d1d5db;
+  flex-shrink: 0;
+}
+
+.sf-graph-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sf-graph-toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: #e5e7eb;
+  margin: 0 4px;
+}
+
+.sf-graph-zoom-label {
+  width: auto;
+  min-width: 44px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Canvas / viewport */
+.sf-graph-viewport {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background-color: #f8fafc;
+  background-image: radial-gradient(circle, #e2e8f0 1px, transparent 1px);
+  background-size: 20px 20px;
+  cursor: grab;
+}
+
+.sf-graph-viewport.sf-graph-panning {
+  cursor: grabbing;
+}
+
+.sf-graph-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.sf-graph-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.sf-graph-edge {
+  stroke: #cbd5e1;
+  stroke-width: 1.6;
+}
+
+.sf-graph-edge--error {
+  stroke: #fca5a5;
+}
+
+.sf-graph-nodes {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.sf-graph-node {
+  position: absolute;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #94a3b8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  user-select: none;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.sf-graph-node:hover {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+}
+
+.sf-graph-node--selected {
+  border-color: #0176d3;
+  box-shadow: 0 0 0 2px rgba(1, 118, 211, 0.25);
+}
+
+.sf-graph-node--has-error {
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.3);
+}
+
+.sf-graph-node-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sf-graph-node-icon {
+  flex-shrink: 0;
+  display: flex;
+}
+
+.sf-graph-node-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sf-graph-node-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+
+.sf-graph-node-duration {
+  font-size: 10px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-graph-node-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sf-graph-badge-soql {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+
+.sf-graph-badge-dml {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.sf-graph-badge-error {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.sf-graph-node-toggle {
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  padding: 0 6px;
+}
+
+.sf-graph-node-toggle:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+/* Category colors */
+.sf-graph-node--root {
+  border-left-color: #475569;
+  background: #f8fafc;
+}
+
+.sf-graph-node--trigger,
+.sf-graph-node--flow,
+.sf-graph-node--workflow,
+.sf-graph-node--validation,
+.sf-graph-node--codeunit {
+  border-left-color: #16a34a;
+}
+
+.sf-graph-node--method {
+  border-left-color: #0176d3;
+}
+
+.sf-graph-node--soql {
+  border-left-color: #7c3aed;
+}
+
+.sf-graph-node--dml {
+  border-left-color: #f97316;
+}
+
+.sf-graph-node--error {
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+
+.sf-graph-node--debug,
+.sf-graph-node--variable {
+  border-left-color: #94a3b8;
+}
+
+.sf-graph-node--root .sf-graph-node-icon {
+  color: #475569;
+}
+
+.sf-graph-node--trigger .sf-graph-node-icon,
+.sf-graph-node--flow .sf-graph-node-icon,
+.sf-graph-node--workflow .sf-graph-node-icon,
+.sf-graph-node--validation .sf-graph-node-icon,
+.sf-graph-node--codeunit .sf-graph-node-icon {
+  color: #16a34a;
+}
+
+.sf-graph-node--method .sf-graph-node-icon {
+  color: #0176d3;
+}
+
+.sf-graph-node--soql .sf-graph-node-icon {
+  color: #7c3aed;
+}
+
+.sf-graph-node--dml .sf-graph-node-icon {
+  color: #f97316;
+}
+
+.sf-graph-node--error .sf-graph-node-icon {
+  color: #dc2626;
+}
+
+.sf-graph-node--debug .sf-graph-node-icon,
+.sf-graph-node--variable .sf-graph-node-icon {
+  color: #64748b;
+}
+
+/* Detail panel (right) */
+.sf-graph-detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  color: #9ca3af;
+  padding: 30px 10px;
+}
+
+.sf-graph-detail-empty-icon {
+  color: #cbd5e1;
+}
+
+.sf-graph-detail-header {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 12px;
+}
+
+.sf-graph-detail-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  padding: 4px;
+  border-radius: 6px;
+  background: #f3f4f6;
+}
+
+.sf-graph-detail-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+  word-break: break-word;
+}
+
+.sf-graph-detail-type {
+  font-size: 10px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 2px;
+}
+
+.sf-graph-detail-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.sf-graph-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.sf-graph-detail-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sf-graph-detail-stat span {
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+.sf-graph-detail-stat strong {
+  font-size: 13px;
+  color: #1f2937;
+}
+
+.sf-graph-detail-block {
+  margin-bottom: 12px;
+}
+
+.sf-graph-detail-block--error {
+  background: #fef2f2;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.sf-graph-detail-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.sf-graph-detail-code {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px;
+  background: #f3f4f6;
+  padding: 8px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.sf-graph-detail-goto {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #0176d3;
+  background: #fff;
+  color: #0176d3;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sf-graph-detail-goto:hover {
+  background: #eff6ff;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .sf-graph-panel {
+    width: 170px;
+  }
+
+  .sf-graph-panel-right {
+    width: 210px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .sf-graph-stats,
+  .sf-graph-panel,
+  .sf-graph-toolbar {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .sf-graph-stat {
+    border-right-color: #374151;
+  }
+
+  .sf-graph-stat-value {
+    color: #e5e7eb;
+  }
+
+  .sf-graph-viewport {
+    background-color: #0f172a;
+    background-image: radial-gradient(circle, #1e293b 1px, transparent 1px);
+  }
+
+  .sf-graph-node {
+    background: #1f2937;
+    border-color: #374151;
+  }
+
+  .sf-graph-node--root {
+    background: #111827;
+  }
+
+  .sf-graph-node--error {
+    background: #3f1d1d;
+  }
+
+  .sf-graph-node-name,
+  .sf-graph-detail-name {
+    color: #e5e7eb;
+  }
+
+  .sf-graph-list-item:hover {
+    background: #374151;
+  }
+
+  .sf-graph-list-item--active {
+    background: #1e3a5f;
+  }
+
+  .sf-graph-detail-code {
+    background: #111827;
+    color: #e5e7eb;
+  }
+
+  .sf-graph-node-toggle {
+    background: #1f2937;
+    border-color: #4b5563;
+    color: #e5e7eb;
+  }
+
+  .sf-graph-detail-icon {
+    background: #111827;
+  }
+
+  .sf-graph-detail-header {
+    border-color: #374151;
+  }
 }
