@@ -23,6 +23,15 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   };
+
+  /**
+   * Format a duration for display
+   * @param {number} milliseconds - Duration in milliseconds
+   * @returns {string} Compact duration, e.g. "96 ms" or "8.46 s"
+   */
+  window.FoxLog.formatDuration = function(milliseconds) {
+    return milliseconds >= 1000 ? `${(milliseconds / 1000).toFixed(2)} s` : `${milliseconds} ms`;
+  };
   
   // ============================================
   // VERSION (read from manifest.json)
@@ -59,8 +68,6 @@
   window.FoxLog.ICONS = {
     FOXLOG: chrome.runtime.getURL('src/assets/icon128.png'),
     TAIL: chrome.runtime.getURL('src/assets/tail128.png'),
-    TRASH: chrome.runtime.getURL('src/assets/trash.png'),
-    REFRESH: chrome.runtime.getURL('src/assets/refresh.png'),
     KOFI: chrome.runtime.getURL('src/assets/logomarkLogo.png')
   };
   
@@ -143,7 +150,9 @@
     // Pagination
     page: isFrench ? 'Page' : 'Page',
     logs: isFrench ? 'logs' : 'logs',
-    
+    previousPage: isFrench ? 'Page précédente' : 'Previous page',
+    nextPage: isFrench ? 'Page suivante' : 'Next page',
+
     // Last update
     lastUpdate: isFrench ? 'Dernière MAJ:' : 'Last update:',
     neverUpdated: isFrench ? 'Jamais mis à jour' : 'Never updated',
