@@ -6,7 +6,7 @@
 .sf-modal-tabs {
     display: flex !important;
     gap: 4px !important;
-    padding: 12px 16px 0 !important;
+    padding: 6px 16px 0 !important;
     border-bottom: 1px solid #e5e7eb !important;
     background: #f9fafb !important;
     visibility: visible !important;
@@ -14,7 +14,7 @@
 
 .sf-tab-btn {
     display: inline-block !important;
-    padding: 10px 20px !important;
+    padding: 8px 20px !important;
     background: transparent !important;
     border: none !important;
     border-bottom: 2px solid transparent !important;
@@ -80,7 +80,7 @@
 }
 
 .sf-modal-body-tabs {
-  max-height: calc(80vh - 120px);
+  max-height: calc(80vh - 90px);
   overflow-y: auto;
 }
 
@@ -93,7 +93,7 @@
 .sf-tab-content.active {
   display: flex;
   flex-direction: column;
-  height: calc(80vh - 140px); /* Constrain height for virtualization */
+  height: calc(80vh - 110px); /* Constrain height for virtualization */
   overflow: hidden;
 }
 
@@ -3257,31 +3257,40 @@
   font-size: 13px;
 }
 
-/* Stats bar */
+/* Stats bar -- single compact line instead of stacked label/value blocks */
 .sf-graph-stats {
   display: flex;
-  gap: 20px;
-  padding: 10px 16px;
+  align-items: baseline;
+  padding: 6px 16px;
   border-bottom: 1px solid #e5e7eb;
   background: #f9fafb;
   flex-shrink: 0;
 }
 
 .sf-graph-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding-right: 14px;
+  margin-right: 14px;
+  border-right: 1px solid #e2e8f0;
+}
+
+.sf-graph-stat:last-child {
+  padding-right: 0;
+  margin-right: 0;
+  border-right: none;
 }
 
 .sf-graph-stat-label {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   color: #6b7280;
 }
 
 .sf-graph-stat-value {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: #1f2937;
 }
@@ -3945,6 +3954,14 @@
   .sf-graph-toolbar {
     background: #1f2937;
     border-color: #374151;
+  }
+
+  .sf-graph-stat {
+    border-right-color: #374151;
+  }
+
+  .sf-graph-stat-value {
+    color: #e5e7eb;
   }
 
   .sf-graph-viewport {
