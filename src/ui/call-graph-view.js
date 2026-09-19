@@ -596,6 +596,7 @@
         this.allNodesFlat.forEach(node => this.expandedNodes.add(node.id));
       }
       this._layoutAndRender();
+      this._fitView();
     }
 
     _collapseAll() {
@@ -611,6 +612,7 @@
       this.groupFilters[group] = !this.groupFilters[group];
       this._syncFilterChipsUI();
       this._layoutAndRender();
+      this._fitView();
     }
 
     _syncFilterChipsUI() {
