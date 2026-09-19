@@ -3301,34 +3301,48 @@
   font-size: 13px;
 }
 
-/* Stats bar */
+/* Stats bar: a single compact line instead of stacked label/value blocks */
 .sf-graph-stats {
   display: flex;
-  gap: 20px;
-  padding: 10px 16px;
+  align-items: baseline;
+  padding: 6px 16px;
   border-bottom: 1px solid var(--fl-border);
   background: var(--fl-inset);
   flex-shrink: 0;
 }
 
 .sf-graph-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding-right: 14px;
+  margin-right: 14px;
+  border-right: 1px solid var(--fl-border);
+}
+
+.sf-graph-stat:last-child {
+  padding-right: 0;
+  margin-right: 0;
+  border-right: none;
 }
 
 .sf-graph-stat-label {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   color: var(--fl-text-3);
 }
 
 .sf-graph-stat-value {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--fl-text);
+  font-variant-numeric: tabular-nums;
 }
+
+
+
+
 
 .sf-graph-stat--error .sf-graph-stat-value {
   color: var(--fl-red-fg);

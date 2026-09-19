@@ -254,8 +254,8 @@
     // ============================================
 
     _buildVisibleTree(node) {
-      const v = { id: node.id, node, depth: node.depth, children: [], hiddenCount: 0 };
       const kids = node.children.filter(c => this._passesFilter(c));
+      const v = { id: node.id, node, depth: node.depth, children: [], hiddenCount: 0, filteredChildCount: kids.length };
       if (this.expandedNodes.has(node.id)) {
         kids.forEach(k => v.children.push(this._buildVisibleTree(k)));
       } else {
@@ -378,7 +378,11 @@
       let toggleHtml = '';
       if (v.hiddenCount > 0) {
         toggleHtml = `<button class="sf-graph-node-toggle sf-graph-node-toggle--expand" data-node-id="${node.id}" title="${i18n.expandNode || 'Expand'}">+${v.hiddenCount}</button>`;
-      } else if (node.children.length > 0) {
+      } else if (v.filteredChildCount > 0) {
+        // Only show the collapse button when this node actually has visible
+        // children right now -- node.children.length alone would also count
+        // children hidden by the active category filters (e.g. Debug off by
+        // default), showing a "-" with nothing behind it to collapse.
         toggleHtml = `<button class="sf-graph-node-toggle sf-graph-node-toggle--collapse" data-node-id="${node.id}" title="${i18n.collapseNode || 'Collapse'}">−</button>`;
       }
 
@@ -558,6 +562,23 @@
     // ACTIONS
     // ============================================
 
+    /**
+     * Count how many nodes would become visible under `node` if it were
+     * expanded, recursing into any child that is itself still marked
+     * expanded from an earlier interaction.
+     * @private
+     */
+    _countVisibleDescendants(node) {
+      const kids = node.children.filter(c => this._passesFilter(c));
+      let count = kids.length;
+      kids.forEach(k => {
+        if (this.expandedNodes.has(k.id)) {
+          count += this._countVisibleDescendants(k);
+        }
+      });
+      return count;
+    }
+
     _toggleNode(nodeId) {
       if (this.expandedNodes.has(nodeId)) {
         this.expandedNodes.delete(nodeId);
@@ -567,11 +588,15 @@
       }
 
       // A node with an extreme fan-out (e.g. one debug/child call per record
-      // in a large batch) would reveal thousands of siblings in one shot,
-      // which is both unreadable and heavy to lay out. Cap it like _expandAll.
+      // in a large batch) would reveal thousands of nodes in one shot, which
+      // is both unreadable and heavy to lay out. Cap it like _expandAll.
+      // This has to count the whole subtree that would become visible, not
+      // just the immediate children: a child collapsed here keeps its own
+      // descendants' expand state, so re-expanding this node can cascade
+      // into a previously-expanded, still-huge subtree further down.
       const node = this.nodeById.get(nodeId);
-      const childCount = node ? node.children.filter(c => this._passesFilter(c)).length : 0;
-      if (childCount > this.EXPAND_ALL_CAP) {
+      const visibleCount = node ? this._countVisibleDescendants(node) : 0;
+      if (visibleCount > this.EXPAND_ALL_CAP) {
         document.dispatchEvent(new CustomEvent('foxlog:showToast', {
           detail: { message: i18n.graphTooLargeWarning || 'Large tree: expand depth capped to keep things smooth', type: 'warning' }
         }));
@@ -596,6 +621,7 @@
         this.allNodesFlat.forEach(node => this.expandedNodes.add(node.id));
       }
       this._layoutAndRender();
+      this._fitView();
     }
 
     _collapseAll() {
@@ -611,6 +637,7 @@
       this.groupFilters[group] = !this.groupFilters[group];
       this._syncFilterChipsUI();
       this._layoutAndRender();
+      this._fitView();
     }
 
     _syncFilterChipsUI() {
