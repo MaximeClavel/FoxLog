@@ -254,8 +254,8 @@
     // ============================================
 
     _buildVisibleTree(node) {
-      const v = { id: node.id, node, depth: node.depth, children: [], hiddenCount: 0 };
       const kids = node.children.filter(c => this._passesFilter(c));
+      const v = { id: node.id, node, depth: node.depth, children: [], hiddenCount: 0, filteredChildCount: kids.length };
       if (this.expandedNodes.has(node.id)) {
         kids.forEach(k => v.children.push(this._buildVisibleTree(k)));
       } else {
@@ -378,7 +378,11 @@
       let toggleHtml = '';
       if (v.hiddenCount > 0) {
         toggleHtml = `<button class="sf-graph-node-toggle sf-graph-node-toggle--expand" data-node-id="${node.id}" title="${i18n.expandNode || 'Expand'}">+${v.hiddenCount}</button>`;
-      } else if (node.children.length > 0) {
+      } else if (v.filteredChildCount > 0) {
+        // Only show the collapse button when this node actually has visible
+        // children right now -- node.children.length alone would also count
+        // children hidden by the active category filters (e.g. Debug off by
+        // default), showing a "-" with nothing behind it to collapse.
         toggleHtml = `<button class="sf-graph-node-toggle sf-graph-node-toggle--collapse" data-node-id="${node.id}" title="${i18n.collapseNode || 'Collapse'}">−</button>`;
       }
 
