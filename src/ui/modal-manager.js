@@ -290,6 +290,10 @@
       // Reset Calls tab (will be rebuilt on click, or immediately if active)
       const callsTab = modal.querySelector('#tab-calls');
       if (callsTab) {
+        if (modal._foxlogCallsView) {
+          modal._foxlogCallsView.destroy();
+          modal._foxlogCallsView = null;
+        }
         callsTab.innerHTML = `
           <div class="sf-calls-loading">
             <div class="sf-spinner"></div>
@@ -609,9 +613,20 @@
      */
     close() {
       if (this.currentModal) {
+        // Bump both generation tokens so a Flow/Calls build still in flight
+        // (awaiting buildTree()/init()) sees itself as stale once it resumes,
+        // instead of attaching a freshly built view -- with its own window
+        // listeners -- to this now-detached modal.
+        this.currentModal._foxlogGraphGeneration = (this.currentModal._foxlogGraphGeneration || 0) + 1;
+        this.currentModal._foxlogCallsGeneration = (this.currentModal._foxlogCallsGeneration || 0) + 1;
+
         if (this.currentModal._foxlogGraphView) {
           this.currentModal._foxlogGraphView.destroy();
           this.currentModal._foxlogGraphView = null;
+        }
+        if (this.currentModal._foxlogCallsView) {
+          this.currentModal._foxlogCallsView.destroy();
+          this.currentModal._foxlogCallsView = null;
         }
         this.currentModal.remove();
         this.currentModal = null;
@@ -1465,6 +1480,16 @@
 
           const callTreeView = new CallTreeView(container, callTree, parsedLog);
           callTreeView.init();
+
+          if (modal._foxlogCallsGeneration !== generation) {
+            callTreeView.destroy();
+            return;
+          }
+
+          if (modal._foxlogCallsView) {
+            modal._foxlogCallsView.destroy();
+          }
+          modal._foxlogCallsView = callTreeView;
 
           this.logger.success('CallTree view initialized');
         } catch (error) {
