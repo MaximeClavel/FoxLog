@@ -56,7 +56,7 @@
         "src/ui/panel-manager.js",
         "src/content.js"
       ],
-      "css": ["src/styles.css", "src/modal-styles.css"],
+      "css": ["src/theme.css", "src/styles.css", "src/modal-styles.css"],
       "run_at": "document_end",
       "all_frames": false
     }
