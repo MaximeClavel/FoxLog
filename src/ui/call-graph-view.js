@@ -580,7 +580,7 @@
 
       this.expandedNodes.add(nodeId);
       this._layoutAndRender();
-      this._panToNode(nodeId);
+      this._fitView();
     }
 
     _expandAll() {
