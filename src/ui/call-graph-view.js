@@ -562,7 +562,7 @@
       if (this.expandedNodes.has(nodeId)) {
         this.expandedNodes.delete(nodeId);
         this._layoutAndRender();
-        this._fitView();
+        this._panToNode(nodeId);
         return;
       }
 
@@ -580,7 +580,7 @@
 
       this.expandedNodes.add(nodeId);
       this._layoutAndRender();
-      this._fitView();
+      this._panToNode(nodeId);
     }
 
     _expandAll() {
