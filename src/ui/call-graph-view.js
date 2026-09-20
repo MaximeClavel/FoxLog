@@ -23,7 +23,7 @@
     dml:        { icon: 'database',       group: 'database',    label: 'DML' },
     error:      { icon: 'alert-triangle', group: 'errors',      label: 'Error' },
     debug:      { icon: 'bug',            group: 'debug',       label: 'Debug' },
-    variable:   { icon: 'file-text',      group: 'debug',       label: 'Variable' },
+    variable:   { icon: 'file-text',      group: 'variables',   label: 'Variable' },
     other:      { icon: 'info',           group: 'apex',        label: 'Event' }
   };
 
@@ -54,7 +54,7 @@
       this.parsedLog = parsedLog;
 
       this.expandedNodes = new Set();
-      this.groupFilters = { automation: true, apex: true, database: true, errors: true, debug: false };
+      this.groupFilters = { automation: true, apex: true, database: true, errors: true, debug: false, variables: false };
       this.searchQuery = '';
       this.selectedNodeId = null;
 
@@ -187,6 +187,10 @@
                   <button class="sf-filter-toggle" aria-pressed="false" data-filter="debug" title="${i18n.filterDebug || 'Debug'}">
                     <span class="sf-filter-icon">${window.FoxLog.icon('bug')}</span>
                     <span class="sf-filter-text">${i18n.debug || 'Debug'}</span>
+                  </button>
+                  <button class="sf-filter-toggle" aria-pressed="false" data-filter="variables" title="${i18n.filterVariables || 'Variables'}">
+                    <span class="sf-filter-icon">${window.FoxLog.icon('file-text')}</span>
+                    <span class="sf-filter-text">${i18n.variables || 'Variables'}</span>
                   </button>
                 </div>
               </div>
@@ -414,7 +418,7 @@
           return node.name.toLowerCase().includes(q) || node.type.toLowerCase().includes(q);
         }
         const group = CATEGORY_META[classify(node)].group;
-        return group !== 'apex' && group !== 'debug';
+        return group !== 'apex' && group !== 'debug' && group !== 'variables';
       });
 
       if (items.length === 0) {
@@ -504,6 +508,14 @@
           <div class="sf-graph-detail-block">
             <div class="sf-graph-detail-label">[${escapeHtml(details.level || 'DEBUG')}]</div>
             <div>${escapeHtml(details.message || '')}</div>
+          </div>
+        `;
+      } else if (cat === 'variable' && details.variable !== undefined) {
+        // The node name truncates long values: show the whole one here
+        extra = `
+          <div class="sf-graph-detail-block">
+            <div class="sf-graph-detail-label">${escapeHtml(details.variable)}</div>
+            <pre class="sf-graph-detail-code">${escapeHtml(details.value)}</pre>
           </div>
         `;
       }
