@@ -4,7 +4,7 @@ All notable changes to FoxLog will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [1.7.0] - 2026-09-19
 
 ### Added
 
@@ -19,13 +19,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Side panel**: taller card (up to 720px) showing 5 logs per page instead of 3, segmented Salesforce/Files tabs, debug-logs card with a status pill, log cards with a status rail, skeleton loading state and tabular figures
 - **Log status**: a non-`Success` status (often a full exception message) is now shown as a short chip with the full text in the tooltip instead of a long uppercase badge
 - **Modal**: fixed-height dialog with a blurred backdrop; Summary tab uses KPI cards and class-based limit meters (green/amber/red at 75%/90%) instead of width-attribute selectors
-- **Calls / Flow tabs**: quiet tinted filter chips (dashed outline when off) and a neutral "Top 5 slowest nodes" card replace the saturated pills and yellow banner
+- **Calls / Flow tabs**: quiet tinted filter chips (dashed outline when off) and a neutral "Top 5 slowest nodes" card replace the saturated pills and yellow banner; both tabs now use the whole modal area instead of sitting inside a 16-20px padding, so the Flow graph is larger
+- **Salesforce tab icon**: the panel tab shows a Salesforce-blue cloud (`--fl-salesforce`) instead of a database cylinder
 - **Analysis tab**: health score is a KPI card with a meter; suggestion and impact notices are softened
 - **Settings popup**: same tokens and dark theme, real `switch` control
 - **Contrast**: muted text moved from ~2.5:1 grays to AA-compliant tokens
 
 ### Fixed
 
+- **Modal tab bar**: a stray 15px vertical scrollbar appeared on Windows because the active-tab underline overflowed the bar by 1px and `overflow-x: auto` also enables vertical scrolling; the bar now clips vertically and hides its own scrollbar
 - **Raw log tab**: lines were double-spaced (a newline inside `<pre>` between block-level line spans)
 - **Diff tab**: error icons used `aria-label` on a role-less `span`
 - **Call tree**: expand/collapse buttons had no accessible name
