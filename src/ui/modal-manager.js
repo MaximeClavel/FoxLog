@@ -169,14 +169,14 @@
               ${this._renderAnalysisTab(antiPatternResults)}
             </div>
             
-            <div id="tab-graph" class="sf-tab-content">
+            <div id="tab-graph" class="sf-tab-content sf-tab-content--flush">
               <div class="sf-calls-loading">
                 <div class="sf-spinner"></div>
                 <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
               </div>
             </div>
 
-            <div id="tab-calls" class="sf-tab-content">
+            <div id="tab-calls" class="sf-tab-content sf-tab-content--flush">
               <div class="sf-calls-loading">
                 <div class="sf-spinner"></div>
                 <div class="sf-loading-text">${i18n.buildingCallTree || 'Building call tree...'}</div>

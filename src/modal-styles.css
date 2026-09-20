@@ -195,7 +195,11 @@
   gap: 2px;
   flex: none;
   padding: 0 16px;
+  /* overflow-x: auto also turns overflow-y into auto, so anything even 1px taller than
+     the bar shows a stray vertical scrollbar on Windows: clip it and hide the bar itself */
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   background: var(--fl-card);
   border-bottom: 1px solid var(--fl-border);
 }
@@ -222,7 +226,7 @@
   position: absolute;
   left: 10px;
   right: 10px;
-  bottom: -1px;
+  bottom: 0;
   height: 2px;
   border-radius: 2px 2px 0 0;
   background: transparent;
@@ -280,6 +284,9 @@
   padding: 16px 20px 20px;
   overflow: hidden;
 }
+
+/* Workbench tabs (Flow, Calls) use the whole panel: their own toolbars provide the spacing */
+.sf-tab-content--flush.active { padding: 0; }
 
 .sf-modal-body {
   flex: 1 1 auto;
