@@ -69,7 +69,7 @@
 - **Web Workers** for call tree construction
 - **Virtualization** for large lists
 
-### 🎨 User Interface
+### 🎨 User Interface [NEW]
 - **Side panel** with a draggable floating button that docks to the window edges
 - **Modern modal** with an identity header (operation, status, duration), underlined tabs and prev/next log navigation
 - **Design system**: one set of tokens (`src/theme.css`) drives colors, type, radius and elevation for the panel, modal, toasts and settings popup
