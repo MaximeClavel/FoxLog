@@ -23,6 +23,15 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   };
+
+  /**
+   * Format a duration for display
+   * @param {number} milliseconds - Duration in milliseconds
+   * @returns {string} Compact duration, e.g. "96 ms" or "8.46 s"
+   */
+  window.FoxLog.formatDuration = function(milliseconds) {
+    return milliseconds >= 1000 ? `${(milliseconds / 1000).toFixed(2)} s` : `${milliseconds} ms`;
+  };
   
   // ============================================
   // VERSION (read from manifest.json)
@@ -36,7 +45,7 @@
     AUTO_REFRESH_INTERVAL: 5000,
     MAX_LOGS: 100,
     CACHE_DURATION: 30000,
-    REFRESH_INTERVAL: 10000,
+    REFRESH_INTERVAL: 5000,
     
     // ✅ LOGGER CONFIGURATION
     // Set to false before publishing to production
@@ -59,8 +68,6 @@
   window.FoxLog.ICONS = {
     FOXLOG: chrome.runtime.getURL('src/assets/icon128.png'),
     TAIL: chrome.runtime.getURL('src/assets/tail128.png'),
-    TRASH: chrome.runtime.getURL('src/assets/trash.png'),
-    REFRESH: chrome.runtime.getURL('src/assets/refresh.png'),
     KOFI: chrome.runtime.getURL('src/assets/logomarkLogo.png')
   };
   
@@ -99,6 +106,7 @@
     // Panel
     welcome: isFrench ? 'Bienvenue dans FoxLog !' : 'Welcome to FoxLog!',
     selectUser: isFrench ? 'Sélectionnez un utilisateur' : 'Select a user',
+    userPicklistLegend: isFrench ? '● = TraceFlag ou logs disponibles | ○ = Aucune activité' : '● = TraceFlag or logs available | ○ = No activity',
     noLogsFor: isFrench ? 'Aucun log pour' : 'No logs for',
     clickRefresh: isFrench ? 'Cliquez sur Actualiser' : 'Click Refresh',
     loading: isFrench ? 'Chargement...' : 'Loading...',
@@ -142,7 +150,9 @@
     // Pagination
     page: isFrench ? 'Page' : 'Page',
     logs: isFrench ? 'logs' : 'logs',
-    
+    previousPage: isFrench ? 'Page précédente' : 'Previous page',
+    nextPage: isFrench ? 'Page suivante' : 'Next page',
+
     // Last update
     lastUpdate: isFrench ? 'Dernière MAJ:' : 'Last update:',
     neverUpdated: isFrench ? 'Jamais mis à jour' : 'Never updated',
@@ -247,7 +257,7 @@
     // Anti-patterns
     antiPatterns: isFrench ? 'Anti-patterns détectés' : 'Detected Anti-patterns',
     noAntiPatterns: isFrench ? 'Aucun anti-pattern détecté' : 'No anti-patterns detected',
-    codeHealthy: isFrench ? 'Code sain ! ✨' : 'Code is healthy! ✨',
+    codeHealthy: isFrench ? 'Code sain !' : 'Code is healthy!',
     healthScore: isFrench ? 'Score de santé' : 'Health Score',
     critical: isFrench ? 'Critique' : 'Critical',
     warning: isFrench ? 'Attention' : 'Warning',
@@ -329,6 +339,38 @@
     diffNext: isFrench ? 'Suiv.' : 'Next',
     diffComputing: isFrench ? 'Calcul du diff...' : 'Computing diff...',
     diffTimeout: isFrench ? 'Le calcul du diff a expiré' : 'Diff computation timed out',
-    diffError: isFrench ? 'Erreur lors du calcul du diff' : 'Diff computation error'
+    diffError: isFrench ? 'Erreur lors du calcul du diff' : 'Diff computation error',
+    diffLabelFile: isFrench ? 'Fichier de référence' : 'Reference file',
+    diffLabelCurrent: isFrench ? 'Log courant' : 'Current log',
+    diffOnlyInFile: isFrench ? 'Uniquement dans le fichier' : 'Only in the file',
+    diffOnlyInCurrent: isFrench ? 'Uniquement dans le log courant' : 'Only in the current log',
+    diffIdenticalLines: isFrench ? '{count} lignes identiques' : '{count} identical lines',
+    diffShowIdentical: isFrench ? 'Afficher' : 'Show',
+    diffShowAll: isFrench ? 'Afficher toutes les lignes' : 'Show all lines',
+
+    // Flow / Graph tab
+    flow: isFrench ? 'Flux' : 'Flow',
+    buildingFlowGraph: isFrench ? 'Construction du graphe...' : 'Building graph...',
+    flowGraphError: isFrench ? 'Impossible de construire le graphe' : 'Unable to build the graph',
+    searchInGraph: isFrench ? 'Rechercher un nœud...' : 'Search a node...',
+    fitView: isFrench ? 'Ajuster à la vue' : 'Fit view',
+    zoomIn: isFrench ? 'Zoomer' : 'Zoom in',
+    zoomOut: isFrench ? 'Dézoomer' : 'Zoom out',
+    resetZoom: isFrench ? 'Réinitialiser le zoom' : 'Reset zoom',
+    noNodeSelected: isFrench ? 'Aucun nœud sélectionné' : 'No node selected',
+    clickNodeForDetails: isFrench ? 'Cliquez sur un nœud du graphe pour voir ses détails' : 'Click a node in the graph to see its details',
+    viewInRawLog: isFrench ? 'Voir dans le log brut' : 'View in raw log',
+    exclusiveDuration: isFrench ? 'Durée exclusive' : 'Exclusive duration',
+    totalDurationLabel: isFrench ? 'Durée totale' : 'Total duration',
+    childrenCount: isFrench ? 'Enfants directs' : 'Direct children',
+    lineNumber: isFrench ? 'Ligne' : 'Line',
+    expandNode: isFrench ? 'Développer' : 'Expand',
+    collapseNode: isFrench ? 'Réduire' : 'Collapse',
+    moreNodes: isFrench ? 'de plus' : 'more',
+    filterTriggersFlows: isFrench ? 'Triggers & Flows' : 'Triggers & Flows',
+    filterApex: isFrench ? 'Apex' : 'Apex',
+    noGraphResults: isFrench ? 'Aucun nœud ne correspond' : 'No matching node',
+    graphTooLargeWarning: isFrench ? 'Arbre volumineux : dévelopement limité en profondeur pour la fluidité' : 'Large tree: expand depth capped to keep things smooth',
+    graphNodeList: isFrench ? 'Nœuds notables' : 'Notable nodes'
   };
 })();

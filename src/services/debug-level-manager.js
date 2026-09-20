@@ -199,7 +199,7 @@
         return {
           enabled: false,
           message: 'Debug logs disabled',
-          icon: '⚪',
+          icon: '●',
           className: 'sf-debug-disabled'
         };
       }
@@ -226,8 +226,8 @@
         return {
           enabled: false,
           message: 'Debug logs expired',
-          icon: '🔴',
-          className: 'sf-debug-disabled'
+          icon: '●',
+          className: 'sf-debug-expired'
         };
       }
 
@@ -238,7 +238,7 @@
         expirationDate: expiration,
         remainingMinutes: remainingMinutes,
         message: `Active for ${remainingMinutes}min`,
-        icon: '🟢',
+        icon: '●',
         className: 'sf-debug-enabled'
       };
     }

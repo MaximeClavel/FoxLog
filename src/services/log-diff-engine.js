@@ -10,8 +10,8 @@
   class LogDiffEngine {
     /**
      * Compare two CallTrees and return a structured diff result
-     * @param {Object} treeA - CallTree (left / reference)
-     * @param {Object} treeB - CallTree (right / comparison)
+     * @param {Object} treeA - CallTree (reference: rows only here are "removed")
+     * @param {Object} treeB - CallTree (comparison: rows only here are "added")
      * @param {Object} [options] - Diff configuration
      * @param {number} [options.thresholdMs=50] - Minimum absolute duration delta to flag
      * @param {number} [options.thresholdPercent=200] - Minimum relative delta (%) to flag
@@ -83,11 +83,11 @@
 
       for (const match of lcs) {
         while (idxA < match.idxA) {
-          pairs.push(this._makeRemovedPair(childrenA[idxA]));
+          pairs.push(this._makeRemovedPair(childrenA[idxA], config));
           idxA++;
         }
         while (idxB < match.idxB) {
-          pairs.push(this._makeAddedPair(childrenB[idxB]));
+          pairs.push(this._makeAddedPair(childrenB[idxB], config));
           idxB++;
         }
         pairs.push(this._diffNode(childrenA[idxA], childrenB[idxB], config));
@@ -96,11 +96,11 @@
       }
 
       while (idxA < childrenA.length) {
-        pairs.push(this._makeRemovedPair(childrenA[idxA]));
+        pairs.push(this._makeRemovedPair(childrenA[idxA], config));
         idxA++;
       }
       while (idxB < childrenB.length) {
-        pairs.push(this._makeAddedPair(childrenB[idxB]));
+        pairs.push(this._makeAddedPair(childrenB[idxB], config));
         idxB++;
       }
 
@@ -218,23 +218,39 @@
       return children.filter(c => !systemTypes.has(c.type));
     }
 
-    _makeRemovedPair(node) {
-      return {
-        nodeA: this._slimNode(node),
-        nodeB: null,
-        status: 'removed',
-        changes: { duration: null, hasError: null, soqlCount: null, dmlCount: null },
-        children: []
-      };
+    /** Node present in A only */
+    _makeRemovedPair(node, config) {
+      return this._makeOneSidedPair(node, 'removed', config, false);
     }
 
-    _makeAddedPair(node) {
+    /** Node present in B only */
+    _makeAddedPair(node, config) {
+      return this._makeOneSidedPair(node, 'added', config, false);
+    }
+
+    /**
+     * Pair for a node that exists on one side only. It keeps the node's whole
+     * subtree so the view shows what was added/removed instead of a lone row;
+     * descendants are flagged `nested` so the summary counts the subtree once,
+     * from its root.
+     * @param {Object} node
+     * @param {'added'|'removed'} status
+     * @param {Object} config
+     * @param {boolean} nested - True for descendants of the subtree root
+     * @returns {Object} DiffPair
+     */
+    _makeOneSidedPair(node, status, config, nested) {
+      const slim = this._slimNode(node);
+      const children = this._filterChildren(node.children || [], config)
+        .map(child => this._makeOneSidedPair(child, status, config, true));
+
       return {
-        nodeA: null,
-        nodeB: this._slimNode(node),
-        status: 'added',
+        nodeA: status === 'removed' ? slim : null,
+        nodeB: status === 'added' ? slim : null,
+        status,
+        nested,
         changes: { duration: null, hasError: null, soqlCount: null, dmlCount: null },
-        children: []
+        children
       };
     }
 
@@ -278,13 +294,17 @@
     }
 
     _countDivergences(pair, summary) {
-      if (pair.status === 'removed') {
-        summary.totalDivergences++;
-        summary.onlyInA++;
-      } else if (pair.status === 'added') {
-        summary.totalDivergences++;
-        summary.onlyInB++;
-      } else if (pair.status === 'changed') {
+      if (pair.status === 'removed' || pair.status === 'added') {
+        // Its descendants are all `nested`: they belong to this one divergence
+        if (!pair.nested) {
+          summary.totalDivergences++;
+          if (pair.status === 'removed') summary.onlyInA++;
+          else summary.onlyInB++;
+        }
+        return;
+      }
+
+      if (pair.status === 'changed') {
         summary.totalDivergences++;
         if (pair.changes.duration) summary.timingDiffs++;
         if (pair.changes.hasError) summary.errorDiffs++;

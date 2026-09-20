@@ -82,11 +82,11 @@
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
-            <h3>📄 ${i18n.rawLog || 'Raw Log'}</h3>
-            <button class="sf-modal-close-btn">✕</button>
+            <h3>${window.FoxLog.icon('file', { size: 16 })} ${i18n.rawLog || 'Raw Log'}</h3>
+            <button type="button" class="sf-modal-close-btn" aria-label="${i18n.close || 'Close'}">${window.FoxLog.icon('x')}</button>
           </div>
           <div class="sf-modal-body">
-            <pre class="sf-raw-log-content">${this._escapeHtml(content)}</pre>
+            <pre class="sf-raw-log-content" tabindex="0" aria-label="${i18n.rawLog || 'Raw Log'}">${this._escapeHtml(content)}</pre>
           </div>
         </div>
       `;
@@ -143,20 +143,21 @@
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
-            <h3>📊 ${i18n.logAnalysis || 'Log Analysis'}</h3>
+            <div class="sf-modal-title">${this._renderModalTitle(parsedLog.metadata)}</div>
             ${this._renderNavigationButtons()}
-            <button class="sf-modal-close-btn">×</button>
+            <button type="button" class="sf-modal-close-btn" aria-label="${i18n.close || 'Close'}">${window.FoxLog.icon('x')}</button>
           </div>
-          
-          <div class="sf-modal-tabs">
-            <button class="sf-tab-btn active" data-tab="summary">${i18n.summary || 'Summary'}</button>
-            <button class="sf-tab-btn" data-tab="analysis">
-              🩺 ${i18n.analysis || 'Analysis'}
+
+          <div class="sf-modal-tabs" role="tablist" aria-label="${i18n.logAnalysis || 'Log Analysis'}">
+            <button type="button" class="sf-tab-btn active" role="tab" aria-selected="true" data-tab="summary">${window.FoxLog.icon('layout', { size: 14 })} ${i18n.summary || 'Summary'}</button>
+            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="analysis">
+              ${window.FoxLog.icon('activity', { size: 14 })} ${i18n.analysis || 'Analysis'}
               ${this._renderAnalysisBadge(antiPatternResults)}
             </button>
-            <button class="sf-tab-btn" data-tab="calls">${i18n.calls || 'Calls'}</button>
-            <button class="sf-tab-btn" data-tab="raw">${i18n.rawLog || 'Raw Log'}</button>
-            <button class="sf-tab-btn" data-tab="diff">${i18n.diffTab || 'Diff'}</button>
+            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="graph">${window.FoxLog.icon('git-branch', { size: 14 })} ${i18n.flow || 'Flow'}</button>
+            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="calls">${window.FoxLog.icon('list', { size: 14 })} ${i18n.calls || 'Calls'}</button>
+            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="raw">${window.FoxLog.icon('file-text', { size: 14 })} ${i18n.rawLog || 'Raw Log'}</button>
+            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="diff">${window.FoxLog.icon('shuffle', { size: 14 })} ${i18n.diffTab || 'Diff'}</button>
           </div>
           
           <div class="sf-modal-body-tabs">
@@ -168,7 +169,14 @@
               ${this._renderAnalysisTab(antiPatternResults)}
             </div>
             
-            <div id="tab-calls" class="sf-tab-content">
+            <div id="tab-graph" class="sf-tab-content sf-tab-content--flush">
+              <div class="sf-calls-loading">
+                <div class="sf-spinner"></div>
+                <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
+              </div>
+            </div>
+
+            <div id="tab-calls" class="sf-tab-content sf-tab-content--flush">
               <div class="sf-calls-loading">
                 <div class="sf-spinner"></div>
                 <div class="sf-loading-text">${i18n.buildingCallTree || 'Building call tree...'}</div>
@@ -187,7 +195,7 @@
                   </select>
                   <span class="sf-diff-or">${i18n.diffOr || 'or'}</span>
                   <label class="sf-diff-import-btn" tabindex="0" role="button" aria-label="${i18n.diffImportFile || 'Import a file'}">
-                    📂 ${i18n.diffImportFile || 'Import a file'}
+                    ${window.FoxLog.icon('folder', { size: 13 })} ${i18n.diffImportFile || 'Import a file'}
                     <input type="file" class="sf-diff-file-input" accept=".txt,.log" hidden />
                   </label>
                 </div>
@@ -200,6 +208,7 @@
       
       this._attachModal(modal);
       this._setupTabs(modal);
+      this._setupGraphTab(modal, parsedLog);
       this._setupCallsTab(modal, parsedLog);
       this._setupDiffTab(modal, parsedLog);
 
@@ -230,6 +239,11 @@
         }
       }
       
+      const titleContainer = modal.querySelector('.sf-modal-title');
+      if (titleContainer) {
+        titleContainer.innerHTML = this._renderModalTitle(parsedLog.metadata);
+      }
+
       // Update navigation buttons
       const navContainer = modal.querySelector('.sf-modal-nav, .sf-nav-placeholder');
       if (navContainer) {
@@ -257,14 +271,34 @@
       const analysisBtn = modal.querySelector('[data-tab="analysis"]');
       if (analysisBtn) {
         analysisBtn.innerHTML = `
-          🩺 ${i18n.analysis || 'Analysis'}
+          ${window.FoxLog.icon('activity', { size: 14 })} ${i18n.analysis || 'Analysis'}
           ${this._renderAnalysisBadge(antiPatternResults)}
         `;
       }
       
-      // Reset Calls tab (will be rebuilt on click)
+      // Reset Flow/Graph tab (will be rebuilt on click, or immediately if active)
+      const graphTab = modal.querySelector('#tab-graph');
+      if (graphTab) {
+        if (modal._foxlogGraphView) {
+          modal._foxlogGraphView.destroy();
+          modal._foxlogGraphView = null;
+        }
+        graphTab.innerHTML = `
+          <div class="sf-calls-loading">
+            <div class="sf-spinner"></div>
+            <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
+          </div>
+        `;
+        this._setupGraphTab(modal, parsedLog);
+      }
+
+      // Reset Calls tab (will be rebuilt on click, or immediately if active)
       const callsTab = modal.querySelector('#tab-calls');
       if (callsTab) {
+        if (modal._foxlogCallsView) {
+          modal._foxlogCallsView.destroy();
+          modal._foxlogCallsView = null;
+        }
         callsTab.innerHTML = `
           <div class="sf-calls-loading">
             <div class="sf-spinner"></div>
@@ -274,7 +308,7 @@
         // Re-setup calls tab for the new log
         this._setupCallsTab(modal, parsedLog);
       }
-      
+
       // Update Raw tab
       const rawTab = modal.querySelector('#tab-raw');
       if (rawTab) {
@@ -284,6 +318,10 @@
       // Reset Diff tab
       const diffTab = modal.querySelector('#tab-diff');
       if (diffTab) {
+        if (modal._foxlogDiffView) {
+          modal._foxlogDiffView.destroy();
+          modal._foxlogDiffView = null;
+        }
         diffTab.innerHTML = `
           <div class="sf-diff-select-container">
             <div class="sf-diff-top-bar">
@@ -292,7 +330,7 @@
               </select>
               <span class="sf-diff-or">${i18n.diffOr || 'or'}</span>
               <label class="sf-diff-import-btn" tabindex="0" role="button" aria-label="${i18n.diffImportFile || 'Import a file'}">
-                📂 ${i18n.diffImportFile || 'Import a file'}
+                ${window.FoxLog.icon('folder', { size: 13 })} ${i18n.diffImportFile || 'Import a file'}
                 <input type="file" class="sf-diff-file-input" accept=".txt,.log" hidden />
               </label>
             </div>
@@ -332,10 +370,10 @@
         const blob = new Blob([parsedLog.rawContent], { type: 'text/plain' });
         this._downloadFile(blob, filename);
         this.logger.success('Raw log exported');
-        this._showToast(`✅ ${i18n.toastExportSuccess || 'Exported successfully!'}`);
+        this._showToast(i18n.toastExportSuccess || 'Exported successfully!');
       } catch (error) {
         this.logger.error('Export failed', error);
-        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
+        this._showToast(i18n.toastExportError || 'Export error', 'error');
       }
     }
 
@@ -359,10 +397,10 @@
         }, 2000);
 
         this.logger.success('Copied to clipboard');
-        this._showToast(`✅ ${i18n.copySuccess || 'Copied to clipboard!'}`);
+        this._showToast(i18n.copySuccess || 'Copied to clipboard!');
       } catch (error) {
         this.logger.error('Copy failed', error);
-        this._showToast(`❌ ${i18n.copyError || 'Copy error'}`, 'error');
+        this._showToast(i18n.copyError || 'Copy error', 'error');
       }
     }
 
@@ -392,9 +430,18 @@
         existingToast.remove();
       }
 
+      const toastIcons = {
+        success: 'check-circle',
+        error: 'alert-circle',
+        warning: 'alert-triangle',
+        info: 'info'
+      };
+
       const toast = document.createElement('div');
       toast.className = `sf-toast sf-toast-${type}`;
-      toast.textContent = message;
+      toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+      toast.innerHTML = `${window.FoxLog.icon(toastIcons[type] || 'info', { size: 16, className: 'sf-toast-icon' })}<span class="sf-toast-message"></span>`;
+      toast.querySelector('.sf-toast-message').textContent = message;
       document.body.appendChild(toast);
 
       // Animation d'apparition
@@ -405,6 +452,34 @@
         toast.classList.remove('sf-toast-show');
         setTimeout(() => toast.remove(), 300);
       }, 3000);
+    }
+
+    _getStatusTone(status) {
+      if (status === 'Success') return 'success';
+      return status === 'Unknown' ? 'neutral' : 'danger';
+    }
+
+    /**
+     * Render the log identity shown in the modal header
+     * @private
+     * @param {Object} metadata - Parsed log metadata
+     * @returns {string} HTML for the header title block
+     */
+    _renderModalTitle(metadata) {
+      const status = String(metadata.status);
+      const startedAt = metadata.startTime ? metadata.startTime.toLocaleString(navigator.language) : '';
+
+      return `
+        <span class="sf-modal-title-icon">${window.FoxLog.icon('bar-chart', { size: 18 })}</span>
+        <div class="sf-modal-title-text">
+          <h3 title="${this._escapeHtml(metadata.operation)}">${this._escapeHtml(metadata.operation)}</h3>
+          <p class="sf-modal-subtitle">
+            <span class="sf-tone-chip sf-tone-chip--${this._getStatusTone(status)}" title="${this._escapeHtml(status)}">${this._escapeHtml(status.split(':')[0])}</span>
+            <span>${window.FoxLog.formatDuration(metadata.duration)}</span>
+            ${startedAt ? `<span>${this._escapeHtml(startedAt)}</span>` : ''}
+          </p>
+        </div>
+      `;
     }
 
     /**
@@ -427,13 +502,13 @@
       
       return `
         <div class="sf-modal-nav">
-          <button class="sf-nav-btn sf-nav-prev" ${isFirst ? 'disabled' : ''} title="${i18n.previousLog || 'Previous log'}">
+          <button type="button" class="sf-nav-btn sf-nav-prev" ${isFirst ? 'disabled' : ''} title="${i18n.previousLog || 'Previous log'}" aria-label="${i18n.previousLog || 'Previous log'}">
             <svg viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
             </svg>
           </button>
           <span class="sf-nav-position">${position}</span>
-          <button class="sf-nav-btn sf-nav-next" ${isLast ? 'disabled' : ''} title="${i18n.nextLog || 'Next log'}">
+          <button type="button" class="sf-nav-btn sf-nav-next" ${isLast ? 'disabled' : ''} title="${i18n.nextLog || 'Next log'}" aria-label="${i18n.nextLog || 'Next log'}">
             <svg viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
             </svg>
@@ -509,7 +584,7 @@
         }
       } catch (error) {
         this.logger.error('Navigation failed', error);
-        this._showToast(`❌ ${i18n.error || 'Error'}`, 'error');
+        this._showToast(i18n.error || 'Error', 'error');
         // Revert to previous state on error
         this._updateNavigationButtons(this.currentLogIndex);
       } finally {
@@ -576,11 +651,32 @@
      */
     close() {
       if (this.currentModal) {
+        // Bump the generation tokens so a Flow/Calls build or a Diff run still
+        // in flight (awaiting buildTree()/init()/the worker) sees itself as
+        // stale once it resumes, instead of attaching a freshly built view --
+        // with its own window listeners -- to this now-detached modal.
+        this.currentModal._foxlogGraphGeneration = (this.currentModal._foxlogGraphGeneration || 0) + 1;
+        this.currentModal._foxlogCallsGeneration = (this.currentModal._foxlogCallsGeneration || 0) + 1;
+        this.currentModal._foxlogDiffRun = (this.currentModal._foxlogDiffRun || 0) + 1;
+
+        if (this.currentModal._foxlogGraphView) {
+          this.currentModal._foxlogGraphView.destroy();
+          this.currentModal._foxlogGraphView = null;
+        }
+        if (this.currentModal._foxlogCallsView) {
+          this.currentModal._foxlogCallsView.destroy();
+          this.currentModal._foxlogCallsView = null;
+        }
+        if (this.currentModal._foxlogDiffView) {
+          this.currentModal._foxlogDiffView.destroy();
+          this.currentModal._foxlogDiffView = null;
+        }
         this.currentModal.remove();
         this.currentModal = null;
+        this.returnFocusTo?.focus?.();
         this.logger.log('Modal closed');
       }
-      
+
       // Reset navigation state
       this.isLoadingNavigation = false;
     }
@@ -588,12 +684,36 @@
     _createModal() {
       const modal = document.createElement('div');
       modal.className = 'sf-log-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-label', i18n.logAnalysis || 'Log Analysis');
       return modal;
     }
 
     _attachModal(modal) {
+      this.returnFocusTo = document.activeElement;
       document.body.appendChild(modal);
       this.currentModal = modal;
+      modal.tabIndex = -1;
+      modal.focus({ preventScroll: true });
+
+      // Keep Tab inside the dialog while it is open
+      modal.addEventListener('keydown', (e) => {
+        if (e.key !== 'Tab') return;
+        const focusable = [...modal.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])')]
+          .filter(el => el.offsetParent !== null);
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      });
 
       // Close button
       const closeBtn = modal.querySelector('.sf-modal-close-btn');
@@ -764,7 +884,7 @@
           hasLog: !!this.currentParsedLog, 
           hasResults: !!this.currentAntiPatternResults 
         });
-        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
+        this._showToast(i18n.toastExportError || 'Export error', 'error');
         return;
       }
 
@@ -800,7 +920,7 @@
         };
 
         logger.success('[PDF Export] PDF export initiated');
-        this._showToast(`📄 ${i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog'}`);
+        this._showToast(i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog');
         
       } catch (error) {
         logger.error('[PDF Export] PDF export failed', error);
@@ -829,10 +949,10 @@
         try {
           iframe.contentWindow.focus();
           iframe.contentWindow.print();
-          this._showToast(`📄 ${i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog'}`);
+          this._showToast(i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog');
         } catch (e) {
           logger.error('[PDF Export] Iframe print failed', e);
-          this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
+          this._showToast(i18n.toastExportError || 'Export error', 'error');
         }
         
         // Remove iframe after a delay
@@ -848,7 +968,7 @@
      */
     _exportAnalysisMd() {
       if (!this.currentParsedLog || !this.currentAntiPatternResults) {
-        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
+        this._showToast(i18n.toastExportError || 'Export error', 'error');
         return;
       }
 
@@ -861,7 +981,7 @@
       const blob = new Blob([md], { type: 'text/markdown' });
       
       this._downloadFile(blob, filename);
-      this._showToast(`✅ ${i18n.analysisExportSuccess || 'Export successful'}`);
+      this._showToast(i18n.analysisExportSuccess || 'Export successful');
       logger.success('[MD Export] Markdown exported');
     }
 
@@ -871,7 +991,7 @@
      */
     _exportAnalysisTxt() {
       if (!this.currentParsedLog || !this.currentAntiPatternResults) {
-        this._showToast(`❌ ${i18n.toastExportError || 'Export error'}`, 'error');
+        this._showToast(i18n.toastExportError || 'Export error', 'error');
         return;
       }
 
@@ -884,7 +1004,7 @@
       const blob = new Blob([txt], { type: 'text/plain' });
       
       this._downloadFile(blob, filename);
-      this._showToast(`✅ ${i18n.analysisExportSuccess || 'Export successful'}`);
+      this._showToast(i18n.analysisExportSuccess || 'Export successful');
       logger.success('[TXT Export] Text file exported');
     }
 
@@ -897,34 +1017,34 @@
       const warningPatterns = patterns.filter(p => p.severity === 'warning');
       const infoPatterns = patterns.filter(p => p.severity === 'info');
 
-      let md = `# 🦊 FoxLog - Analysis Report\n\n`;
+      let md = `# FoxLog - Analysis Report\n\n`;
       md += `**Generated:** ${date}\n\n`;
       md += `---\n\n`;
 
       // Score section
-      md += `## 📊 Health Score: ${summary.score}/100\n\n`;
+      md += `## Health Score: ${summary.score}/100\n\n`;
       md += `| Severity | Count |\n`;
       md += `|----------|-------|\n`;
-      md += `| 🔴 Critical | ${summary.critical} |\n`;
-      md += `| 🟡 Warning | ${summary.warnings} |\n`;
-      md += `| 🔵 Info | ${summary.info} |\n\n`;
+      md += `| Critical | ${summary.critical} |\n`;
+      md += `| Warning | ${summary.warnings} |\n`;
+      md += `| Info | ${summary.info} |\n\n`;
 
       // Metadata
-      md += `## 📋 Log Information\n\n`;
+      md += `## Log Information\n\n`;
       md += `- **Operation:** ${metadata.operation || '-'}\n`;
       md += `- **Status:** ${metadata.status || '-'}\n`;
       md += `- **Duration:** ${metadata.duration || 0}ms\n`;
       md += `- **Log ID:** ${metadata.id || '-'}\n\n`;
 
       if (patterns.length === 0) {
-        md += `## ✅ No Issues Detected\n\n`;
+        md += `## No Issues Detected\n\n`;
         md += `Great job! No anti-patterns were found in this log.\n`;
         return md;
       }
 
       // Critical patterns
       if (criticalPatterns.length > 0) {
-        md += `## 🔴 Critical Issues (${criticalPatterns.length})\n\n`;
+        md += `## Critical Issues (${criticalPatterns.length})\n\n`;
         criticalPatterns.forEach((p, i) => {
           md += this._formatPatternMd(p, i + 1);
         });
@@ -932,7 +1052,7 @@
 
       // Warning patterns
       if (warningPatterns.length > 0) {
-        md += `## 🟡 Warnings (${warningPatterns.length})\n\n`;
+        md += `## Warnings (${warningPatterns.length})\n\n`;
         warningPatterns.forEach((p, i) => {
           md += this._formatPatternMd(p, i + 1);
         });
@@ -940,7 +1060,7 @@
 
       // Info patterns
       if (infoPatterns.length > 0) {
-        md += `## 🔵 Info (${infoPatterns.length})\n\n`;
+        md += `## Info (${infoPatterns.length})\n\n`;
         infoPatterns.forEach((p, i) => {
           md += this._formatPatternMd(p, i + 1);
         });
@@ -973,7 +1093,7 @@
       }
       
       if (pattern.suggestion) {
-        md += `> 💡 **Suggestion:** ${pattern.suggestion}\n\n`;
+        md += `> **Suggestion:** ${pattern.suggestion}\n\n`;
       }
       
       return md;
@@ -1100,7 +1220,7 @@
       // Use base64 logos if available, fallback to text
       const logoHtml = this.logoIconBase64 && this.logoTextBase64
         ? `<img src="${this.logoIconBase64}" alt="FoxLog" class="logo-icon" /><img src="${this.logoTextBase64}" alt="FoxLog" class="logo-text" />`
-        : `<span class="logo-fallback">🦊 FoxLog</span>`;
+        : `<span class="logo-fallback">FoxLog</span>`;
 
       return `
         <!DOCTYPE html>
@@ -1239,7 +1359,7 @@
               border-radius: 12px;
               border: 2px solid #10b981;
             }
-            .healthy-icon { font-size: 48px; margin-bottom: 10px; }
+            .healthy-icon { display: flex; justify-content: center; margin-bottom: 10px; }
             .healthy-text { font-size: 20px; font-weight: 700; color: #059669; }
             @media print {
               body { padding: 20px; }
@@ -1266,21 +1386,21 @@
             <div class="stats">
               <div class="stat stat-critical">
                 <div class="stat-value">${summary.critical}</div>
-                <div class="stat-label">🔴 ${i18n.critical || 'Critical'}</div>
+                <div class="stat-label">${i18n.critical || 'Critical'}</div>
               </div>
               <div class="stat stat-warning">
                 <div class="stat-value">${summary.warnings}</div>
-                <div class="stat-label">🟡 ${i18n.warning || 'Warning'}</div>
+                <div class="stat-label">${i18n.warning || 'Warning'}</div>
               </div>
               <div class="stat stat-info">
                 <div class="stat-value">${summary.info}</div>
-                <div class="stat-label">🔵 ${i18n.info || 'Info'}</div>
+                <div class="stat-label">${i18n.info || 'Info'}</div>
               </div>
             </div>
           </div>
 
           <div class="metadata">
-            <h3>📋 ${i18n.logInfo || 'Log Information'}</h3>
+            <h3>${i18n.logInfo || 'Log Information'}</h3>
             <div class="metadata-grid">
               <div class="metadata-item">
                 <span class="metadata-label">${i18n.operation || 'Operation'}:</span>
@@ -1303,28 +1423,30 @@
 
           ${patterns.length === 0 ? `
             <div class="healthy-message">
-              <div class="healthy-icon">✅</div>
-              <div class="healthy-text">${i18n.codeHealthy || 'Code is healthy!'} ✨</div>
+              <div class="healthy-icon">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <div class="healthy-text">${i18n.codeHealthy || 'Code is healthy!'}</div>
               <p>${i18n.noAntiPatterns || 'No anti-patterns detected'}</p>
             </div>
           ` : `
             ${criticalPatterns.length > 0 ? `
               <div class="pattern-group group-critical">
-                <h3>🔴 ${i18n.critical || 'Critical'} (${criticalPatterns.length})</h3>
+                <h3>${i18n.critical || 'Critical'} (${criticalPatterns.length})</h3>
                 ${criticalPatterns.map(p => this._renderPdfPatternItem(p, 'critical')).join('')}
               </div>
             ` : ''}
-            
+
             ${warningPatterns.length > 0 ? `
               <div class="pattern-group group-warning">
-                <h3>🟡 ${i18n.warning || 'Warning'} (${warningPatterns.length})</h3>
+                <h3>${i18n.warning || 'Warning'} (${warningPatterns.length})</h3>
                 ${warningPatterns.map(p => this._renderPdfPatternItem(p, 'warning')).join('')}
               </div>
             ` : ''}
-            
+
             ${infoPatterns.length > 0 ? `
               <div class="pattern-group group-info">
-                <h3>🔵 ${i18n.info || 'Info'} (${infoPatterns.length})</h3>
+                <h3>${i18n.info || 'Info'} (${infoPatterns.length})</h3>
                 ${infoPatterns.map(p => this._renderPdfPatternItem(p, 'info')).join('')}
               </div>
             ` : ''}
@@ -1349,29 +1471,48 @@
           <div class="pattern-desc">${pattern.description}</div>
           ${pattern.query ? `<div class="pattern-query">${this._escapeHtml(pattern.query)}</div>` : ''}
           ${pattern.occurrences ? `<div style="color: #6b7280; font-size: 11px; margin-bottom: 8px;">${i18n.occurrences || 'Occurrences'}: ${pattern.occurrences}</div>` : ''}
-          <div class="pattern-suggestion">💡 ${pattern.suggestion}</div>
+          <div class="pattern-suggestion"><strong>${i18n.suggestion || 'Suggestion'}:</strong> ${pattern.suggestion}</div>
         </div>
       `;
     }
 
     _setupTabs(modal) {
-      const tabBtns = modal.querySelectorAll('.sf-tab-btn');
+      const tabBtns = [...modal.querySelectorAll('.sf-tab-btn')];
       const tabContents = modal.querySelectorAll('.sf-tab-content');
 
       tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-          // Remove active class from all
-          tabBtns.forEach(b => b.classList.remove('active'));
+          tabBtns.forEach(b => {
+            const isActive = b === btn;
+            b.classList.toggle('active', isActive);
+            b.setAttribute('aria-selected', String(isActive));
+            b.tabIndex = isActive ? 0 : -1;
+          });
           tabContents.forEach(c => c.classList.remove('active'));
 
-          // Add active to clicked
-          btn.classList.add('active');
-          const tabId = btn.dataset.tab;
-          const content = modal.querySelector(`#tab-${tabId}`);
+          const content = modal.querySelector(`#tab-${btn.dataset.tab}`);
           if (content) {
             content.classList.add('active');
           }
         });
+      });
+
+      // Arrow keys move between tabs; stop them here so they do not also switch to the previous/next log
+      modal.querySelector('.sf-modal-tabs')?.addEventListener('keydown', (e) => {
+        const current = tabBtns.indexOf(document.activeElement);
+        const last = tabBtns.length - 1;
+        const targets = {
+          ArrowRight: (current + 1) % tabBtns.length,
+          ArrowLeft: (current + last) % tabBtns.length,
+          Home: 0,
+          End: last
+        };
+        if (current < 0 || !(e.key in targets)) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        tabBtns[targets[e.key]].focus();
+        tabBtns[targets[e.key]].click();
       });
     }
 
@@ -1391,11 +1532,17 @@
       const callsBtn = modal.querySelector('[data-tab="calls"]');
       if (!callsBtn) return;
 
-      let callTreeView = null;
+      // Bump the generation token so a stale build from a previous log
+      // navigation can detect it's no longer current and bail out instead of
+      // clobbering this log's content (same DOM node is reused across logs).
+      const generation = (modal._foxlogCallsGeneration || 0) + 1;
+      modal._foxlogCallsGeneration = generation;
+
       let callTreeBuilt = false;
 
-      callsBtn.addEventListener('click', async () => {
+      const buildCallTree = async () => {
         if (callTreeBuilt) return; // Already built
+        callTreeBuilt = true; // set before the first await to avoid re-entrant double-build
 
         const callsContainer = modal.querySelector('#tab-calls');
         if (!callsContainer) return;
@@ -1412,55 +1559,192 @@
 
           // Construire l'arbre (via Web Worker)
           const callTree = await callTreeBuilder.buildTree(parsedLog);
+          if (modal._foxlogCallsGeneration !== generation) return; // stale: navigated to another log meanwhile
 
           // Create the view
           callsContainer.innerHTML = '<div class="sf-call-tree-container"></div>';
           const container = callsContainer.querySelector('.sf-call-tree-container');
 
-          callTreeView = new CallTreeView(container, callTree, parsedLog);
+          const callTreeView = new CallTreeView(container, callTree, parsedLog);
           callTreeView.init();
 
-          callTreeBuilt = true;
+          if (modal._foxlogCallsGeneration !== generation) {
+            callTreeView.destroy();
+            return;
+          }
+
+          if (modal._foxlogCallsView) {
+            modal._foxlogCallsView.destroy();
+          }
+          modal._foxlogCallsView = callTreeView;
 
           this.logger.success('CallTree view initialized');
         } catch (error) {
+          callTreeBuilt = false; // allow a retry on the next click/navigation
           this.logger.error('Failed to build call tree', error);
-          
+          if (modal._foxlogCallsGeneration !== generation) return; // stale error, another build is in charge now
+
           callsContainer.innerHTML = `
             <div class="sf-empty-state">
-              <p style="color: #ef4444; font-weight: 600;">⚠️ ${i18n.error || 'Error'}</p>
+              <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
               <p style="color: #666;">${i18n.callTreeError || 'Unable to build the call tree'}</p>
               <p class="sf-hint">${error.message}</p>
             </div>
           `;
         }
-      });
+      };
+
+      // Avoid stacking a new listener on top of stale ones from a previous
+      // navigation (the tab button itself persists across log navigation).
+      if (callsBtn._foxlogCallsClickHandler) {
+        callsBtn.removeEventListener('click', callsBtn._foxlogCallsClickHandler);
+      }
+      callsBtn._foxlogCallsClickHandler = buildCallTree;
+      callsBtn.addEventListener('click', buildCallTree);
+
+      // Navigating to the previous/next log while the Calls tab is already
+      // active resets its content but never re-fires a click on the tab
+      // button, so nothing would otherwise trigger the rebuild — build now.
+      if (callsBtn.classList.contains('active')) {
+        buildCallTree();
+      }
+    }
+
+    /**
+     * Configure le lazy-loading de l'onglet Flow (graphe d'exécution visuel)
+     * @private
+     */
+    async _setupGraphTab(modal, parsedLog) {
+      const { callTreeBuilder, CallGraphView } = window.FoxLog;
+
+      if (!callTreeBuilder || !CallGraphView) {
+        logger.warn('[ModalManager] CallGraph components not available');
+        return;
+      }
+
+      const graphBtn = modal.querySelector('[data-tab="graph"]');
+      if (!graphBtn) return;
+
+      // Bump the generation token so a stale build from a previous log
+      // navigation can detect it's no longer current and bail out instead of
+      // clobbering this log's content (same DOM node is reused across logs).
+      const generation = (modal._foxlogGraphGeneration || 0) + 1;
+      modal._foxlogGraphGeneration = generation;
+
+      let graphBuilt = false;
+
+      const buildGraph = async () => {
+        if (graphBuilt) return;
+        graphBuilt = true; // set before the first await to avoid re-entrant double-build
+
+        const graphContainer = modal.querySelector('#tab-graph');
+        if (!graphContainer) return;
+
+        try {
+          graphContainer.innerHTML = `
+            <div class="sf-calls-loading">
+              <div class="sf-spinner"></div>
+              <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
+              <div class="sf-loading-subtext">${(i18n.analyzing || 'Analyzing')} ${parsedLog.lines.length} ${(i18n.lines || 'Lines').toLowerCase()}</div>
+            </div>
+          `;
+
+          // Reuses the same CallTree already built for the Calls tab (cached by logId)
+          const callTree = await callTreeBuilder.buildTree(parsedLog);
+          if (modal._foxlogGraphGeneration !== generation) return; // stale: navigated to another log meanwhile
+
+          graphContainer.innerHTML = '<div class="sf-call-graph-container"></div>';
+          const container = graphContainer.querySelector('.sf-call-graph-container');
+
+          const graphView = new CallGraphView(container, callTree, parsedLog);
+          await graphView.init();
+
+          if (modal._foxlogGraphGeneration !== generation) {
+            // Navigated away again while init() was still rendering: tear
+            // down immediately instead of leaking its window listeners.
+            graphView.destroy();
+            return;
+          }
+
+          if (modal._foxlogGraphView) {
+            modal._foxlogGraphView.destroy();
+          }
+          modal._foxlogGraphView = graphView;
+
+          this.logger.success('CallGraphView initialized');
+        } catch (error) {
+          graphBuilt = false; // allow a retry on the next click/navigation
+          this.logger.error('Failed to build call graph', error);
+          if (modal._foxlogGraphGeneration !== generation) return; // stale error, another build is in charge now
+
+          graphContainer.innerHTML = `
+            <div class="sf-empty-state">
+              <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
+              <p style="color: #666;">${i18n.flowGraphError || 'Unable to build the graph'}</p>
+              <p class="sf-hint">${error.message}</p>
+            </div>
+          `;
+        }
+      };
+
+      // Avoid stacking a new listener on top of stale ones from a previous
+      // navigation (the tab button itself persists across log navigation).
+      if (graphBtn._foxlogGraphClickHandler) {
+        graphBtn.removeEventListener('click', graphBtn._foxlogGraphClickHandler);
+      }
+      graphBtn._foxlogGraphClickHandler = buildGraph;
+      graphBtn.addEventListener('click', buildGraph);
+
+      // Navigating to the previous/next log while the Flow tab is already
+      // active resets its content but never re-fires a click on the tab
+      // button, so nothing would otherwise trigger the rebuild — build now.
+      if (graphBtn.classList.contains('active')) {
+        buildGraph();
+      }
     }
 
     /**
      * Configure le lazy-loading de l'onglet Diff
      * @private
+     * @param {Object} currentLog - Parsed log currently open in the modal
      */
-    async _setupDiffTab(modal, parsedLogA) {
-      const { callTreeBuilder, LogDiffView } = window.FoxLog;
-
+    async _setupDiffTab(modal, currentLog) {
       const diffBtn = modal.querySelector('[data-tab="diff"]');
       if (!diffBtn) return;
 
+      // Bump the token so a diff still running for the previous log navigation
+      // can detect it's no longer current (same DOM node is reused across logs).
+      modal._foxlogDiffRun = (modal._foxlogDiffRun || 0) + 1;
+
       let diffInitialized = false;
 
-      diffBtn.addEventListener('click', async () => {
+      const initDiffTab = async () => {
         if (diffInitialized) return;
         diffInitialized = true;
-        await this._populateDiffImportSelect(modal, parsedLogA);
-      });
+        await this._populateDiffImportSelect(modal, currentLog);
+      };
+
+      // The tab button persists across log navigation: drop the listener bound
+      // to the previous log, otherwise it would still diff against that log.
+      if (diffBtn._foxlogDiffClickHandler) {
+        diffBtn.removeEventListener('click', diffBtn._foxlogDiffClickHandler);
+      }
+      diffBtn._foxlogDiffClickHandler = initDiffTab;
+      diffBtn.addEventListener('click', initDiffTab);
+
+      // Navigating to the previous/next log while the Diff tab is already
+      // active resets its content but never re-fires a click on the tab
+      // button, so nothing would otherwise fill the dropdown — init now.
+      if (diffBtn.classList.contains('active')) {
+        initDiffTab();
+      }
     }
 
     /**
      * Load imported logs list into the Diff tab dropdown
      * @private
      */
-    async _populateDiffImportSelect(modal, parsedLogA) {
+    async _populateDiffImportSelect(modal, currentLog) {
       const select = modal.querySelector('.sf-diff-log-select');
       const fileInput = modal.querySelector('.sf-diff-file-input');
 
@@ -1469,7 +1753,7 @@
         fileInput.addEventListener('change', async (e) => {
           const file = e.target.files?.[0];
           if (!file) return;
-          await this._handleDiffImport(modal, parsedLogA, file);
+          await this._handleDiffImport(modal, currentLog, file);
           fileInput.value = '';
         });
       }
@@ -1494,7 +1778,7 @@
         select.addEventListener('change', async () => {
           const importId = select.value;
           if (!importId) return;
-          await this._runDiff(modal, parsedLogA, importId);
+          await this._runDiff(modal, currentLog, importId);
         });
       } catch (error) {
         logger.error('Failed to load imported logs for diff', error);
@@ -1505,7 +1789,7 @@
      * Import a file directly from the Diff tab, save to storage, then run diff
      * @private
      */
-    async _handleDiffImport(modal, parsedLogA, file) {
+    async _handleDiffImport(modal, currentLog, file) {
       const MAX_FILE_SIZE = 5 * 1024 * 1024;
       const validExtensions = ['.txt', '.log'];
       const ext = '.' + file.name.split('.').pop().toLowerCase();
@@ -1568,17 +1852,57 @@
       logger.success(`File imported from Diff tab: ${file.name}`);
 
       // Run diff immediately
-      await this._runDiff(modal, parsedLogA, importEntry.id);
+      await this._runDiff(modal, currentLog, importEntry.id);
     }
 
     /**
-     * Execute diff between current log and selected imported log
+     * Parse an imported file like a Salesforce log.
+     * An import carries no Salesforce metadata, so hand LogParser the keys it
+     * reads (`Id`, `Operation`, ...). Without an `Id` every imported file gets
+     * the cache key `null` in CallTreeBuilder, which then returns the first
+     * tree it ever built for all of them.
      * @private
      */
-    async _runDiff(modal, parsedLogA, importId) {
-      const { callTreeBuilder, LogDiffView, logParser } = window.FoxLog;
+    _parseImportedLog(importData) {
+      const parsed = window.FoxLog.logParser.parse(importData.content, {
+        Id: importData.id,
+        Operation: importData.filename,
+        StartTime: importData.date,
+        Status: 'Import',
+        LogLength: importData.size
+      });
+
+      // The root node's duration comes from the metadata, which an import lacks:
+      // derive it from the log's own nanosecond counter so the diff doesn't
+      // report the root as a huge timing change against the current log.
+      const totalNs = parsed.lines.reduce((max, line) => Math.max(max, line.duration || 0), 0);
+      parsed.metadata.duration = Math.round(totalNs / 1e6);
+
+      return parsed;
+    }
+
+    /**
+     * Execute diff between the imported file (reference) and the current log.
+     * The imported file is side A and the current log side B, so a row "added"
+     * (+) exists only in the current log and a row "removed" (−) only in the
+     * imported file. The current log is shown in the left pane.
+     * @private
+     */
+    async _runDiff(modal, currentLog, importId) {
+      const { callTreeBuilder, LogDiffView } = window.FoxLog;
       const contentArea = modal.querySelector('.sf-diff-content-area');
       if (!contentArea) return;
+
+      // A newer selection, a log navigation or closing the modal supersedes
+      // this run: whichever finishes last must not overwrite the current one.
+      const run = (modal._foxlogDiffRun || 0) + 1;
+      modal._foxlogDiffRun = run;
+      const isStale = () => modal._foxlogDiffRun !== run;
+
+      if (modal._foxlogDiffView) {
+        modal._foxlogDiffView.destroy();
+        modal._foxlogDiffView = null;
+      }
 
       contentArea.innerHTML = `
         <div class="sf-calls-loading">
@@ -1598,41 +1922,47 @@
           throw new Error('Imported log content not found');
         }
 
-        const parsedLogB = logParser.parse(importData.content, {
-          id: importData.id,
-          filename: importData.filename
-        });
+        const fileLog = this._parseImportedLog(importData);
 
         if (!callTreeBuilder) {
           throw new Error('CallTreeBuilder not available');
         }
 
-        const [treeA, treeB] = await Promise.all([
-          callTreeBuilder.buildTree(parsedLogA),
-          callTreeBuilder.buildTree(parsedLogB)
+        const [fileTree, currentTree] = await Promise.all([
+          callTreeBuilder.buildTree(fileLog),
+          callTreeBuilder.buildTree(currentLog)
         ]);
+        if (isStale()) return;
 
-        const diffResult = await this._runDiffWorker(treeA, treeB);
+        const diffResult = await this._runDiffWorker(fileTree, currentTree);
+        if (isStale()) return;
 
         contentArea.innerHTML = '<div class="sf-diff-view-container"></div>';
         const container = contentArea.querySelector('.sf-diff-view-container');
 
         const metaA = {
-          filename: parsedLogA.metadata?.operation || 'Log A'
+          label: i18n.diffLabelFile || 'Reference file',
+          onlyLabel: i18n.diffOnlyInFile || 'Only in the file',
+          filename: importData.filename || 'File'
         };
         const metaB = {
-          filename: importData.filename || 'Log B'
+          label: i18n.diffLabelCurrent || 'Current log',
+          onlyLabel: i18n.diffOnlyInCurrent || 'Only in the current log',
+          filename: currentLog.metadata?.operation || 'Log'
         };
 
-        const diffView = new LogDiffView(container, diffResult, metaA, metaB);
+        const diffView = new LogDiffView(container, diffResult, metaA, metaB, { leftSide: 'b' });
         diffView.render();
+        modal._foxlogDiffView = diffView;
 
         logger.success('Diff view rendered');
       } catch (error) {
         logger.error('Diff computation failed', error);
+        if (isStale()) return; // another run is in charge of the content now
+
         contentArea.innerHTML = `
           <div class="sf-empty-state">
-            <p style="color: #ef4444; font-weight: 600;">⚠️ ${i18n.error || 'Error'}</p>
+            <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
             <p style="color: #666;">${i18n.diffError || 'Diff computation error'}</p>
             <p class="sf-hint">${error.message}</p>
           </div>
@@ -1687,6 +2017,8 @@
     }
 
     _renderSummaryTab(summary, parsedLog) {
+      const status = String(summary.metadata.status);
+      const statusClass = { success: 'sf-status-success', danger: 'sf-status-error' }[this._getStatusTone(status)] || '';
       const extraCount = parsedLog.stats.methods.length > 10 ? parsedLog.stats.methods.length - 10 : 0;
       const extraHint = extraCount > 0
         ? (i18n.andOthers || '...and {count} more').replace('{count}', extraCount)
@@ -1694,14 +2026,14 @@
       const errorsSection = parsedLog.stats.errors.length > 0
         ? `
           <div class="sf-summary-section sf-summary-errors">
-            <h4>❌ ${(i18n.errors || 'Errors')} (${parsedLog.stats.errors.length})</h4>
+            <h4>${window.FoxLog.icon('alert-circle', { size: 14 })} ${(i18n.errors || 'Errors')} (${parsedLog.stats.errors.length})</h4>
             <div class="sf-errors-list">
               ${parsedLog.stats.errors.map(error => `
                 <div class="sf-error-item">
                   <div class="sf-error-type">${error.type}</div>
                   <div class="sf-error-details">
                     <div class="sf-error-message">${error.exceptionType || 'Exception'}: ${error.message}</div>
-                    ${error.method ? `<div class="sf-error-location">📍 ${(i18n.location || 'Location')}: <code>${error.method}</code></div>` : ''}
+                    ${error.method ? `<div class="sf-error-location">${window.FoxLog.icon('map-pin', { size: 12 })} ${(i18n.location || 'Location')}: <code>${error.method}</code></div>` : ''}
                     <div class="sf-error-time">${error.timestamp}</div>
                   </div>
                 </div>
@@ -1713,20 +2045,20 @@
 
       return `
         <div class="sf-summary-container">
-          <div class="sf-summary-section">
-            <h4>ℹ️ ${i18n.generalInfo || 'General Information'}</h4>
+          <div class="sf-summary-section sf-summary-overview">
+            <h4>${window.FoxLog.icon('info', { size: 14 })} ${i18n.generalInfo || 'General Information'}</h4>
             <div class="sf-summary-grid">
               <div class="sf-summary-item">
                 <span class="sf-label">${i18n.operation || 'Operation'}</span>
-                <span class="sf-value">${summary.metadata.operation}</span>
+                <span class="sf-value">${this._escapeHtml(summary.metadata.operation)}</span>
               </div>
               <div class="sf-summary-item">
                 <span class="sf-label">${i18n.status || 'Status'}</span>
-                <span class="sf-value sf-status-${summary.metadata.status.toLowerCase()}">${summary.metadata.status}</span>
+                <span class="sf-value sf-value--status ${statusClass}" title="${this._escapeHtml(status)}">${this._escapeHtml(status.split(':')[0])}</span>
               </div>
               <div class="sf-summary-item">
                 <span class="sf-label">${i18n.duration || 'Duration'}</span>
-                <span class="sf-value">${summary.duration}ms</span>
+                <span class="sf-value">${window.FoxLog.formatDuration(summary.duration)}</span>
               </div>
               <div class="sf-summary-item">
                 <span class="sf-label">${i18n.lines || 'Lines'}</span>
@@ -1736,7 +2068,7 @@
           </div>
 
           <div class="sf-summary-section">
-            <h4>📊 ${i18n.salesforceLimits || 'Salesforce Limits'}</h4>
+            <h4>${window.FoxLog.icon('bar-chart', { size: 14 })} ${i18n.salesforceLimits || 'Salesforce Limits'}</h4>
             <div class="sf-limits-grid">
               ${this._renderLimitBar(i18n.limitSoql || 'SOQL Queries', parsedLog.stats.limits.soqlQueries, parsedLog.stats.limits.maxSoqlQueries, summary.limits.soql)}
               ${this._renderLimitBar(i18n.limitDml || 'DML Statements', parsedLog.stats.limits.dmlStatements, parsedLog.stats.limits.maxDmlStatements, summary.limits.dml)}
@@ -1748,7 +2080,7 @@
           ${errorsSection}
 
           <div class="sf-summary-section">
-            <h4>🔧 ${(i18n.methods || 'Methods')} (${summary.methods})</h4>
+            <h4>${window.FoxLog.icon('code', { size: 14 })} ${(i18n.methods || 'Methods')} (${summary.methods})</h4>
             <div class="sf-methods-list">
               ${parsedLog.stats.methods.slice(0, 10).map(m => `
                 <div class="sf-method-item">
@@ -1786,7 +2118,7 @@
      */
     _renderAnalysisBadge(results) {
       if (!results || results.totalCount === 0) {
-        return '<span class="sf-tab-badge sf-badge-success">✓</span>';
+        return `<span class="sf-tab-badge sf-badge-success">${window.FoxLog.icon('check', { size: 10 })}</span>`;
       }
       
       if (results.hasCritical) {
@@ -1809,7 +2141,7 @@
         return `
           <div class="sf-analysis-container">
             <div class="sf-empty-state">
-              <p>⚠️ ${i18n.analysisUnavailable || 'Analysis unavailable'}</p>
+              <p>${window.FoxLog.icon('alert-triangle')} ${i18n.analysisUnavailable || 'Analysis unavailable'}</p>
             </div>
           </div>
         `;
@@ -1834,16 +2166,16 @@
                   </svg>
                 </button>
                 <div class="sf-analysis-export-menu" style="display: none;">
-                  <button class="sf-export-menu-item" data-action="export-pdf">📄 ${i18n.exportPdfShort || 'PDF'}</button>
-                  <button class="sf-export-menu-item" data-action="export-md">📝 ${i18n.exportMdShort || 'MD'}</button>
-                  <button class="sf-export-menu-item" data-action="export-txt">📃 ${i18n.exportTxtShort || 'TXT'}</button>
+                  <button class="sf-export-menu-item" data-action="export-pdf">${window.FoxLog.icon('file')} ${i18n.exportPdfShort || 'PDF'}</button>
+                  <button class="sf-export-menu-item" data-action="export-md">${window.FoxLog.icon('file-text')} ${i18n.exportMdShort || 'MD'}</button>
+                  <button class="sf-export-menu-item" data-action="export-txt">${window.FoxLog.icon('file')} ${i18n.exportTxtShort || 'TXT'}</button>
                 </div>
               </div>
             </div>
             <div class="sf-analysis-healthy">
-              <div class="sf-healthy-icon">✅</div>
-              <div class="sf-healthy-text">${i18n.codeHealthy || 'Code is healthy!'} ✨</div>
-              <div class="sf-health-score-large sf-score-${scoreClass}">
+              <div class="sf-healthy-icon">${window.FoxLog.icon('check-circle', { size: 40 })}</div>
+              <div class="sf-healthy-text">${i18n.codeHealthy || 'Code is healthy!'}</div>
+              <div class="sf-health-score-large sf-score-${scoreClass}" style="--score: ${summary.score}">
                 ${i18n.healthScore || 'Health Score'}: <strong>${summary.score}/100</strong>
               </div>
               <p class="sf-healthy-description">${i18n.noAntiPatterns || 'No anti-patterns detected'}</p>
@@ -1860,14 +2192,14 @@
       return `
         <div class="sf-analysis-container">
           <div class="sf-analysis-header">
-            <div class="sf-health-score-large sf-score-${scoreClass}">
+            <div class="sf-health-score-large sf-score-${scoreClass}" style="--score: ${summary.score}">
               <span class="sf-score-label">${i18n.healthScore || 'Health Score'}</span>
               <span class="sf-score-value">${summary.score}<span class="sf-score-max">/100</span></span>
             </div>
             <div class="sf-analysis-summary">
-              ${summary.critical > 0 ? `<div class="sf-ap-stat sf-ap-critical">🔴 ${summary.critical} ${i18n.critical || 'Critical'}</div>` : ''}
-              ${summary.warnings > 0 ? `<div class="sf-ap-stat sf-ap-warning">🟡 ${summary.warnings} ${i18n.warning || 'Warning'}</div>` : ''}
-              ${summary.info > 0 ? `<div class="sf-ap-stat sf-ap-info">🔵 ${summary.info} ${i18n.info || 'Info'}</div>` : ''}
+              ${summary.critical > 0 ? `<div class="sf-ap-stat sf-ap-critical">${window.FoxLog.dot('critical')} ${summary.critical} ${i18n.critical || 'Critical'}</div>` : ''}
+              ${summary.warnings > 0 ? `<div class="sf-ap-stat sf-ap-warning">${window.FoxLog.dot('warning')} ${summary.warnings} ${i18n.warning || 'Warning'}</div>` : ''}
+              ${summary.info > 0 ? `<div class="sf-ap-stat sf-ap-info">${window.FoxLog.dot('info')} ${summary.info} ${i18n.info || 'Info'}</div>` : ''}
             </div>
             <div class="sf-analysis-export-dropdown">
               <button class="sf-call-tree-btn sf-analysis-export-btn" data-action="toggle-analysis-export" title="${i18n.exportReport || 'Export Report'}">
@@ -1876,31 +2208,31 @@
                 </svg>
               </button>
               <div class="sf-analysis-export-menu" style="display: none;">
-                <button class="sf-export-menu-item" data-action="export-pdf">📄 ${i18n.exportPdfShort || 'PDF'}</button>
-                <button class="sf-export-menu-item" data-action="export-md">📝 ${i18n.exportMdShort || 'MD'}</button>
-                <button class="sf-export-menu-item" data-action="export-txt">📃 ${i18n.exportTxtShort || 'TXT'}</button>
+                <button class="sf-export-menu-item" data-action="export-pdf">${window.FoxLog.icon('file')} ${i18n.exportPdfShort || 'PDF'}</button>
+                <button class="sf-export-menu-item" data-action="export-md">${window.FoxLog.icon('file-text')} ${i18n.exportMdShort || 'MD'}</button>
+                <button class="sf-export-menu-item" data-action="export-txt">${window.FoxLog.icon('file')} ${i18n.exportTxtShort || 'TXT'}</button>
               </div>
             </div>
           </div>
-          
+
           <div class="sf-analysis-patterns">
             ${criticalPatterns.length > 0 ? `
               <div class="sf-pattern-group sf-group-critical">
-                <h4 class="sf-group-title">🔴 ${i18n.critical || 'Critical'} (${criticalPatterns.length})</h4>
+                <h4 class="sf-group-title">${window.FoxLog.dot('critical')} ${i18n.critical || 'Critical'} (${criticalPatterns.length})</h4>
                 ${this._renderPatternGroup(criticalPatterns, 'critical')}
               </div>
             ` : ''}
-            
+
             ${warningPatterns.length > 0 ? `
               <div class="sf-pattern-group sf-group-warning">
-                <h4 class="sf-group-title">🟡 ${i18n.warning || 'Warning'} (${warningPatterns.length})</h4>
+                <h4 class="sf-group-title">${window.FoxLog.dot('warning')} ${i18n.warning || 'Warning'} (${warningPatterns.length})</h4>
                 ${this._renderPatternGroup(warningPatterns, 'warning')}
               </div>
             ` : ''}
-            
+
             ${infoPatterns.length > 0 ? `
               <div class="sf-pattern-group sf-group-info">
-                <h4 class="sf-group-title">🔵 ${i18n.info || 'Info'} (${infoPatterns.length})</h4>
+                <h4 class="sf-group-title">${window.FoxLog.dot('info')} ${i18n.info || 'Info'} (${infoPatterns.length})</h4>
                 ${this._renderPatternGroup(infoPatterns, 'info')}
               </div>
             ` : ''}
@@ -1924,13 +2256,13 @@
      * @private
      */
     _renderPatternItem(pattern) {
-      const severityIcons = {
-        critical: '🔴',
-        warning: '🟡',
-        info: '🔵'
+      const severityTones = {
+        critical: 'critical',
+        warning: 'warning',
+        info: 'info'
       };
-      
-      const icon = severityIcons[pattern.severity] || '⚪';
+
+      const icon = window.FoxLog.dot(severityTones[pattern.severity] || 'neutral');
       
       // Build details section
       let detailsHtml = '';
@@ -1944,7 +2276,7 @@
       }
       
       if (pattern.method) {
-        detailsHtml += `<div class="sf-ap-method">📍 <code>${this._escapeHtml(pattern.method)}</code></div>`;
+        detailsHtml += `<div class="sf-ap-method">${window.FoxLog.icon('map-pin', { size: 12 })} <code>${this._escapeHtml(pattern.method)}</code></div>`;
       }
       
       if (pattern.percent !== undefined) {
@@ -1997,12 +2329,12 @@
           <div class="sf-ap-description">${pattern.description}</div>
           ${detailsHtml}
           <div class="sf-ap-suggestion">
-            <span class="sf-ap-suggestion-label">💡 ${i18n.suggestion || 'Suggestion'}:</span>
+            <span class="sf-ap-suggestion-label">${window.FoxLog.icon('lightbulb', { size: 13 })} ${i18n.suggestion || 'Suggestion'}:</span>
             ${pattern.suggestion}
           </div>
           ${pattern.impact ? `
             <div class="sf-ap-impact">
-              <span class="sf-ap-impact-label">⚡ ${i18n.impact || 'Impact'}:</span>
+              <span class="sf-ap-impact-label">${window.FoxLog.icon('zap', { size: 13 })} ${i18n.impact || 'Impact'}:</span>
               ${pattern.impact}
             </div>
           ` : ''}
@@ -2039,7 +2371,7 @@
               <span class="sf-export-lines">${rawLines.length} ${(i18n.lines || 'Lines').toLowerCase()}</span>
             </div>
           </div>
-          <pre class="sf-raw-log-content">${structuredLines}</pre>
+          <pre class="sf-raw-log-content" tabindex="0" aria-label="${i18n.rawLog || 'Raw Log'}">${structuredLines}</pre>
         </div>
       `;
     }

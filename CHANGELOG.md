@@ -4,6 +4,117 @@ All notable changes to FoxLog will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Changed
+
+- **Diff tab roles**: the open log ("Current log") stays in the left pane and the imported file is the reference ("Reference file") in the right pane. A `+` row (green) is now a row that exists only in the current log and a `−` row (red) one that exists only in the file (it was the other way round); both panes have a labelled header and the summary bar spells it out ("+2 Only in the current log")
+- **Diff tab, identical lines**: runs of identical lines fold into a "⋯ N identical lines" separator (click or keyboard to expand) keeping two lines of context and the parent rows around each difference; a "Show all lines" switch in the summary bar shows everything. Nothing is folded when the logs are identical
+- **Diff tab, added/removed blocks**: a block present on one side only now shows its full contents instead of a lone row, and counts as a single divergence for the summary and Prev/Next
+- **Flow tab filters**: variable assignments get their own "Variables" filter; "Debug" now only covers `System.debug` statements. Both stay off by default and out of the "notable nodes" list, as Debug was before
+- **Flow tab detail panel**: selecting a variable assignment shows its whole value (the node name truncates it at 50 characters)
+
+### Fixed
+
+- **Diff tab, stale file**: after the first comparison, choosing another imported file kept showing the first file's tree. An import was parsed without an `Id`, so every imported file shared the `null` slot of the call tree cache. Imports are now parsed with their `Id`, and `CallTreeBuilderService` no longer caches a log that has no `Id`
+- **Diff tab, log navigation**: using Prev/Next in the modal stacked a new listener on the Diff tab button each time, so choosing a file could diff against a previous log and fill the dropdown with duplicates. The Diff tab now follows navigation like Calls and Flow
+- **Diff tab, concurrent runs**: an older comparison finishing after a newer one, or after the modal was closed, could overwrite the result
+- **Diff tab, root row**: the imported file's name and duration are now used for its root node instead of "Unknown" / 0 ms
+- **Variable values (Flow and Calls tabs)**: a variable assignment showed the object's identity hash instead of its value (`this = 0x5e7d71a3` instead of `this = {}`) and nothing at all for null (`opp = `). The log line is `[line]|name|value` with an optional `|0x<hash>` suffix that only reference types carry; the value is now everything between the name and that suffix, so it also survives a `|` inside the value. On a 4000-line log this fixed 324 of 591 variable nodes showing an address and 46 showing nothing
+
+### Added
+
+- `tests/test-diff-engine.js`: unit tests for the diff engine and its worker copy (`node tests/test-diff-engine.js`)
+- `tests/test-call-tree-worker.js`: unit tests for the variable assignment nodes of the call tree worker (`node tests/test-call-tree-worker.js`)
+
+## [1.7.0] - 2026-09-19
+
+### Added
+
+- **Design system** (`src/theme.css`): one set of design tokens (surfaces, text, borders, accent, status hues, radius, elevation, motion) scoped to FoxLog's own root elements so nothing leaks into the Salesforce page
+- **Dark theme**: follows the OS `prefers-color-scheme`; the previous partial dark blocks (call tree, anti-patterns, graph, export toolbar only) are replaced by a complete theme covering the panel, modal, every tab and the settings popup
+- **Log identity header**: the modal header now shows the log's operation, a status chip, the duration and the start time instead of a generic title, and refreshes when navigating between logs
+- **Accessibility**: keyboard-operable launcher, log cards, import zone and tabs (arrow keys, roving tabindex); `role=dialog` with focus trap and focus return on the modal; `Esc` closes the panel; `aria-pressed` on filter chips; accessible names on icon-only buttons and the raw log scroll region; `prefers-reduced-motion` support
+- **UI preview harness** (`tests/ui-preview/`): runs the real scripts and styles against a mocked Salesforce backend with demo logs, so the UI can be reviewed without an org
+
+### Changed
+
+- **Side panel**: taller card (up to 720px) showing 5 logs per page instead of 3, segmented Salesforce/Files tabs, debug-logs card with a status pill, log cards with a status rail, skeleton loading state and tabular figures
+- **Log status**: a non-`Success` status (often a full exception message) is now shown as a short chip with the full text in the tooltip instead of a long uppercase badge
+- **Modal**: fixed-height dialog with a blurred backdrop; Summary tab uses KPI cards and class-based limit meters (green/amber/red at 75%/90%) instead of width-attribute selectors
+- **Calls / Flow tabs**: quiet tinted filter chips (dashed outline when off) and a neutral "Top 5 slowest nodes" card replace the saturated pills and yellow banner; both tabs now use the whole modal area instead of sitting inside a 16-20px padding, so the Flow graph is larger
+- **Salesforce tab icon**: the panel tab shows a Salesforce-blue cloud (`--fl-salesforce`) instead of a database cylinder
+- **Analysis tab**: health score is a KPI card with a meter; suggestion and impact notices are softened
+- **Settings popup**: same tokens and dark theme, real `switch` control
+- **Contrast**: muted text moved from ~2.5:1 grays to AA-compliant tokens
+- **Store summary**: the `manifest.json` description (used as the Chrome Web Store summary) now mentions the flow graph, log diffing and one-click debug control
+
+### Fixed
+
+- **Modal tab bar**: a stray 15px vertical scrollbar appeared on Windows because the active-tab underline overflowed the bar by 1px and `overflow-x: auto` also enables vertical scrolling; the bar now clips vertically and hides its own scrollbar
+- **Raw log tab**: lines were double-spaced (a newline inside `<pre>` between block-level line spans)
+- **Diff tab**: error icons used `aria-label` on a role-less `span`
+- **Call tree**: expand/collapse buttons had no accessible name
+
+### Removed
+
+- `:root` CSS variables (`--sf-*`) that leaked into the Salesforce page; `!important` count in `styles.css` reduced from 501 to under 60
+- Unused PNG icons (`refresh.png`, `trash.png`) and dead panel styles
+
+## [1.6.1] - 2026-09-17
+
+### Changed
+
+- **Tab order**: "Flow" now appears before "Calls" in the log analysis modal
+
+### Fixed
+
+- **Flow tab layout**: the graph canvas left a blank gap at the bottom of the modal — the container chain relied on `height: 100%` inside a flex column, which Chromium doesn't reliably resolve for flex items; switched to `flex: 1 1 auto; min-height: 0` throughout
+- **Flow tab filter chips**: active chips (Triggers & Flows, Apex, Database, Errors) rendered as white text on a white background; added explicit per-category background colors
+- **Flow tab search box**: the magnifying glass icon floated below the input instead of overlapping it, and the box shrank further while typing — both caused by reusing a `flex: 1` rule meant for a horizontal toolbar inside a vertical sidebar; the search box now sizes to its content
+- **Stray CSS brace**: removed an extra `}` left over at the end of the pre-existing Diff tab styles, which was silently dropping the very next CSS rule (Chromium parser behavior) — this was the root cause of the Flow layout bug above
+- **"Next"/"Previous" log navigation**: switching logs while already on the Flow tab (or the Calls tab) left the spinner spinning forever, since the tree/graph only ever (re)built inside the tab button's `click` handler, which navigation never fires; both tabs now rebuild immediately if they're already the active tab
+
+## [1.6.0] - 2026-09-16
+
+### Added
+
+- **New "Flow" tab** (`src/ui/call-graph-view.js`): a visual, n8n-style execution graph of the same `CallTree` used by the Calls tab
+  - Pannable/zoomable node canvas (drag to pan, scroll to zoom, +/- and Fit View controls) with methods, SOQL, DML, triggers/flows/workflow rules/validation rules and exceptions rendered as color-coded nodes connected by curved edges
+  - Left sidebar: search box + category filter chips (Triggers & Flows, Apex, Database, Errors, Debug) and a "Notable nodes" list (automation entry points, DML, SOQL, errors) to jump straight to a node
+  - Right sidebar: detail panel for the selected node (duration, exclusive duration, SOQL/DML counts, query/DML/exception specifics) with a "View in raw log" button that jumps to the matching line in the Raw Log tab
+  - Breadcrumb path from the transaction root to the selected node, clickable to re-select any ancestor
+  - Expand/Collapse per node (large subtrees start collapsed) plus Expand All / Collapse All, with a safety cap on very large trees to keep panning smooth
+  - Reuses the existing cached `CallTree` (built via the Calls tab's Web Worker) — no extra parsing cost
+
+### Changed
+
+- **manifest.json**: registered `src/ui/call-graph-view.js` as a content script (after `call-tree-view.js`)
+
+---
+
+## [1.5.3] - 2026-09-16
+
+### Added
+
+- **Shared SVG icon system** (`src/core/icons.js`): centralized `window.FoxLog.icon(name)` and `window.FoxLog.dot(tone)` helpers, replacing emoji used as icons throughout the panel, modals, call tree view, and log diff view
+- **`sf-debug-expired` status**: expired TraceFlags now get their own amber badge instead of sharing the grey "disabled" style
+
+### Changed
+
+- **Auto-refresh interval**: reduced from 10s to 5s (`CONFIG.REFRESH_INTERVAL` in `src/core/constants.js`)
+- **User picklist indicators**: replaced the 4-color emoji legend (🟢🟡📋⚪) with a simple `●`/`○` marker (native `<select>` options can't render colored icons)
+- **Toasts**: now render a real icon based on message type instead of an emoji prefixed to the text
+- **Severity markers** (Critical/Warning/Info) in the Analysis tab and exported reports: emoji dots replaced with CSS-driven colored dots, consistent with the rest of the UI
+- **Call tree & log diff node icons**: unified icon set between the two views (previously `METHOD_ENTRY` used different glyphs in each); method-related icons now use a `</>` code icon instead of a generic arrow/wrench
+- **Exported `.txt`/`.md`/PDF reports**: dropped decorative emoji in favor of plain section headers and `[TAG]`-style markers
+
+### Documentation
+
+- **README**: Updated user-picklist indicator legend and refresh interval to match the new UI
+
+---
+
 ## [1.5.2] - 2026-05-15
 
 ### Added
