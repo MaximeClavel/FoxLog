@@ -53,7 +53,7 @@
 - **Advanced filtering**: errors only, search in tree, category filters in the Flow graph
 - **Export reports**: Export call tree and performance data in `.txt` or `.md` format
 
-### 🔀 Log Diffing [NEW]
+### 🔀 Log Diffing
 - **Side-by-side comparison** of two call trees to spot execution divergences
 - **LCS-based alignment** matching nodes by signature across different logs
 - **Color-coded differences**: added (green), removed (red), changed (orange), match (grey)
@@ -127,7 +127,7 @@ Contributions are welcome!
 
 ## ℹ️ About
 
-By Claude Opus 4.6 and occasionally Maxime Clavel
+By Claude and occasionally Maxime Clavel
 Contact : FoxLog.Extension@proton.me
 
 ## 📄 License
