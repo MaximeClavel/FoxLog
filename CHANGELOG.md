@@ -4,6 +4,25 @@ All notable changes to FoxLog will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Changed
+
+- **Diff tab roles**: the open log ("Current log") stays in the left pane and the imported file is the reference ("Reference file") in the right pane. A `+` row (green) is now a row that exists only in the current log and a `−` row (red) one that exists only in the file (it was the other way round); both panes have a labelled header and the summary bar spells it out ("+2 Only in the current log")
+- **Diff tab, identical lines**: runs of identical lines fold into a "⋯ N identical lines" separator (click or keyboard to expand) keeping two lines of context and the parent rows around each difference; a "Show all lines" switch in the summary bar shows everything. Nothing is folded when the logs are identical
+- **Diff tab, added/removed blocks**: a block present on one side only now shows its full contents instead of a lone row, and counts as a single divergence for the summary and Prev/Next
+
+### Fixed
+
+- **Diff tab, stale file**: after the first comparison, choosing another imported file kept showing the first file's tree. An import was parsed without an `Id`, so every imported file shared the `null` slot of the call tree cache. Imports are now parsed with their `Id`, and `CallTreeBuilderService` no longer caches a log that has no `Id`
+- **Diff tab, log navigation**: using Prev/Next in the modal stacked a new listener on the Diff tab button each time, so choosing a file could diff against a previous log and fill the dropdown with duplicates. The Diff tab now follows navigation like Calls and Flow
+- **Diff tab, concurrent runs**: an older comparison finishing after a newer one, or after the modal was closed, could overwrite the result
+- **Diff tab, root row**: the imported file's name and duration are now used for its root node instead of "Unknown" / 0 ms
+
+### Added
+
+- `tests/test-diff-engine.js`: unit tests for the diff engine and its worker copy (`node tests/test-diff-engine.js`)
+
 ## [1.7.0] - 2026-09-19
 
 ### Added

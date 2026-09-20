@@ -318,6 +318,10 @@
       // Reset Diff tab
       const diffTab = modal.querySelector('#tab-diff');
       if (diffTab) {
+        if (modal._foxlogDiffView) {
+          modal._foxlogDiffView.destroy();
+          modal._foxlogDiffView = null;
+        }
         diffTab.innerHTML = `
           <div class="sf-diff-select-container">
             <div class="sf-diff-top-bar">
@@ -647,12 +651,13 @@
      */
     close() {
       if (this.currentModal) {
-        // Bump both generation tokens so a Flow/Calls build still in flight
-        // (awaiting buildTree()/init()) sees itself as stale once it resumes,
-        // instead of attaching a freshly built view -- with its own window
-        // listeners -- to this now-detached modal.
+        // Bump the generation tokens so a Flow/Calls build or a Diff run still
+        // in flight (awaiting buildTree()/init()/the worker) sees itself as
+        // stale once it resumes, instead of attaching a freshly built view --
+        // with its own window listeners -- to this now-detached modal.
         this.currentModal._foxlogGraphGeneration = (this.currentModal._foxlogGraphGeneration || 0) + 1;
         this.currentModal._foxlogCallsGeneration = (this.currentModal._foxlogCallsGeneration || 0) + 1;
+        this.currentModal._foxlogDiffRun = (this.currentModal._foxlogDiffRun || 0) + 1;
 
         if (this.currentModal._foxlogGraphView) {
           this.currentModal._foxlogGraphView.destroy();
@@ -661,6 +666,10 @@
         if (this.currentModal._foxlogCallsView) {
           this.currentModal._foxlogCallsView.destroy();
           this.currentModal._foxlogCallsView = null;
+        }
+        if (this.currentModal._foxlogDiffView) {
+          this.currentModal._foxlogDiffView.destroy();
+          this.currentModal._foxlogDiffView = null;
         }
         this.currentModal.remove();
         this.currentModal = null;
@@ -1697,27 +1706,45 @@
     /**
      * Configure le lazy-loading de l'onglet Diff
      * @private
+     * @param {Object} currentLog - Parsed log currently open in the modal
      */
-    async _setupDiffTab(modal, parsedLogA) {
-      const { callTreeBuilder, LogDiffView } = window.FoxLog;
-
+    async _setupDiffTab(modal, currentLog) {
       const diffBtn = modal.querySelector('[data-tab="diff"]');
       if (!diffBtn) return;
 
+      // Bump the token so a diff still running for the previous log navigation
+      // can detect it's no longer current (same DOM node is reused across logs).
+      modal._foxlogDiffRun = (modal._foxlogDiffRun || 0) + 1;
+
       let diffInitialized = false;
 
-      diffBtn.addEventListener('click', async () => {
+      const initDiffTab = async () => {
         if (diffInitialized) return;
         diffInitialized = true;
-        await this._populateDiffImportSelect(modal, parsedLogA);
-      });
+        await this._populateDiffImportSelect(modal, currentLog);
+      };
+
+      // The tab button persists across log navigation: drop the listener bound
+      // to the previous log, otherwise it would still diff against that log.
+      if (diffBtn._foxlogDiffClickHandler) {
+        diffBtn.removeEventListener('click', diffBtn._foxlogDiffClickHandler);
+      }
+      diffBtn._foxlogDiffClickHandler = initDiffTab;
+      diffBtn.addEventListener('click', initDiffTab);
+
+      // Navigating to the previous/next log while the Diff tab is already
+      // active resets its content but never re-fires a click on the tab
+      // button, so nothing would otherwise fill the dropdown — init now.
+      if (diffBtn.classList.contains('active')) {
+        initDiffTab();
+      }
     }
 
     /**
      * Load imported logs list into the Diff tab dropdown
      * @private
      */
-    async _populateDiffImportSelect(modal, parsedLogA) {
+    async _populateDiffImportSelect(modal, currentLog) {
       const select = modal.querySelector('.sf-diff-log-select');
       const fileInput = modal.querySelector('.sf-diff-file-input');
 
@@ -1726,7 +1753,7 @@
         fileInput.addEventListener('change', async (e) => {
           const file = e.target.files?.[0];
           if (!file) return;
-          await this._handleDiffImport(modal, parsedLogA, file);
+          await this._handleDiffImport(modal, currentLog, file);
           fileInput.value = '';
         });
       }
@@ -1751,7 +1778,7 @@
         select.addEventListener('change', async () => {
           const importId = select.value;
           if (!importId) return;
-          await this._runDiff(modal, parsedLogA, importId);
+          await this._runDiff(modal, currentLog, importId);
         });
       } catch (error) {
         logger.error('Failed to load imported logs for diff', error);
@@ -1762,7 +1789,7 @@
      * Import a file directly from the Diff tab, save to storage, then run diff
      * @private
      */
-    async _handleDiffImport(modal, parsedLogA, file) {
+    async _handleDiffImport(modal, currentLog, file) {
       const MAX_FILE_SIZE = 5 * 1024 * 1024;
       const validExtensions = ['.txt', '.log'];
       const ext = '.' + file.name.split('.').pop().toLowerCase();
@@ -1825,17 +1852,57 @@
       logger.success(`File imported from Diff tab: ${file.name}`);
 
       // Run diff immediately
-      await this._runDiff(modal, parsedLogA, importEntry.id);
+      await this._runDiff(modal, currentLog, importEntry.id);
     }
 
     /**
-     * Execute diff between current log and selected imported log
+     * Parse an imported file like a Salesforce log.
+     * An import carries no Salesforce metadata, so hand LogParser the keys it
+     * reads (`Id`, `Operation`, ...). Without an `Id` every imported file gets
+     * the cache key `null` in CallTreeBuilder, which then returns the first
+     * tree it ever built for all of them.
      * @private
      */
-    async _runDiff(modal, parsedLogA, importId) {
-      const { callTreeBuilder, LogDiffView, logParser } = window.FoxLog;
+    _parseImportedLog(importData) {
+      const parsed = window.FoxLog.logParser.parse(importData.content, {
+        Id: importData.id,
+        Operation: importData.filename,
+        StartTime: importData.date,
+        Status: 'Import',
+        LogLength: importData.size
+      });
+
+      // The root node's duration comes from the metadata, which an import lacks:
+      // derive it from the log's own nanosecond counter so the diff doesn't
+      // report the root as a huge timing change against the current log.
+      const totalNs = parsed.lines.reduce((max, line) => Math.max(max, line.duration || 0), 0);
+      parsed.metadata.duration = Math.round(totalNs / 1e6);
+
+      return parsed;
+    }
+
+    /**
+     * Execute diff between the imported file (reference) and the current log.
+     * The imported file is side A and the current log side B, so a row "added"
+     * (+) exists only in the current log and a row "removed" (−) only in the
+     * imported file. The current log is shown in the left pane.
+     * @private
+     */
+    async _runDiff(modal, currentLog, importId) {
+      const { callTreeBuilder, LogDiffView } = window.FoxLog;
       const contentArea = modal.querySelector('.sf-diff-content-area');
       if (!contentArea) return;
+
+      // A newer selection, a log navigation or closing the modal supersedes
+      // this run: whichever finishes last must not overwrite the current one.
+      const run = (modal._foxlogDiffRun || 0) + 1;
+      modal._foxlogDiffRun = run;
+      const isStale = () => modal._foxlogDiffRun !== run;
+
+      if (modal._foxlogDiffView) {
+        modal._foxlogDiffView.destroy();
+        modal._foxlogDiffView = null;
+      }
 
       contentArea.innerHTML = `
         <div class="sf-calls-loading">
@@ -1855,38 +1922,44 @@
           throw new Error('Imported log content not found');
         }
 
-        const parsedLogB = logParser.parse(importData.content, {
-          id: importData.id,
-          filename: importData.filename
-        });
+        const fileLog = this._parseImportedLog(importData);
 
         if (!callTreeBuilder) {
           throw new Error('CallTreeBuilder not available');
         }
 
-        const [treeA, treeB] = await Promise.all([
-          callTreeBuilder.buildTree(parsedLogA),
-          callTreeBuilder.buildTree(parsedLogB)
+        const [fileTree, currentTree] = await Promise.all([
+          callTreeBuilder.buildTree(fileLog),
+          callTreeBuilder.buildTree(currentLog)
         ]);
+        if (isStale()) return;
 
-        const diffResult = await this._runDiffWorker(treeA, treeB);
+        const diffResult = await this._runDiffWorker(fileTree, currentTree);
+        if (isStale()) return;
 
         contentArea.innerHTML = '<div class="sf-diff-view-container"></div>';
         const container = contentArea.querySelector('.sf-diff-view-container');
 
         const metaA = {
-          filename: parsedLogA.metadata?.operation || 'Log A'
+          label: i18n.diffLabelFile || 'Reference file',
+          onlyLabel: i18n.diffOnlyInFile || 'Only in the file',
+          filename: importData.filename || 'File'
         };
         const metaB = {
-          filename: importData.filename || 'Log B'
+          label: i18n.diffLabelCurrent || 'Current log',
+          onlyLabel: i18n.diffOnlyInCurrent || 'Only in the current log',
+          filename: currentLog.metadata?.operation || 'Log'
         };
 
-        const diffView = new LogDiffView(container, diffResult, metaA, metaB);
+        const diffView = new LogDiffView(container, diffResult, metaA, metaB, { leftSide: 'b' });
         diffView.render();
+        modal._foxlogDiffView = diffView;
 
         logger.success('Diff view rendered');
       } catch (error) {
         logger.error('Diff computation failed', error);
+        if (isStale()) return; // another run is in charge of the content now
+
         contentArea.innerHTML = `
           <div class="sf-empty-state">
             <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
