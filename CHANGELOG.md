@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Analysis tab**: health score is a KPI card with a meter; suggestion and impact notices are softened
 - **Settings popup**: same tokens and dark theme, real `switch` control
 - **Contrast**: muted text moved from ~2.5:1 grays to AA-compliant tokens
+- **Store summary**: the `manifest.json` description (used as the Chrome Web Store summary) now mentions the flow graph, log diffing and one-click debug control
 
 ### Fixed
 
