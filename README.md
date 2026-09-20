@@ -56,7 +56,9 @@
 ### 🔀 Log Diffing
 - **Side-by-side comparison** of two call trees to spot execution divergences
 - **LCS-based alignment** matching nodes by signature across different logs
-- **Color-coded differences**: added (green), removed (red), changed (orange), match (grey)
+- **Clear roles**: the open log is on the left, the imported file it is compared against (the reference) on the right
+- **Color-coded differences**: only in the open log (green, `+`), only in the file (red, `−`), changed (orange), identical (grey); added/removed blocks show their full contents
+- **Identical lines folded**: runs of identical lines collapse into a "⋯ N identical lines" separator (click to expand), with a "Show all lines" switch
 - **Divergence navigation**: Prev/Next buttons to jump between differences
 - **Import directly from Diff tab**: import a `.txt` or `.log` file without leaving the modal
 - **Select from existing imports**: dropdown lists all previously imported logs

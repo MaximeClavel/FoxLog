@@ -64,15 +64,15 @@ class LogDiffEngine {
     let idxB = 0;
 
     for (const match of lcs) {
-      while (idxA < match.idxA) { pairs.push(this._makeRemovedPair(childrenA[idxA])); idxA++; }
-      while (idxB < match.idxB) { pairs.push(this._makeAddedPair(childrenB[idxB])); idxB++; }
+      while (idxA < match.idxA) { pairs.push(this._makeRemovedPair(childrenA[idxA], config)); idxA++; }
+      while (idxB < match.idxB) { pairs.push(this._makeAddedPair(childrenB[idxB], config)); idxB++; }
       pairs.push(this._diffNode(childrenA[idxA], childrenB[idxB], config));
       idxA++;
       idxB++;
     }
 
-    while (idxA < childrenA.length) { pairs.push(this._makeRemovedPair(childrenA[idxA])); idxA++; }
-    while (idxB < childrenB.length) { pairs.push(this._makeAddedPair(childrenB[idxB])); idxB++; }
+    while (idxA < childrenA.length) { pairs.push(this._makeRemovedPair(childrenA[idxA], config)); idxA++; }
+    while (idxB < childrenB.length) { pairs.push(this._makeAddedPair(childrenB[idxB], config)); idxB++; }
 
     return pairs;
   }
@@ -148,12 +148,30 @@ class LogDiffEngine {
     return children.filter(c => !systemTypes.has(c.type));
   }
 
-  _makeRemovedPair(node) {
-    return { nodeA: this._slimNode(node), nodeB: null, status: 'removed', changes: { duration: null, hasError: null, soqlCount: null, dmlCount: null }, children: [] };
+  _makeRemovedPair(node, config) {
+    return this._makeOneSidedPair(node, 'removed', config, false);
   }
 
-  _makeAddedPair(node) {
-    return { nodeA: null, nodeB: this._slimNode(node), status: 'added', changes: { duration: null, hasError: null, soqlCount: null, dmlCount: null }, children: [] };
+  _makeAddedPair(node, config) {
+    return this._makeOneSidedPair(node, 'added', config, false);
+  }
+
+  // Node present on one side only. Keeps its whole subtree (descendants flagged
+  // `nested`) so the view shows what was added/removed and the summary counts
+  // the subtree once, from its root.
+  _makeOneSidedPair(node, status, config, nested) {
+    const slim = this._slimNode(node);
+    const children = this._filterChildren(node.children || [], config)
+      .map(child => this._makeOneSidedPair(child, status, config, true));
+
+    return {
+      nodeA: status === 'removed' ? slim : null,
+      nodeB: status === 'added' ? slim : null,
+      status,
+      nested,
+      changes: { duration: null, hasError: null, soqlCount: null, dmlCount: null },
+      children
+    };
   }
 
   _slimNode(node) {
@@ -173,9 +191,17 @@ class LogDiffEngine {
   }
 
   _countDivergences(pair, summary) {
-    if (pair.status === 'removed') { summary.totalDivergences++; summary.onlyInA++; }
-    else if (pair.status === 'added') { summary.totalDivergences++; summary.onlyInB++; }
-    else if (pair.status === 'changed') {
+    if (pair.status === 'removed' || pair.status === 'added') {
+      // Its descendants are all `nested`: they belong to this one divergence
+      if (!pair.nested) {
+        summary.totalDivergences++;
+        if (pair.status === 'removed') summary.onlyInA++;
+        else summary.onlyInB++;
+      }
+      return;
+    }
+
+    if (pair.status === 'changed') {
       summary.totalDivergences++;
       if (pair.changes.duration) summary.timingDiffs++;
       if (pair.changes.hasError) summary.errorDiffs++;

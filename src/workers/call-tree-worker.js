@@ -313,8 +313,10 @@ class CallTreeBuilder {
         break;
         
       case 'VARIABLE_ASSIGNMENT':
+        const assignment = this._parseVariableAssignment(line.content);
         nodeName = this._extractVariableAssignmentName(line.content);
-        nodeDetails = { assignment: line.content };
+        // Keep the full value here: the node name truncates it
+        nodeDetails = assignment ? { variable: assignment.variable, value: assignment.value } : { assignment: line.content };
         break;
         
       default:
@@ -343,19 +345,39 @@ class CallTreeBuilder {
   }
 
   /**
+   * Split a VARIABLE_ASSIGNMENT payload into variable name and value.
+   * Format: `[line]|name|value`, followed for reference types only by
+   * `|0x<identityHash>` (a null value can leave an empty trailing field:
+   * `[92]|opp|null|`). The value is everything between the name and that
+   * optional suffix, so it may itself contain `|`.
+   * @private
+   * @param {string} content
+   * @returns {{variable: string, value: string}|null} null when the payload has no value
+   */
+  _parseVariableAssignment(content) {
+    const linePrefix = /^\[[^\]]*\]\|/.exec(content);
+    const rest = linePrefix ? content.slice(linePrefix[0].length) : content;
+
+    const nameEnd = rest.indexOf('|');
+    if (nameEnd === -1) return null;
+
+    return {
+      variable: rest.slice(0, nameEnd),
+      value: rest.slice(nameEnd + 1).replace(/\|(?:0x[0-9a-f]+)?$/i, '')
+    };
+  }
+
+  /**
    * Extract variable assignment name from content
    * @private
    */
   _extractVariableAssignmentName(content) {
-    // Format: [depth]|variableName|value or variableName|value
-    const parts = content.split('|');
-    if (parts.length >= 2) {
-      // Try to get variable name (skip the depth if present)
-      const varName = parts[0].includes('[') ? parts[1] : parts[0];
-      const value = parts[parts.length - 1];
+    const assignment = this._parseVariableAssignment(content);
+    if (assignment) {
       // Truncate long values
+      const { variable, value } = assignment;
       const shortValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
-      return `${varName} = ${shortValue}`;
+      return `${variable} = ${shortValue}`;
     }
     return content.length > 60 ? content.substring(0, 60) + '...' : content;
   }

@@ -340,6 +340,13 @@
     diffComputing: isFrench ? 'Calcul du diff...' : 'Computing diff...',
     diffTimeout: isFrench ? 'Le calcul du diff a expiré' : 'Diff computation timed out',
     diffError: isFrench ? 'Erreur lors du calcul du diff' : 'Diff computation error',
+    diffLabelFile: isFrench ? 'Fichier de référence' : 'Reference file',
+    diffLabelCurrent: isFrench ? 'Log courant' : 'Current log',
+    diffOnlyInFile: isFrench ? 'Uniquement dans le fichier' : 'Only in the file',
+    diffOnlyInCurrent: isFrench ? 'Uniquement dans le log courant' : 'Only in the current log',
+    diffIdenticalLines: isFrench ? '{count} lignes identiques' : '{count} identical lines',
+    diffShowIdentical: isFrench ? 'Afficher' : 'Show',
+    diffShowAll: isFrench ? 'Afficher toutes les lignes' : 'Show all lines',
 
     // Flow / Graph tab
     flow: isFrench ? 'Flux' : 'Flow',

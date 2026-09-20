@@ -64,9 +64,13 @@
      */
     async buildTree(parsedLog) {
       const logId = parsedLog.metadata.id;
-      
+
+      // A log without an id has no usable cache key: sharing the `null` slot
+      // would hand every such log the first tree that was ever built.
+      const cacheable = Boolean(logId);
+
       // Check cache
-      if (this.cache.has(logId)) {
+      if (cacheable && this.cache.has(logId)) {
         // Move to end of order (most recently used)
         this.cacheOrder = this.cacheOrder.filter(id => id !== logId);
         this.cacheOrder.push(logId);
@@ -107,18 +111,20 @@
       });
 
       const callTree = await promise;
-      
+
       // Cache result with LRU eviction
-      if (this.cache.size >= this.maxCacheSize) {
-        const oldest = this.cacheOrder.shift();
-        if (oldest) {
-          this.cache.delete(oldest);
-          logger.log(`Cache evicted oldest entry: ${oldest}`);
+      if (cacheable) {
+        if (this.cache.size >= this.maxCacheSize) {
+          const oldest = this.cacheOrder.shift();
+          if (oldest) {
+            this.cache.delete(oldest);
+            logger.log(`Cache evicted oldest entry: ${oldest}`);
+          }
         }
+        this.cache.set(logId, callTree);
+        this.cacheOrder.push(logId);
       }
-      this.cache.set(logId, callTree);
-      this.cacheOrder.push(logId);
-      
+
       logger.success(`CallTree built (${callTree.metadata.totalNodes} nodes, ${callTree.buildDuration.toFixed(0)}ms)`);
       
       return callTree;
