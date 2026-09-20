@@ -15,6 +15,7 @@
 .foxlog-icon--danger { color: var(--fl-danger-fg); }
 .foxlog-icon--info { color: var(--fl-info-fg); }
 .foxlog-icon--muted { color: var(--fl-text-3); }
+.foxlog-icon--salesforce { color: var(--fl-salesforce); }
 
 .foxlog-dot {
   display: inline-block;

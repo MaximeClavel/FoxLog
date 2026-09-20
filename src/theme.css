@@ -59,6 +59,7 @@
   --fl-accent-line: #b9d6f6;
   --fl-on-accent: #ffffff;
   --fl-focus: #0b6bcb;
+  --fl-salesforce: #0092d0;
 
   /* Elevation */
   --fl-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06);
@@ -150,6 +151,7 @@
     --fl-accent-tint: rgba(76, 154, 255, 0.14);
     --fl-accent-line: rgba(76, 154, 255, 0.38);
     --fl-focus: #6cb2ff;
+    --fl-salesforce: #00a1e0;
 
     --fl-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
     --fl-shadow-2: 0 8px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);

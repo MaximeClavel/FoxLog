@@ -460,7 +460,7 @@
         </div>
 
         <div class="sf-panel-tabs" role="tablist" aria-label="FoxLog">
-          <button type="button" class="sf-panel-tab-btn active" id="sf-tabbtn-salesforce" role="tab" aria-selected="true" aria-controls="sf-tab-salesforce" data-panel-tab="salesforce">${window.FoxLog.icon('database')} ${i18n.tabSalesforce || 'Salesforce'}</button>
+          <button type="button" class="sf-panel-tab-btn active" id="sf-tabbtn-salesforce" role="tab" aria-selected="true" aria-controls="sf-tab-salesforce" data-panel-tab="salesforce">${window.FoxLog.icon('cloud', { className: 'foxlog-icon--salesforce' })} ${i18n.tabSalesforce || 'Salesforce'}</button>
           <button type="button" class="sf-panel-tab-btn" id="sf-tabbtn-import" role="tab" aria-selected="false" aria-controls="sf-tab-import" tabindex="-1" data-panel-tab="import">${window.FoxLog.icon('folder')} ${i18n.tabImport || 'Files'}</button>
         </div>
 
