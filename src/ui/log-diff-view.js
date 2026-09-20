@@ -188,10 +188,10 @@
       let errorIcon = '';
       if (pair.status === 'changed' && pair.changes.hasError) {
         if ((side === 'a' && pair.changes.hasError.a) || (side === 'b' && pair.changes.hasError.b)) {
-          errorIcon = ` <span class="sf-diff-error-icon" aria-label="Error">${window.FoxLog.icon('alert-circle', { className: 'foxlog-icon--danger' })}</span>`;
+          errorIcon = ` <span class="sf-diff-error-icon" role="img" aria-label="Error">${window.FoxLog.icon('alert-circle', { className: 'foxlog-icon--danger' })}</span>`;
         }
       } else if (node.hasError) {
-        errorIcon = ` <span class="sf-diff-error-icon" aria-label="Error">${window.FoxLog.icon('alert-circle', { className: 'foxlog-icon--danger' })}</span>`;
+        errorIcon = ` <span class="sf-diff-error-icon" role="img" aria-label="Error">${window.FoxLog.icon('alert-circle', { className: 'foxlog-icon--danger' })}</span>`;
       }
 
       const iconClass = `sf-icon-${(node.type || '').toLowerCase().replace(/_/g, '-')}`;

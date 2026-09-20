@@ -83,10 +83,10 @@
         <div class="sf-modal-content">
           <div class="sf-modal-header">
             <h3>${window.FoxLog.icon('file', { size: 16 })} ${i18n.rawLog || 'Raw Log'}</h3>
-            <button class="sf-modal-close-btn">${window.FoxLog.icon('x')}</button>
+            <button type="button" class="sf-modal-close-btn" aria-label="${i18n.close || 'Close'}">${window.FoxLog.icon('x')}</button>
           </div>
           <div class="sf-modal-body">
-            <pre class="sf-raw-log-content">${this._escapeHtml(content)}</pre>
+            <pre class="sf-raw-log-content" tabindex="0" aria-label="${i18n.rawLog || 'Raw Log'}">${this._escapeHtml(content)}</pre>
           </div>
         </div>
       `;
@@ -143,21 +143,21 @@
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
-            <h3>${window.FoxLog.icon('bar-chart', { size: 16 })} ${i18n.logAnalysis || 'Log Analysis'}</h3>
+            <div class="sf-modal-title">${this._renderModalTitle(parsedLog.metadata)}</div>
             ${this._renderNavigationButtons()}
-            <button class="sf-modal-close-btn">${window.FoxLog.icon('x')}</button>
+            <button type="button" class="sf-modal-close-btn" aria-label="${i18n.close || 'Close'}">${window.FoxLog.icon('x')}</button>
           </div>
 
-          <div class="sf-modal-tabs">
-            <button class="sf-tab-btn active" data-tab="summary">${i18n.summary || 'Summary'}</button>
-            <button class="sf-tab-btn" data-tab="analysis">
-              ${window.FoxLog.icon('activity', { size: 13 })} ${i18n.analysis || 'Analysis'}
+          <div class="sf-modal-tabs" role="tablist" aria-label="${i18n.logAnalysis || 'Log Analysis'}">
+            <button type="button" class="sf-tab-btn active" role="tab" aria-selected="true" data-tab="summary">${window.FoxLog.icon('layout', { size: 14 })} ${i18n.summary || 'Summary'}</button>
+            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="analysis">
+              ${window.FoxLog.icon('activity', { size: 14 })} ${i18n.analysis || 'Analysis'}
               ${this._renderAnalysisBadge(antiPatternResults)}
             </button>
-            <button class="sf-tab-btn" data-tab="graph">${i18n.flow || 'Flow'}</button>
-            <button class="sf-tab-btn" data-tab="calls">${i18n.calls || 'Calls'}</button>
-            <button class="sf-tab-btn" data-tab="raw">${i18n.rawLog || 'Raw Log'}</button>
-            <button class="sf-tab-btn" data-tab="diff">${i18n.diffTab || 'Diff'}</button>
+            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="graph">${window.FoxLog.icon('git-branch', { size: 14 })} ${i18n.flow || 'Flow'}</button>
+            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="calls">${window.FoxLog.icon('list', { size: 14 })} ${i18n.calls || 'Calls'}</button>
+            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="raw">${window.FoxLog.icon('file-text', { size: 14 })} ${i18n.rawLog || 'Raw Log'}</button>
+            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="diff">${window.FoxLog.icon('shuffle', { size: 14 })} ${i18n.diffTab || 'Diff'}</button>
           </div>
           
           <div class="sf-modal-body-tabs">
@@ -169,14 +169,14 @@
               ${this._renderAnalysisTab(antiPatternResults)}
             </div>
             
-            <div id="tab-graph" class="sf-tab-content">
+            <div id="tab-graph" class="sf-tab-content sf-tab-content--flush">
               <div class="sf-calls-loading">
                 <div class="sf-spinner"></div>
                 <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
               </div>
             </div>
 
-            <div id="tab-calls" class="sf-tab-content">
+            <div id="tab-calls" class="sf-tab-content sf-tab-content--flush">
               <div class="sf-calls-loading">
                 <div class="sf-spinner"></div>
                 <div class="sf-loading-text">${i18n.buildingCallTree || 'Building call tree...'}</div>
@@ -239,6 +239,11 @@
         }
       }
       
+      const titleContainer = modal.querySelector('.sf-modal-title');
+      if (titleContainer) {
+        titleContainer.innerHTML = this._renderModalTitle(parsedLog.metadata);
+      }
+
       // Update navigation buttons
       const navContainer = modal.querySelector('.sf-modal-nav, .sf-nav-placeholder');
       if (navContainer) {
@@ -266,7 +271,7 @@
       const analysisBtn = modal.querySelector('[data-tab="analysis"]');
       if (analysisBtn) {
         analysisBtn.innerHTML = `
-          ${window.FoxLog.icon('activity', { size: 13 })} ${i18n.analysis || 'Analysis'}
+          ${window.FoxLog.icon('activity', { size: 14 })} ${i18n.analysis || 'Analysis'}
           ${this._renderAnalysisBadge(antiPatternResults)}
         `;
       }
@@ -430,6 +435,7 @@
 
       const toast = document.createElement('div');
       toast.className = `sf-toast sf-toast-${type}`;
+      toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
       toast.innerHTML = `${window.FoxLog.icon(toastIcons[type] || 'info', { size: 16, className: 'sf-toast-icon' })}<span class="sf-toast-message"></span>`;
       toast.querySelector('.sf-toast-message').textContent = message;
       document.body.appendChild(toast);
@@ -442,6 +448,34 @@
         toast.classList.remove('sf-toast-show');
         setTimeout(() => toast.remove(), 300);
       }, 3000);
+    }
+
+    _getStatusTone(status) {
+      if (status === 'Success') return 'success';
+      return status === 'Unknown' ? 'neutral' : 'danger';
+    }
+
+    /**
+     * Render the log identity shown in the modal header
+     * @private
+     * @param {Object} metadata - Parsed log metadata
+     * @returns {string} HTML for the header title block
+     */
+    _renderModalTitle(metadata) {
+      const status = String(metadata.status);
+      const startedAt = metadata.startTime ? metadata.startTime.toLocaleString(navigator.language) : '';
+
+      return `
+        <span class="sf-modal-title-icon">${window.FoxLog.icon('bar-chart', { size: 18 })}</span>
+        <div class="sf-modal-title-text">
+          <h3 title="${this._escapeHtml(metadata.operation)}">${this._escapeHtml(metadata.operation)}</h3>
+          <p class="sf-modal-subtitle">
+            <span class="sf-tone-chip sf-tone-chip--${this._getStatusTone(status)}" title="${this._escapeHtml(status)}">${this._escapeHtml(status.split(':')[0])}</span>
+            <span>${window.FoxLog.formatDuration(metadata.duration)}</span>
+            ${startedAt ? `<span>${this._escapeHtml(startedAt)}</span>` : ''}
+          </p>
+        </div>
+      `;
     }
 
     /**
@@ -464,13 +498,13 @@
       
       return `
         <div class="sf-modal-nav">
-          <button class="sf-nav-btn sf-nav-prev" ${isFirst ? 'disabled' : ''} title="${i18n.previousLog || 'Previous log'}">
+          <button type="button" class="sf-nav-btn sf-nav-prev" ${isFirst ? 'disabled' : ''} title="${i18n.previousLog || 'Previous log'}" aria-label="${i18n.previousLog || 'Previous log'}">
             <svg viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
             </svg>
           </button>
           <span class="sf-nav-position">${position}</span>
-          <button class="sf-nav-btn sf-nav-next" ${isLast ? 'disabled' : ''} title="${i18n.nextLog || 'Next log'}">
+          <button type="button" class="sf-nav-btn sf-nav-next" ${isLast ? 'disabled' : ''} title="${i18n.nextLog || 'Next log'}" aria-label="${i18n.nextLog || 'Next log'}">
             <svg viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
             </svg>
@@ -630,6 +664,7 @@
         }
         this.currentModal.remove();
         this.currentModal = null;
+        this.returnFocusTo?.focus?.();
         this.logger.log('Modal closed');
       }
 
@@ -640,12 +675,36 @@
     _createModal() {
       const modal = document.createElement('div');
       modal.className = 'sf-log-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-label', i18n.logAnalysis || 'Log Analysis');
       return modal;
     }
 
     _attachModal(modal) {
+      this.returnFocusTo = document.activeElement;
       document.body.appendChild(modal);
       this.currentModal = modal;
+      modal.tabIndex = -1;
+      modal.focus({ preventScroll: true });
+
+      // Keep Tab inside the dialog while it is open
+      modal.addEventListener('keydown', (e) => {
+        if (e.key !== 'Tab') return;
+        const focusable = [...modal.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])')]
+          .filter(el => el.offsetParent !== null);
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      });
 
       // Close button
       const closeBtn = modal.querySelector('.sf-modal-close-btn');
@@ -1409,23 +1468,42 @@
     }
 
     _setupTabs(modal) {
-      const tabBtns = modal.querySelectorAll('.sf-tab-btn');
+      const tabBtns = [...modal.querySelectorAll('.sf-tab-btn')];
       const tabContents = modal.querySelectorAll('.sf-tab-content');
 
       tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-          // Remove active class from all
-          tabBtns.forEach(b => b.classList.remove('active'));
+          tabBtns.forEach(b => {
+            const isActive = b === btn;
+            b.classList.toggle('active', isActive);
+            b.setAttribute('aria-selected', String(isActive));
+            b.tabIndex = isActive ? 0 : -1;
+          });
           tabContents.forEach(c => c.classList.remove('active'));
 
-          // Add active to clicked
-          btn.classList.add('active');
-          const tabId = btn.dataset.tab;
-          const content = modal.querySelector(`#tab-${tabId}`);
+          const content = modal.querySelector(`#tab-${btn.dataset.tab}`);
           if (content) {
             content.classList.add('active');
           }
         });
+      });
+
+      // Arrow keys move between tabs; stop them here so they do not also switch to the previous/next log
+      modal.querySelector('.sf-modal-tabs')?.addEventListener('keydown', (e) => {
+        const current = tabBtns.indexOf(document.activeElement);
+        const last = tabBtns.length - 1;
+        const targets = {
+          ArrowRight: (current + 1) % tabBtns.length,
+          ArrowLeft: (current + last) % tabBtns.length,
+          Home: 0,
+          End: last
+        };
+        if (current < 0 || !(e.key in targets)) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        tabBtns[targets[e.key]].focus();
+        tabBtns[targets[e.key]].click();
       });
     }
 
@@ -1866,6 +1944,8 @@
     }
 
     _renderSummaryTab(summary, parsedLog) {
+      const status = String(summary.metadata.status);
+      const statusClass = { success: 'sf-status-success', danger: 'sf-status-error' }[this._getStatusTone(status)] || '';
       const extraCount = parsedLog.stats.methods.length > 10 ? parsedLog.stats.methods.length - 10 : 0;
       const extraHint = extraCount > 0
         ? (i18n.andOthers || '...and {count} more').replace('{count}', extraCount)
@@ -1892,20 +1972,20 @@
 
       return `
         <div class="sf-summary-container">
-          <div class="sf-summary-section">
+          <div class="sf-summary-section sf-summary-overview">
             <h4>${window.FoxLog.icon('info', { size: 14 })} ${i18n.generalInfo || 'General Information'}</h4>
             <div class="sf-summary-grid">
               <div class="sf-summary-item">
                 <span class="sf-label">${i18n.operation || 'Operation'}</span>
-                <span class="sf-value">${summary.metadata.operation}</span>
+                <span class="sf-value">${this._escapeHtml(summary.metadata.operation)}</span>
               </div>
               <div class="sf-summary-item">
                 <span class="sf-label">${i18n.status || 'Status'}</span>
-                <span class="sf-value sf-status-${summary.metadata.status.toLowerCase()}">${summary.metadata.status}</span>
+                <span class="sf-value sf-value--status ${statusClass}" title="${this._escapeHtml(status)}">${this._escapeHtml(status.split(':')[0])}</span>
               </div>
               <div class="sf-summary-item">
                 <span class="sf-label">${i18n.duration || 'Duration'}</span>
-                <span class="sf-value">${summary.duration}ms</span>
+                <span class="sf-value">${window.FoxLog.formatDuration(summary.duration)}</span>
               </div>
               <div class="sf-summary-item">
                 <span class="sf-label">${i18n.lines || 'Lines'}</span>
@@ -2022,7 +2102,7 @@
             <div class="sf-analysis-healthy">
               <div class="sf-healthy-icon">${window.FoxLog.icon('check-circle', { size: 40 })}</div>
               <div class="sf-healthy-text">${i18n.codeHealthy || 'Code is healthy!'}</div>
-              <div class="sf-health-score-large sf-score-${scoreClass}">
+              <div class="sf-health-score-large sf-score-${scoreClass}" style="--score: ${summary.score}">
                 ${i18n.healthScore || 'Health Score'}: <strong>${summary.score}/100</strong>
               </div>
               <p class="sf-healthy-description">${i18n.noAntiPatterns || 'No anti-patterns detected'}</p>
@@ -2039,7 +2119,7 @@
       return `
         <div class="sf-analysis-container">
           <div class="sf-analysis-header">
-            <div class="sf-health-score-large sf-score-${scoreClass}">
+            <div class="sf-health-score-large sf-score-${scoreClass}" style="--score: ${summary.score}">
               <span class="sf-score-label">${i18n.healthScore || 'Health Score'}</span>
               <span class="sf-score-value">${summary.score}<span class="sf-score-max">/100</span></span>
             </div>
@@ -2218,7 +2298,7 @@
               <span class="sf-export-lines">${rawLines.length} ${(i18n.lines || 'Lines').toLowerCase()}</span>
             </div>
           </div>
-          <pre class="sf-raw-log-content">${structuredLines}</pre>
+          <pre class="sf-raw-log-content" tabindex="0" aria-label="${i18n.rawLog || 'Raw Log'}">${structuredLines}</pre>
         </div>
       `;
     }

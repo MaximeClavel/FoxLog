@@ -88,6 +88,7 @@ Pour les opérations lourdes (>100ms), utiliser un Worker :
 | Parser de logs | `src/parsers/log-parser.js` |
 | Modal principale | `src/ui/modal-manager.js` |
 | Styles modal | `src/modal-styles.css` |
+| Design tokens & thèmes clair/sombre | `src/theme.css` (voir `docs/ui-design-system.md`) |
 | Manifest extension | `manifest.json` |
 
 ## ⚠️ Points d'attention

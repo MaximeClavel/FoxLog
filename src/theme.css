@@ -1,0 +1,235 @@
+/* ==========================================================================
+   FoxLog design tokens
+   Scoped to FoxLog's own root elements so nothing leaks into the Salesforce
+   page. Light is the default; the dark block below follows the OS setting.
+   ========================================================================== */
+
+#sf-foxlog-toggle,
+#sf-debug-panel,
+.sf-log-modal,
+.sf-toast,
+.fl-theme {
+  color-scheme: light;
+
+  /* Typography (system fonts only: the extension makes no external requests) */
+  --fl-font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --fl-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Shape and motion */
+  --fl-r-sm: 6px;
+  --fl-r-md: 8px;
+  --fl-r-lg: 12px;
+  --fl-r-xl: 16px;
+  --fl-r-pill: 999px;
+  --fl-ease: cubic-bezier(0.2, 0, 0, 1);
+  --fl-dur: 160ms;
+
+  /* Surfaces */
+  --fl-page: #f5f7fa;
+  --fl-card: #ffffff;
+  --fl-inset: #f8fafc;
+  --fl-hover: #f1f5f9;
+  --fl-pressed: #e8edf3;
+  --fl-track: #e5eaf1;
+  --fl-scrim: rgba(15, 23, 42, 0.5);
+  --fl-switch-off: #8593a8;
+
+  /* Lines and text */
+  --fl-border-0: #eef2f6;
+  --fl-border: #e2e8f0;
+  --fl-border-2: #cbd5e1;
+  --fl-text: #0f172a;
+  --fl-text-2: #334155;
+  --fl-text-3: #526074;
+  --fl-text-4: #94a3b8;
+
+  /* Surfaces that stay dark in both themes (raw log viewer, tooltips) */
+  --fl-ink-900: #0b1220;
+  --fl-ink-800: #111a2b;
+  --fl-ink-700: #1c2740;
+  --fl-ink-600: #2a3856;
+  --fl-ink-fg: #e6ebf5;
+  --fl-ink-fg-2: #9fb0c9;
+
+  /* Accent */
+  --fl-accent: #0b6bcb;
+  --fl-accent-hover: #0a58a8;
+  --fl-accent-fg: #0b63bd;
+  --fl-accent-tint: #eaf3fd;
+  --fl-accent-line: #b9d6f6;
+  --fl-on-accent: #ffffff;
+  --fl-focus: #0b6bcb;
+  --fl-salesforce: #0092d0;
+
+  /* Elevation */
+  --fl-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --fl-shadow-2: 0 4px 14px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --fl-shadow-3: 0 28px 64px -16px rgba(15, 23, 42, 0.32), 0 10px 24px rgba(15, 23, 42, 0.1);
+
+  /* Status hues. 50-300 are tints, 400-600 are solid fills, fg is text on a tint. */
+  --fl-red-50: #fef2f2;   --fl-red-100: #fee2e2;   --fl-red-200: #fecaca;   --fl-red-300: #fca5a5;
+  --fl-red-400: #f87171;  --fl-red-500: #ef4444;   --fl-red-600: #dc2626;
+  --fl-red-fg: #b91c1c;   --fl-red-fg-2: #991b1b;
+
+  --fl-amber-50: #fffbeb; --fl-amber-100: #fef3c7; --fl-amber-200: #fde68a; --fl-amber-300: #fcd34d;
+  --fl-amber-400: #fbbf24; --fl-amber-500: #f59e0b; --fl-amber-600: #b45309;
+  --fl-amber-fg: #92400e; --fl-amber-fg-2: #78350f;
+
+  --fl-orange-100: #ffedd5; --fl-orange-500: #f97316; --fl-orange-fg: #c2410c;
+
+  --fl-green-50: #ecfdf5; --fl-green-100: #d1fae5; --fl-green-200: #a7f3d0; --fl-green-300: #6ee7b7;
+  --fl-green-400: #34d399; --fl-green-500: #10b981; --fl-green-600: #047857;
+  --fl-green-fg: #047857; --fl-green-fg-2: #065f46;
+
+  --fl-blue-50: #eff6ff;  --fl-blue-100: #dbeafe;  --fl-blue-200: #bfdbfe;  --fl-blue-300: #93c5fd;
+  --fl-blue-400: #60a5fa; --fl-blue-500: #3b82f6;  --fl-blue-600: #2563eb;
+  --fl-blue-fg: #1d4ed8;  --fl-blue-fg-2: #1e40af;
+
+  --fl-violet-50: #f5f3ff; --fl-violet-100: #ede9fe; --fl-violet-200: #ddd6fe; --fl-violet-300: #c4b5fd;
+  --fl-violet-400: #a78bfa; --fl-violet-500: #8b5cf6; --fl-violet-600: #7c3aed;
+  --fl-violet-fg: #6d28d9; --fl-violet-fg-2: #5b21b6;
+
+  --fl-indigo-100: #e0e7ff; --fl-indigo-200: #c7d2fe; --fl-indigo-500: #6366f1; --fl-indigo-600: #4f46e5;
+  --fl-indigo-fg: #3730a3;
+}
+
+/* Tone aliases: components pick a tone, the palette above decides the colours. */
+#sf-foxlog-toggle,
+#sf-debug-panel,
+.sf-log-modal,
+.sf-toast,
+.fl-theme {
+  --fl-success: var(--fl-green-600);
+  --fl-success-fg: var(--fl-green-fg);
+  --fl-success-tint: var(--fl-green-50);
+  --fl-success-line: var(--fl-green-200);
+
+  --fl-warning: var(--fl-amber-500);
+  --fl-warning-fg: var(--fl-amber-fg);
+  --fl-warning-tint: var(--fl-amber-50);
+  --fl-warning-line: var(--fl-amber-200);
+
+  --fl-danger: var(--fl-red-600);
+  --fl-danger-fg: var(--fl-red-fg);
+  --fl-danger-tint: var(--fl-red-50);
+  --fl-danger-line: var(--fl-red-200);
+
+  --fl-info: var(--fl-blue-600);
+  --fl-info-fg: var(--fl-blue-fg);
+  --fl-info-tint: var(--fl-blue-50);
+  --fl-info-line: var(--fl-blue-200);
+}
+
+@media (prefers-color-scheme: dark) {
+  #sf-foxlog-toggle,
+  #sf-debug-panel,
+  .sf-log-modal,
+  .sf-toast,
+  .fl-theme {
+    color-scheme: dark;
+
+    --fl-page: #0a0f18;
+    --fl-card: #111826;
+    --fl-inset: #0d1420;
+    --fl-hover: #182134;
+    --fl-pressed: #212c42;
+    --fl-track: #1f2a3f;
+    --fl-scrim: rgba(2, 6, 14, 0.66);
+    --fl-switch-off: #607089;
+
+    --fl-border-0: #182133;
+    --fl-border: #243049;
+    --fl-border-2: #36445f;
+    --fl-text: #e8edf5;
+    --fl-text-2: #b3bfd1;
+    --fl-text-3: #8d9bb1;
+    --fl-text-4: #5c6a82;
+
+    --fl-accent: #1b66c9;
+    --fl-accent-hover: #2272dc;
+    --fl-accent-fg: #6cb2ff;
+    --fl-accent-tint: rgba(76, 154, 255, 0.14);
+    --fl-accent-line: rgba(76, 154, 255, 0.38);
+    --fl-focus: #6cb2ff;
+    --fl-salesforce: #00a1e0;
+
+    --fl-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --fl-shadow-2: 0 8px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    --fl-shadow-3: 0 32px 72px -16px rgba(0, 0, 0, 0.78), 0 0 0 1px rgba(255, 255, 255, 0.07);
+
+    --fl-red-50: rgba(248, 113, 113, 0.1);  --fl-red-100: rgba(248, 113, 113, 0.16);
+    --fl-red-200: rgba(248, 113, 113, 0.28); --fl-red-300: rgba(248, 113, 113, 0.42);
+    --fl-red-fg: #fca5a5;  --fl-red-fg-2: #fecaca;
+
+    --fl-amber-50: rgba(251, 191, 36, 0.1);  --fl-amber-100: rgba(251, 191, 36, 0.16);
+    --fl-amber-200: rgba(251, 191, 36, 0.28); --fl-amber-300: rgba(251, 191, 36, 0.42);
+    --fl-amber-fg: #fcd34d; --fl-amber-fg-2: #fde68a;
+
+    --fl-orange-100: rgba(251, 146, 60, 0.16);
+    --fl-orange-fg: #fdba74;
+
+    --fl-green-50: rgba(52, 211, 153, 0.1);  --fl-green-100: rgba(52, 211, 153, 0.16);
+    --fl-green-200: rgba(52, 211, 153, 0.28); --fl-green-300: rgba(52, 211, 153, 0.42);
+    --fl-green-fg: #6ee7b7; --fl-green-fg-2: #a7f3d0;
+
+    --fl-blue-50: rgba(96, 165, 250, 0.1);  --fl-blue-100: rgba(96, 165, 250, 0.16);
+    --fl-blue-200: rgba(96, 165, 250, 0.28); --fl-blue-300: rgba(96, 165, 250, 0.42);
+    --fl-blue-fg: #93c5fd;  --fl-blue-fg-2: #bfdbfe;
+
+    --fl-violet-50: rgba(167, 139, 250, 0.1);  --fl-violet-100: rgba(167, 139, 250, 0.16);
+    --fl-violet-200: rgba(167, 139, 250, 0.28); --fl-violet-300: rgba(167, 139, 250, 0.42);
+    --fl-violet-fg: #c4b5fd; --fl-violet-fg-2: #ddd6fe;
+
+    --fl-indigo-100: rgba(129, 140, 248, 0.16); --fl-indigo-200: rgba(129, 140, 248, 0.28);
+    --fl-indigo-fg: #a5b4fc;
+  }
+}
+
+/* Base: keep host-page styles from leaking into FoxLog's roots. */
+#sf-foxlog-toggle *,
+#sf-debug-panel,
+#sf-debug-panel *,
+.sf-log-modal,
+.sf-log-modal *,
+.sf-toast,
+.sf-toast *,
+.fl-theme,
+.fl-theme * {
+  box-sizing: border-box;
+}
+
+#sf-debug-panel,
+.sf-log-modal,
+.sf-toast,
+.fl-theme {
+  font-family: var(--fl-font);
+  color: var(--fl-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+#sf-debug-panel :is(button, input, select, textarea),
+.sf-log-modal :is(button, input, select, textarea),
+.fl-theme :is(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+:is(#sf-debug-panel, .sf-log-modal, .fl-theme) :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible,
+#sf-foxlog-toggle:focus-visible {
+  outline: 2px solid var(--fl-focus) !important;
+  outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #sf-foxlog-toggle,
+  #sf-debug-panel,
+  #sf-debug-panel *,
+  .sf-log-modal,
+  .sf-log-modal *,
+  .sf-toast,
+  .sf-toast * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

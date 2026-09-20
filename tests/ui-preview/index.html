@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FoxLog UI preview</title>
+  <link rel="icon" href="data:,">
+  <style>
+    /* Faux Lightning page so the extension is judged against a realistic backdrop. */
+    #faux-sf { margin: 0; min-height: 100vh; background: #f3f3f3; font: 13px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; color: #181818; }
+    #faux-sf .nav { height: 48px; background: #fff; border-bottom: 3px solid #0176d3; display: flex; align-items: center; padding: 0 16px; gap: 24px; }
+    #faux-sf .nav b { color: #0176d3; font-size: 16px; }
+    #faux-sf .nav span { color: #444; }
+    #faux-sf .page { padding: 16px; display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+    #faux-sf .card { background: #fff; border: 1px solid #dddbda; border-radius: 4px; padding: 16px; min-height: 140px; }
+    #faux-sf .card h2 { margin: 0 0 12px; font-size: 14px; }
+    #faux-sf .bar { height: 10px; background: #ecebea; border-radius: 3px; margin: 10px 0; }
+  </style>
+</head>
+<body id="faux-sf">
+  <div class="nav"><b>Sales</b><span>Home</span><span>Accounts</span><span>Opportunities</span><span>Reports</span></div>
+  <div class="page">
+    <div class="card"><h2>Account: Acme Corporation</h2><div class="bar"></div><div class="bar" style="width:70%"></div><div class="bar" style="width:85%"></div></div>
+    <div class="card"><h2>Activity</h2><div class="bar"></div><div class="bar" style="width:60%"></div></div>
+    <div class="card"><h2>Related opportunities</h2><div class="bar"></div><div class="bar" style="width:75%"></div></div>
+    <div class="card"><h2>Contacts</h2><div class="bar"></div><div class="bar" style="width:50%"></div></div>
+  </div>
+
+  <script src="mock-chrome.js"></script>
+  <script>
+    function loadStyle(href) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      document.head.appendChild(link);
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error(`Failed to load ${src}`));
+        document.body.appendChild(script);
+      });
+    }
+
+    (async () => {
+      const { js, css } = chrome.runtime.getManifest().content_scripts[0];
+      css.forEach((href) => loadStyle(`/${href}`));
+
+      const entryScript = js[js.length - 1];
+      for (const src of js.slice(0, -1)) await loadScript(`/${src}`);
+      await loadScript('demo-logs.js');
+      await loadScript('demo-backend.js');
+      await loadScript(`/${entryScript}`);
+      await openRequestedScene();
+    })();
+
+    // Scenes are driven by the URL so screenshots are reproducible:
+    //   ?open=panel[&panelTab=import]   ?open=modal[&log=1][&tab=analysis]
+    function waitFor(predicate, timeoutMs = 8000) {
+      return new Promise((resolve, reject) => {
+        const startedAt = Date.now();
+        const poll = () => {
+          const value = predicate();
+          if (value) resolve(value);
+          else if (Date.now() - startedAt > timeoutMs) reject(new Error('Timed out waiting for the preview scene'));
+          else setTimeout(poll, 60);
+        };
+        poll();
+      });
+    }
+
+    async function openRequestedScene() {
+      const params = new URLSearchParams(location.search);
+      const scene = params.get('open');
+      if (!scene) return;
+
+      await waitFor(() => window.FoxLogApp && window.FoxLogApp.initialized);
+      document.getElementById('sf-foxlog-toggle').click();
+
+      const panelTab = params.get('panelTab');
+      if (panelTab) document.querySelector(`.sf-panel-tab-btn[data-panel-tab="${panelTab}"]`).click();
+      if (scene !== 'modal') return;
+
+      const logs = await waitFor(() => {
+        const items = document.querySelectorAll('.sf-log-item');
+        return items.length ? items : null;
+      });
+      logs[Number(params.get('log') || 0)].click();
+      await waitFor(() => document.querySelector('.sf-log-modal .sf-tab-btn'));
+
+      const tab = params.get('tab');
+      if (tab) document.querySelector(`.sf-tab-btn[data-tab="${tab}"]`).click();
+    }
+  </script>
+</body>
+</html>

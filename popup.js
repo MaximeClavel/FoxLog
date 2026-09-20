@@ -59,9 +59,6 @@ toggleButton.addEventListener('click', () => {
 });
 
 function updateToggleUI(isActive) {
-  if (isActive) {
-    toggleButton.classList.add('active');
-  } else {
-    toggleButton.classList.remove('active');
-  }
+  toggleButton.classList.toggle('active', isActive);
+  toggleButton.setAttribute('aria-checked', String(isActive));
 }

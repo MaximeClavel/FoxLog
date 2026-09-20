@@ -53,7 +53,7 @@
 - **Advanced filtering**: errors only, search in tree, category filters in the Flow graph
 - **Export reports**: Export call tree and performance data in `.txt` or `.md` format
 
-### 🔀 Log Diffing [NEW]
+### 🔀 Log Diffing
 - **Side-by-side comparison** of two call trees to spot execution divergences
 - **LCS-based alignment** matching nodes by signature across different logs
 - **Color-coded differences**: added (green), removed (red), changed (orange), match (grey)
@@ -69,12 +69,17 @@
 - **Web Workers** for call tree construction
 - **Virtualization** for large lists
 
-### 🎨 User Interface
-- **Side panel** with floating button
-- **Modern modal** with tabs
+### 🎨 User Interface [NEW]
+- **Side panel** with a draggable floating button that docks to the window edges
+- **Modern modal** with an identity header (operation, status, duration), underlined tabs and prev/next log navigation
+- **Design system**: one set of tokens (`src/theme.css`) drives colors, type, radius and elevation for the panel, modal, toasts and settings popup
+- **Light and dark themes** that follow your OS setting, with WCAG AA contrast in both
+- **Accessible by default**: keyboard-operable panel, tabs and log cards, visible focus rings, dialog focus trap, `prefers-reduced-motion` support
 - **Consistent SVG icon set** across the panel, modals, call tree and diff view — no more emoji-as-icons
-- **Responsive design** and intuitive
+- **Responsive design** down to narrow browser windows
 - **Performance report export** in TXT and Markdown formats
+
+See [docs/ui-design-system.md](docs/ui-design-system.md) for the tokens and component conventions.
 
 ## 📦 Installation
 
@@ -106,13 +111,23 @@ Test scripts are available in the `tests/` folder:
 
 Execute them in Salesforce Developer Console (Execute Anonymous) and open the log in FoxLog.
 
+### Previewing the UI without a Salesforce org
+
+`tests/ui-preview/` runs the real content scripts and stylesheets against a mocked Salesforce backend with demo logs:
+
+```bash
+node tests/ui-preview/server.js
+```
+
+Then open `http://foxlog.lightning.force.com.localhost:8123` (the `*.localhost` host name lets the extension's Salesforce-page check pass). Scenes can be opened directly, e.g. `?open=panel`, `?open=panel&panelTab=import` or `?open=modal&log=0&tab=analysis`. Switch your OS between light and dark to check both themes.
+
 ## 🤝 Contributing
 
 Contributions are welcome!
 
 ## ℹ️ About
 
-By Claude Opus 4.6 and occasionally Maxime Clavel
+By Claude and occasionally Maxime Clavel
 Contact : FoxLog.Extension@proton.me
 
 ## 📄 License

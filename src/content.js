@@ -140,9 +140,18 @@
       button.id = 'sf-foxlog-toggle';
       
       const iconUrl = chrome.runtime.getURL('src/assets/tail128.png');
-      button.innerHTML = `<img src="${iconUrl}" alt="FoxLog" style="width:32px;height:32px;pointer-events:none;">`;
+      button.innerHTML = `<img src="${iconUrl}" alt="" style="width:32px;height:32px;pointer-events:none;">`;
       button.title = (i18n?.openLogs) || 'FoxLog - Open logs';
-      
+      button.setAttribute('role', 'button');
+      button.setAttribute('aria-label', button.title);
+      button.tabIndex = 0;
+      button.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          button.click();
+        }
+      });
+
       // Load saved position or use default
       this._loadButtonPosition(button);
       
