@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>61.0</apiVersion>
+    <interviewLabel>FoxLog Error Demo {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>FoxLog Error Demo</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>Flow</processType>
+    <status>Active</status>
+
+    <start>
+        <locationX>50</locationX>
+        <locationY>50</locationY>
+        <connector>
+            <targetReference>Choose_Scenario</targetReference>
+        </connector>
+    </start>
+
+    <screens>
+        <name>Choose_Scenario</name>
+        <label>Choose Scenario</label>
+        <locationX>176</locationX>
+        <locationY>158</locationY>
+        <allowBack>true</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <connector>
+            <targetReference>Check_Fault_Path</targetReference>
+        </connector>
+        <fields>
+            <name>ErrorType</name>
+            <choiceReferences>Choice_CustomException</choiceReferences>
+            <choiceReferences>Choice_NullPointer</choiceReferences>
+            <choiceReferences>Choice_DmlException</choiceReferences>
+            <choiceReferences>Choice_ListIndex</choiceReferences>
+            <choiceReferences>Choice_None</choiceReferences>
+            <dataType>String</dataType>
+            <fieldText>Error type</fieldText>
+            <fieldType>DropdownBox</fieldType>
+            <isRequired>true</isRequired>
+        </fields>
+        <fields>
+            <name>SkipFaultPath</name>
+            <dataType>Boolean</dataType>
+            <fieldText>Simulate NO fault connector (let it crash unhandled)</fieldText>
+            <fieldType>InputField</fieldType>
+            <isRequired>false</isRequired>
+        </fields>
+    </screens>
+
+    <screens>
+        <name>Show_Fault</name>
+        <label>Fault</label>
+        <locationX>50</locationX>
+        <locationY>458</locationY>
+        <allowBack>true</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>Fault_Message_Display</name>
+            <fieldText>&lt;p&gt;The flow caught a fault:&lt;/p&gt;&lt;p&gt;{!$Flow.FaultMessage}&lt;/p&gt;</fieldText>
+            <fieldType>DisplayText</fieldType>
+        </fields>
+    </screens>
+
+    <screens>
+        <name>Show_Success</name>
+        <label>Success</label>
+        <locationX>350</locationX>
+        <locationY>458</locationY>
+        <allowBack>true</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>Success_Display</name>
+            <fieldText>&lt;p&gt;No unhandled fault reached this screen. If you picked an error type, check the debug log for how it actually surfaced.&lt;/p&gt;</fieldText>
+            <fieldType>DisplayText</fieldType>
+        </fields>
+    </screens>
+
+    <decisions>
+        <name>Check_Fault_Path</name>
+        <label>Check Fault Path</label>
+        <locationX>176</locationX>
+        <locationY>266</locationY>
+        <defaultConnector>
+            <targetReference>Call_With_Fault_Path</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>With fault path</defaultConnectorLabel>
+        <rules>
+            <name>No_Fault_Path_Rule</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>SkipFaultPath</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Call_No_Fault_Path</targetReference>
+            </connector>
+            <label>No fault path</label>
+        </rules>
+    </decisions>
+
+    <actionCalls>
+        <name>Call_With_Fault_Path</name>
+        <label>Call With Fault Path</label>
+        <locationX>50</locationX>
+        <locationY>374</locationY>
+        <actionName>FoxLogErrorDemoController</actionName>
+        <actionType>apex</actionType>
+        <connector>
+            <targetReference>Show_Success</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Show_Fault</targetReference>
+        </faultConnector>
+        <inputParameters>
+            <name>errorType</name>
+            <value>
+                <elementReference>ErrorType</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>FoxLogErrorDemoController</nameSegment>
+        <offset>0</offset>
+    </actionCalls>
+
+    <actionCalls>
+        <name>Call_No_Fault_Path</name>
+        <label>Call No Fault Path</label>
+        <locationX>350</locationX>
+        <locationY>374</locationY>
+        <actionName>FoxLogErrorDemoController</actionName>
+        <actionType>apex</actionType>
+        <connector>
+            <targetReference>Show_Success</targetReference>
+        </connector>
+        <inputParameters>
+            <name>errorType</name>
+            <value>
+                <elementReference>ErrorType</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>FoxLogErrorDemoController</nameSegment>
+        <offset>0</offset>
+    </actionCalls>
+
+    <choices>
+        <name>Choice_CustomException</name>
+        <choiceText>Custom Apex exception (explicit, labeled)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>CUSTOM_EXCEPTION</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_NullPointer</name>
+        <choiceText>NullPointerException</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>NULL_POINTER</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_DmlException</name>
+        <choiceText>DmlException (missing required field)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>DML_EXCEPTION</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_ListIndex</name>
+        <choiceText>List index out of bounds</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>LIST_INDEX</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_None</name>
+        <choiceText>No error (baseline)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>NONE</stringValue>
+        </value>
+    </choices>
+</Flow>
