@@ -48,7 +48,6 @@
             <dataType>Boolean</dataType>
             <fieldText>Simulate NO fault connector (let it crash unhandled)</fieldText>
             <fieldType>InputField</fieldType>
-            <isRequired>false</isRequired>
         </fields>
     </screens>
 
