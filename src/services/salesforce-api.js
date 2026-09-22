@@ -381,13 +381,21 @@
      */
     async getActiveTraceFlag(userId) {
       this._validateId(userId, 'userId');
+      // SOQL's TODAY literal means "any time today" (00:00:00-23:59:59),
+      // not "right now" -- a TraceFlag that expired at 11am was still
+      // matched by ExpirationDate >= TODAY until midnight, so re-enabling
+      // logs later the same day would find this "active" stale record,
+      // delete it (toggleDebugLogs treats any match as already-on), and
+      // report logs as disabled instead of creating a new TraceFlag.
+      // Comparing against an actual current datetime fixes that.
+      const nowIso = new Date().toISOString();
       const query = `
-        SELECT Id, TracedEntityId, DebugLevelId, DebugLevel.DeveloperName, 
+        SELECT Id, TracedEntityId, DebugLevelId, DebugLevel.DeveloperName,
                ExpirationDate, LogType, StartDate
         FROM TraceFlag
         WHERE TracedEntityId = '${userId}'
         AND LogType = 'USER_DEBUG'
-        AND ExpirationDate >= TODAY
+        AND ExpirationDate >= ${nowIso}
         ORDER BY ExpirationDate DESC
         LIMIT 1
       `;
