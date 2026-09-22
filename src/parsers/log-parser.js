@@ -6,19 +6,37 @@
   const logger = window.FoxLog.logger || console;
 
   // Every debug log event type that represents a Flow/Workflow-action-level
-  // error (as opposed to a raw Apex EXCEPTION_THROWN/FATAL_ERROR), confirmed
+  // or Validation-Rule-level error (as opposed to a raw Apex
+  // EXCEPTION_THROWN/FATAL_ERROR). The Flow/Workflow ones are confirmed
   // against a real "Workflow: FINER" category log: an explicit fault routed
   // to a Flow element, an interview that failed to start/be created, a
   // Workflow-Rule-launched flow action's error, and an invocable Apex
-  // action's error (the case where a Flow calls into Apex that fails).
-  const FLOW_ERROR_TYPES = [
+  // action's error (the case where a Flow calls into Apex that fails). The
+  // Validation ones are best-effort (not yet confirmed against a real log,
+  // see tests/flow-error-repro/) but a DML blocked by a Validation Rule is
+  // one of the most common real-world errors, so it's treated the same way.
+  const STRUCTURED_ERROR_TYPES = [
     'FLOW_ELEMENT_ERROR',
     'FLOW_ELEMENT_FAULT',
     'FLOW_CREATE_INTERVIEW_ERROR',
     'FLOW_START_INTERVIEWS_ERROR',
     'INVOCABLE_ACTION_ERROR',
     'WF_FLOW_ACTION_ERROR',
-    'WF_FLOW_ACTION_ERROR_DETAIL'
+    'WF_FLOW_ACTION_ERROR_DETAIL',
+    'VALIDATION_FAIL',
+    'VALIDATION_ERROR',
+    'FIELD_CUSTOM_VALIDATION_EXCEPTION'
+  ];
+
+  // Non-error Flow "detail" events: attached as leaf nodes under whichever
+  // element/interview is currently open, same treatment as USER_DEBUG/
+  // VARIABLE_ASSIGNMENT already get. Field layout is best-effort/unverified.
+  const FLOW_DETAIL_TYPES = [
+    'FLOW_RULE_DETAIL',
+    'FLOW_ASSIGNMENT_DETAIL',
+    'FLOW_VALUE_ASSIGNMENT',
+    'FLOW_SUBFLOW_DETAIL',
+    'FLOW_LOOP_DETAIL'
   ];
 
   class LogParser {
@@ -105,10 +123,19 @@
         [this.LOG_TYPES.SOQL_END]: () => this._parseSOQLEnd(content),
         [this.LOG_TYPES.DML]: () => this._parseDML(content),
         [this.LOG_TYPES.USER_DEBUG]: () => this._parseDebug(content),
-        [this.LOG_TYPES.ERROR]: () => this._parseException(content)
+        [this.LOG_TYPES.ERROR]: () => this._parseException(content),
+        'SOSL_EXECUTE_BEGIN': () => this._parseSOSL(content),
+        'SOSL_EXECUTE_END': () => this._parseSOQLEnd(content),
+        'CALLOUT_REQUEST': () => this._parseCallout(content),
+        'CALLOUT_RESPONSE': () => this._parseCallout(content),
+        'FLOW_ELEMENT_BEGIN': () => this._parseFlowElement(content),
+        'FLOW_ELEMENT_END': () => this._parseFlowElement(content)
       };
-      FLOW_ERROR_TYPES.forEach(flowErrorType => {
-        parsers[flowErrorType] = () => this._parseFlowError(content);
+      STRUCTURED_ERROR_TYPES.forEach(errorType => {
+        parsers[errorType] = () => this._parseFlowError(content);
+      });
+      FLOW_DETAIL_TYPES.forEach(detailType => {
+        parsers[detailType] = () => this._parseFlowError(content);
       });
 
       const parser = parsers[type];
@@ -150,6 +177,26 @@
     _parseSOQLEnd(content) {
       const match = this.patterns.rows.exec(content);
       return match ? { rows: parseInt(match[1], 10) } : {};
+    }
+
+    _parseSOSL(content) {
+      // Assumed to share SOQL's "[lineNum]|query text" shape (with or
+      // without the pipe) -- unverified, see tests/flow-error-repro/.
+      const match = this.patterns.soql.exec(content);
+      if (!match) return { query: content.trim() };
+      return { query: match[2].replace(/^\|/, '').trim() };
+    }
+
+    _parseCallout(content) {
+      // Best-effort: extract whatever looks like a URL and/or an HTTP
+      // status code from the line; field layout unverified. `raw` is kept
+      // so the detail panel always has something to show.
+      const details = { raw: content };
+      const urlMatch = content.match(/https?:\/\/[^\s,\]|]+/);
+      if (urlMatch) details.endpoint = urlMatch[0];
+      const statusMatch = content.match(/\b([1-5]\d{2})\b/);
+      if (statusMatch) details.status = parseInt(statusMatch[1], 10);
+      return details;
     }
 
     _parseDML(content) {
@@ -203,6 +250,23 @@
       return details;
     }
 
+    _parseFlowElement(content) {
+      // Best-effort: "<element type>|<element API name>" -- no error
+      // message component, unlike STRUCTURED_ERROR_TYPES/FLOW_DETAIL_TYPES
+      // below. Unverified against a real log, see tests/flow-error-repro/.
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 2) {
+        details.elementType = parts[0].trim();
+        details.elementName = parts[1].trim();
+      } else {
+        details.elementType = content.trim();
+      }
+
+      return details;
+    }
+
     _parseFlowError(content) {
       // Best-effort: the documented shape for these event types is roughly
       // "<element/action type>|<element/action API name>|<error message>",
@@ -253,12 +317,21 @@
           maxSoqlQueries: 100,
           maxDmlStatements: 150,
           maxCpuTime: 10000,
-          maxHeapSize: 6000000
+          maxHeapSize: 6000000,
+          // Tracked for future UI use (not yet surfaced in the Summary tab's
+          // limit meters -- same shape as the SOQL/DML ones above so it can
+          // be wired in later without another data-model change).
+          soslQueries: 0,
+          maxSoslQueries: 20,
+          callouts: 0,
+          maxCallouts: 100
         },
         methods: [],
         methodMap: new Map(), // key: 'class.method' → index in methods[]
         errors: [],
         queries: [],
+        soslQueries: [],
+        callouts: [],
         dmlOperations: [],
         methodStack: []
       };
@@ -277,6 +350,32 @@
         'SOQL_EXECUTE_END': () => {
           if (stats.queries.length > 0) {
             stats.queries[stats.queries.length - 1].rows = line.details.rows;
+          }
+        },
+        'SOSL_EXECUTE_BEGIN': () => {
+          stats.limits.soslQueries++;
+          stats.soslQueries.push({
+            query: line.details.query,
+            timestamp: line.timestamp,
+            index: line.index
+          });
+        },
+        'SOSL_EXECUTE_END': () => {
+          if (stats.soslQueries.length > 0) {
+            stats.soslQueries[stats.soslQueries.length - 1].rows = line.details.rows;
+          }
+        },
+        'CALLOUT_REQUEST': () => {
+          stats.limits.callouts++;
+          stats.callouts.push({
+            endpoint: line.details.endpoint,
+            timestamp: line.timestamp,
+            index: line.index
+          });
+        },
+        'CALLOUT_RESPONSE': () => {
+          if (stats.callouts.length > 0) {
+            stats.callouts[stats.callouts.length - 1].status = line.details.status;
           }
         },
         'DML_BEGIN': () => {
@@ -327,8 +426,8 @@
           });
         }
       };
-      FLOW_ERROR_TYPES.forEach(flowErrorType => {
-        collectors[flowErrorType] = collectors['EXCEPTION_THROWN'];
+      STRUCTURED_ERROR_TYPES.forEach(errorType => {
+        collectors[errorType] = collectors['EXCEPTION_THROWN'];
       });
 
       const collector = collectors[line.type];
@@ -338,9 +437,11 @@
     _parseCumulativeLimits(lines, stats) {
       const limitPatterns = {
         soql: /Number of SOQL queries:\s*(\d+)\s+out of\s+(\d+)/,
+        sosl: /Number of SOSL queries:\s*(\d+)\s+out of\s+(\d+)/,
         dml: /Number of DML statements:\s*(\d+)\s+out of\s+(\d+)/,
         cpu: /Maximum CPU time:\s*(\d+)\s+out of\s+(\d+)/,
-        heap: /Maximum heap size:\s*(\d+)\s+out of\s+(\d+)/
+        heap: /Maximum heap size:\s*(\d+)\s+out of\s+(\d+)/,
+        callouts: /Number of callouts:\s*(\d+)\s+out of\s+(\d+)/
       };
 
       const cumulativeIndex = lines.findIndex(l => l.includes('CUMULATIVE_LIMIT_USAGE'));
@@ -356,6 +457,9 @@
             if (key === 'soql') {
               stats.limits.soqlQueries = parseInt(used, 10);
               stats.limits.maxSoqlQueries = parseInt(max, 10);
+            } else if (key === 'sosl') {
+              stats.limits.soslQueries = parseInt(used, 10);
+              stats.limits.maxSoslQueries = parseInt(max, 10);
             } else if (key === 'dml') {
               stats.limits.dmlStatements = parseInt(used, 10);
               stats.limits.maxDmlStatements = parseInt(max, 10);
@@ -365,6 +469,9 @@
             } else if (key === 'heap') {
               stats.limits.heapSize = parseInt(used, 10);
               stats.limits.maxHeapSize = parseInt(max, 10);
+            } else if (key === 'callouts') {
+              stats.limits.callouts = parseInt(used, 10);
+              stats.limits.maxCallouts = parseInt(max, 10);
             }
           }
         });

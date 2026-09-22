@@ -47,7 +47,11 @@
         Callout: 'FINEST',
         Database: 'FINEST',
         System: 'DEBUG',
-        Validation: 'INFO',
+        // Was 'INFO'; raised for the same reason Workflow was below -- a
+        // DML blocked by a Validation Rule (VALIDATION_FAIL/
+        // VALIDATION_ERROR) needs to reliably show up for FoxLog to mark
+        // it as an error.
+        Validation: 'FINEST',
         Visualforce: 'FINE',
         // Governs Flow/Process Builder execution logging (FLOW_ELEMENT_ERROR
         // and friends) -- was 'INFO', which is too low to reliably surface
@@ -115,19 +119,11 @@
      */
     async _createDebugLevel() {
       const api = this._getAPI();
-      
+
       const debugLevelConfig = {
         DeveloperName: this.customDebugLevelName,
         MasterLabel: 'FoxLog Debug Level',
-        // Detailed logging for debugging
-        ApexCode: 'FINEST',
-        ApexProfiling: 'FINEST',
-        Callout: 'FINEST',
-        Database: 'FINEST',
-        System: 'DEBUG',
-        Validation: 'INFO',
-        Visualforce: 'FINE',
-        Workflow: 'INFO'
+        ...this._desiredLevels()
       };
 
       try {

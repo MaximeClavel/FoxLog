@@ -5,16 +5,27 @@
 'use strict';
 
 // This is a standalone Web Worker (no access to window/FoxLog globals),
-// hence this list is duplicated rather than shared with log-parser.js.
-// See the comment there for what confirmed each of these.
-const FLOW_ERROR_TYPES = [
+// hence these lists are duplicated rather than shared with log-parser.js.
+// See the comments there for what confirmed each of these.
+const STRUCTURED_ERROR_TYPES = [
   'FLOW_ELEMENT_ERROR',
   'FLOW_ELEMENT_FAULT',
   'FLOW_CREATE_INTERVIEW_ERROR',
   'FLOW_START_INTERVIEWS_ERROR',
   'INVOCABLE_ACTION_ERROR',
   'WF_FLOW_ACTION_ERROR',
-  'WF_FLOW_ACTION_ERROR_DETAIL'
+  'WF_FLOW_ACTION_ERROR_DETAIL',
+  'VALIDATION_FAIL',
+  'VALIDATION_ERROR',
+  'FIELD_CUSTOM_VALIDATION_EXCEPTION'
+];
+
+const FLOW_DETAIL_TYPES = [
+  'FLOW_RULE_DETAIL',
+  'FLOW_ASSIGNMENT_DETAIL',
+  'FLOW_VALUE_ASSIGNMENT',
+  'FLOW_SUBFLOW_DETAIL',
+  'FLOW_LOOP_DETAIL'
 ];
 
 // ============================================
@@ -171,32 +182,43 @@ class CallTreeBuilder {
       'METHOD_ENTRY',
       'CONSTRUCTOR_ENTRY',
       'SOQL_EXECUTE_BEGIN',
-      'DML_BEGIN'
+      'DML_BEGIN',
+      'SOSL_EXECUTE_BEGIN',
+      'CALLOUT_REQUEST',
+      // Every Flow element (screen, decision, assignment, loop, action
+      // call...) a flow interview steps through -- previously the only
+      // thing visible inside a Flow's CODE_UNIT wrapper was an explicit
+      // error. Field layout unverified, see tests/flow-error-repro/.
+      'FLOW_ELEMENT_BEGIN'
     ];
-    
+
     // Event types that close a node
     const closingTypes = [
       'CODE_UNIT_FINISHED',
       'METHOD_EXIT',
       'CONSTRUCTOR_EXIT',
       'SOQL_EXECUTE_END',
-      'DML_END'
+      'DML_END',
+      'SOSL_EXECUTE_END',
+      'CALLOUT_RESPONSE',
+      'FLOW_ELEMENT_END'
     ];
-    
+
     // Event types that are added as leaf nodes
     const leafTypes = [
       'USER_DEBUG',
-      'VARIABLE_ASSIGNMENT'
+      'VARIABLE_ASSIGNMENT',
+      ...FLOW_DETAIL_TYPES
     ];
-    
+
     if (openingTypes.includes(type)) {
       this._openNode(line, index);
     } else if (closingTypes.includes(type)) {
       this._closeNode(line, index);
-    } else if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR' || FLOW_ERROR_TYPES.includes(type)) {
+    } else if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR' || STRUCTURED_ERROR_TYPES.includes(type)) {
       this._markError(line, index);
     } else if (leafTypes.includes(type)) {
-      // Add leaf nodes (debug, variables, heap)
+      // Add leaf nodes (debug, variables, heap, flow element detail)
       this._addLeafNode(line, index);
     }
   }
@@ -221,7 +243,9 @@ class CallTreeBuilder {
       exclusiveDuration: 0,
       children: [],
       hasError: false,
-      soqlCount: line.type === 'SOQL_EXECUTE_BEGIN' ? 1 : 0,
+      // SOSL folds into the same counter as SOQL (both a "query the
+      // database" operation) rather than adding a second counter/badge.
+      soqlCount: (line.type === 'SOQL_EXECUTE_BEGIN' || line.type === 'SOSL_EXECUTE_BEGIN') ? 1 : 0,
       dmlCount: line.type === 'DML_BEGIN' ? 1 : 0,
       logLineIndex: line.index, // Use the actual raw log line index
       details: this._extractDetails(line)
@@ -253,9 +277,13 @@ class CallTreeBuilder {
       node.duration = Math.max(0, line.timestampMs - node.startTimeMs);
     }
     
-    // Update details (e.g., number of rows for SOQL_END)
-    if (line.type === 'SOQL_EXECUTE_END' && line.details.rows !== undefined) {
+    // Update details (e.g., number of rows for SOQL_END/SOSL_EXECUTE_END)
+    if ((line.type === 'SOQL_EXECUTE_END' || line.type === 'SOSL_EXECUTE_END') && line.details.rows !== undefined) {
       node.details.rows = line.details.rows;
+    }
+    // CALLOUT_RESPONSE carries the HTTP status; attach it to the request node.
+    if (line.type === 'CALLOUT_RESPONSE' && line.details.status !== undefined) {
+      node.details.status = line.details.status;
     }
   }
 
@@ -268,15 +296,15 @@ class CallTreeBuilder {
 
     const currentNode = this.stack[this.stack.length - 1];
 
-    const isFlowError = FLOW_ERROR_TYPES.includes(line.type);
+    const isStructuredError = STRUCTURED_ERROR_TYPES.includes(line.type);
 
     // Build descriptive name: "ExceptionType: message" for a raw Apex
-    // exception, "elementName: message" for a Flow element error/fault
-    // (the element that failed matters more at a glance than its type).
-    const exType = isFlowError
-      ? (line.details.elementName || line.details.elementType || 'Flow error')
+    // exception, "elementName: message" for a Flow element/Validation Rule
+    // error or fault (what failed matters more at a glance than its type).
+    const exType = isStructuredError
+      ? (line.details.elementName || line.details.elementType || line.type)
       : (line.details.exceptionType || 'Exception');
-    const exMsg = line.details.message || (isFlowError ? line.content : '');
+    const exMsg = line.details.message || (isStructuredError ? line.content : '');
     const shortMsg = exMsg.length > 50 ? exMsg.substring(0, 50) + '...' : exMsg;
     const nodeName = exMsg ? `${exType}: ${shortMsg}` : exType;
 
@@ -297,7 +325,7 @@ class CallTreeBuilder {
       logLineIndex: line.index, // Use the actual raw log line index
       details: {
         message: exMsg || line.content,
-        exceptionType: isFlowError ? (line.details.elementType || 'Flow error') : line.details.exceptionType,
+        exceptionType: isStructuredError ? (line.details.elementType || line.type) : line.details.exceptionType,
         elementType: line.details.elementType,
         elementName: line.details.elementName
       }
@@ -339,7 +367,22 @@ class CallTreeBuilder {
         // Keep the full value here: the node name truncates it
         nodeDetails = assignment ? { variable: assignment.variable, value: assignment.value } : { assignment: line.content };
         break;
-        
+
+      case 'FLOW_RULE_DETAIL':
+      case 'FLOW_ASSIGNMENT_DETAIL':
+      case 'FLOW_VALUE_ASSIGNMENT':
+      case 'FLOW_SUBFLOW_DETAIL':
+      case 'FLOW_LOOP_DETAIL': {
+        // Field layout unverified -- see tests/flow-error-repro/. Falls
+        // back to the element name or the untouched line content.
+        const detailMsg = line.details.message || line.details.raw || line.content;
+        const detailLabel = line.details.elementName || line.type.replace('FLOW_', '').replace(/_/g, ' ');
+        const shortDetail = detailMsg.length > 60 ? detailMsg.substring(0, 60) + '...' : detailMsg;
+        nodeName = `${detailLabel}: ${shortDetail}`;
+        nodeDetails = { message: detailMsg, elementName: line.details.elementName, elementType: line.details.elementType };
+        break;
+      }
+
       default:
         nodeName = line.type;
         nodeDetails = { content: line.content };
@@ -522,19 +565,26 @@ class CallTreeBuilder {
           : details.method || 'Unknown Method';
       
       case 'SOQL_EXECUTE_BEGIN':
-        return details.query 
+      case 'SOSL_EXECUTE_BEGIN':
+        return details.query
           ? details.query.substring(0, 60) + (details.query.length > 60 ? '...' : '')
-          : 'SOQL Query';
-      
+          : (type === 'SOSL_EXECUTE_BEGIN' ? 'SOSL Query' : 'SOQL Query');
+
       case 'DML_BEGIN':
         const op = details.operation || 'DML';
         const objType = details.objectType || '';
         const rows = details.rows ? ` (${details.rows} row${details.rows > 1 ? 's' : ''})` : '';
         return `${op} ${objType}${rows}`.trim();
-      
+
       case 'CODE_UNIT_STARTED':
         return line.content || 'Code Unit';
-      
+
+      case 'CALLOUT_REQUEST':
+        return details.endpoint ? `Callout: ${details.endpoint}` : 'HTTP Callout';
+
+      case 'FLOW_ELEMENT_BEGIN':
+        return details.elementName || details.elementType || 'Flow Element';
+
       default:
         return type;
     }
@@ -553,7 +603,7 @@ class CallTreeBuilder {
     };
     
       // Add specifics details
-    if (type === 'SOQL_EXECUTE_BEGIN') {
+    if (type === 'SOQL_EXECUTE_BEGIN' || type === 'SOSL_EXECUTE_BEGIN') {
       baseDetails.fullQuery = details.query;
     }
     

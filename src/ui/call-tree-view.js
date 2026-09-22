@@ -8,17 +8,31 @@
   const i18n = window.FoxLog.i18n || {};
   const { logger, callTreeBuilder } = window.FoxLog;
 
-  // Debug log event types for a Flow/Workflow-action-level error (as
-  // opposed to a raw Apex EXCEPTION_THROWN/FATAL_ERROR) -- see the same
-  // list's comment in src/parsers/log-parser.js for how it was confirmed.
-  const FLOW_ERROR_TYPES = [
+  // Debug log event types for a Flow/Workflow-action-level or
+  // Validation-Rule-level error (as opposed to a raw Apex
+  // EXCEPTION_THROWN/FATAL_ERROR) -- see the same list's comment in
+  // src/parsers/log-parser.js for how each was confirmed/is best-effort.
+  const STRUCTURED_ERROR_TYPES = [
     'FLOW_ELEMENT_ERROR',
     'FLOW_ELEMENT_FAULT',
     'FLOW_CREATE_INTERVIEW_ERROR',
     'FLOW_START_INTERVIEWS_ERROR',
     'INVOCABLE_ACTION_ERROR',
     'WF_FLOW_ACTION_ERROR',
-    'WF_FLOW_ACTION_ERROR_DETAIL'
+    'WF_FLOW_ACTION_ERROR_DETAIL',
+    'VALIDATION_FAIL',
+    'VALIDATION_ERROR',
+    'FIELD_CUSTOM_VALIDATION_EXCEPTION'
+  ];
+
+  // Non-error Flow "detail" events -- see the comment on the equivalent
+  // list in call-graph-view.js.
+  const FLOW_DETAIL_TYPES = [
+    'FLOW_RULE_DETAIL',
+    'FLOW_ASSIGNMENT_DETAIL',
+    'FLOW_VALUE_ASSIGNMENT',
+    'FLOW_SUBFLOW_DETAIL',
+    'FLOW_LOOP_DETAIL'
   ];
 
   class CallTreeView {
@@ -715,12 +729,16 @@
         // Database
         'SOQL_EXECUTE_BEGIN': 'database',
         'SOQL_EXECUTE_END': 'database',
+        'SOSL_EXECUTE_BEGIN': 'database',
+        'SOSL_EXECUTE_END': 'database',
         'DML_BEGIN': 'database',
         'DML_END': 'database',
-        
+        'CALLOUT_REQUEST': 'database',
+        'CALLOUT_RESPONSE': 'database',
+
         // Debug
         'USER_DEBUG': 'debug',
-        
+
         // Errors
         'EXCEPTION_THROWN': 'errors',
         'FATAL_ERROR': 'errors',
@@ -735,9 +753,12 @@
         'EXECUTION_FINISHED': 'system',
         'FLOW_START_INTERVIEWS_BEGIN': 'system',
         'FLOW_START_INTERVIEWS_END': 'system',
+        'FLOW_ELEMENT_BEGIN': 'system',
+        'FLOW_ELEMENT_END': 'system',
         'ROOT': 'system'
       };
-      FLOW_ERROR_TYPES.forEach(flowErrorType => { categoryMap[flowErrorType] = 'errors'; });
+      STRUCTURED_ERROR_TYPES.forEach(errorType => { categoryMap[errorType] = 'errors'; });
+      FLOW_DETAIL_TYPES.forEach(detailType => { categoryMap[detailType] = 'system'; });
 
       return categoryMap[type] || 'system';
     }
@@ -841,13 +862,17 @@
         'ROOT': 'package',
         'METHOD_ENTRY': 'code',
         'SOQL_EXECUTE_BEGIN': 'database',
+        'SOSL_EXECUTE_BEGIN': 'search',
         'DML_BEGIN': 'database',
+        'CALLOUT_REQUEST': 'cloud',
         'EXCEPTION_THROWN': 'alert-triangle',
         'FATAL_ERROR': 'alert-triangle',
         'USER_DEBUG': 'bug',
-        'CODE_UNIT_STARTED': 'package'
+        'CODE_UNIT_STARTED': 'package',
+        'FLOW_ELEMENT_BEGIN': 'shuffle'
       };
-      FLOW_ERROR_TYPES.forEach(flowErrorType => { iconNames[flowErrorType] = 'alert-triangle'; });
+      STRUCTURED_ERROR_TYPES.forEach(errorType => { iconNames[errorType] = 'alert-triangle'; });
+      FLOW_DETAIL_TYPES.forEach(detailType => { iconNames[detailType] = 'shuffle'; });
       return window.FoxLog.icon(iconNames[type] || 'info', { size: 16 });
     }
 
