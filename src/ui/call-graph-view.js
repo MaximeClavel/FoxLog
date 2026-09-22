@@ -118,6 +118,8 @@
       this.allNodesFlat = [];
       this.nodeById = new Map();
       this.parentById = new Map();
+      this.errorNodesList = [];
+      this.currentErrorIndex = -1;
 
       this.searchDebounce = null;
       this.listenersAttached = false;
@@ -146,6 +148,10 @@
         node.children.forEach(child => walk(child, node));
       };
       walk(this.callTree.root, null);
+      // DFS order roughly matches chronological/log order (children are
+      // added as their events occur), good enough for stepping through
+      // errors in sequence with the nav buttons.
+      this.errorNodesList = this.allNodesFlat.filter(node => classify(node) === 'error');
     }
 
     /**
@@ -195,7 +201,13 @@
             </div>
             <div class="sf-graph-stat ${meta.errorCount ? 'sf-graph-stat--error' : ''}">
               <span class="sf-graph-stat-label">${i18n.errors || 'Errors'}</span>
-              <span class="sf-graph-stat-value">${meta.errorCount || 0}</span>
+              ${this.errorNodesList.length > 0 ? `
+                <span class="sf-graph-error-nav">
+                  <button class="sf-graph-error-nav-btn" data-action="error-prev" title="${i18n.previousError || 'Previous error'}" ${this.errorNodesList.length < 2 ? 'disabled' : ''}>${window.FoxLog.icon('chevron-left', { size: 14 })}</button>
+                  <span class="sf-graph-stat-value sf-graph-error-nav-count">${this.currentErrorIndex >= 0 ? this.currentErrorIndex + 1 : 0}/${this.errorNodesList.length}</span>
+                  <button class="sf-graph-error-nav-btn" data-action="error-next" title="${i18n.nextError || 'Next error'}" ${this.errorNodesList.length < 2 ? 'disabled' : ''}>${window.FoxLog.icon('chevron-right', { size: 14 })}</button>
+                </span>
+              ` : `<span class="sf-graph-stat-value">${meta.errorCount || 0}</span>`}
             </div>
           </div>
 
@@ -1085,7 +1097,31 @@
           }
           break;
         }
+        case 'error-prev':
+          this._gotoError(-1);
+          break;
+        case 'error-next':
+          this._gotoError(1);
+          break;
       }
+    }
+
+    /**
+     * Step to the previous/next error node (wraps around) and select it.
+     * @private
+     * @param {number} direction -1 for previous, 1 for next
+     */
+    _gotoError(direction) {
+      const count = this.errorNodesList.length;
+      if (count === 0) return;
+
+      this.currentErrorIndex = (this.currentErrorIndex + direction + count) % count;
+      const node = this.errorNodesList[this.currentErrorIndex];
+
+      const countEl = this.container.querySelector('.sf-graph-error-nav-count');
+      if (countEl) countEl.textContent = `${this.currentErrorIndex + 1}/${count}`;
+
+      this._selectAndReveal(node.id);
     }
 
     /**
