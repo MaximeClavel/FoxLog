@@ -242,6 +242,29 @@
         <object>Account</object>
     </recordCreates>
 
+    <recordCreates>
+        <name>Create_Loop_Account</name>
+        <label>Create Loop Account (DML-in-loop antipattern)</label>
+        <locationX>50</locationX>
+        <locationY>860</locationY>
+        <connector>
+            <targetReference>Loop_Demo_Items</targetReference>
+        </connector>
+        <inputAssignments>
+            <field>Name</field>
+            <value>
+                <stringValue>FoxLog Demo Loop Account {!LoopCounter}</stringValue>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>Description</field>
+            <value>
+                <stringValue>Created one-at-a-time by the FoxLog demo flow's loop, on purpose (DML-in-loop antipattern).</stringValue>
+            </value>
+        </inputAssignments>
+        <object>Account</object>
+    </recordCreates>
+
     <assignments>
         <name>Set_Demo_Variables</name>
         <label>Set Demo Variables</label>
@@ -280,21 +303,6 @@
         </assignmentItems>
     </assignments>
 
-    <loops>
-        <name>Loop_Demo_Items</name>
-        <label>Loop Demo Items</label>
-        <locationX>176</locationX>
-        <locationY>660</locationY>
-        <collectionReference>DemoItems</collectionReference>
-        <iterationOrder>Asc</iterationOrder>
-        <nextValueConnector>
-            <targetReference>Increment_Counter</targetReference>
-        </nextValueConnector>
-        <noMoreValuesConnector>
-            <targetReference>Call_Demo_Subflow</targetReference>
-        </noMoreValuesConnector>
-    </loops>
-
     <assignments>
         <name>Increment_Counter</name>
         <label>Increment Counter</label>
@@ -312,28 +320,20 @@
         </assignmentItems>
     </assignments>
 
-    <recordCreates>
-        <name>Create_Loop_Account</name>
-        <label>Create Loop Account (DML-in-loop antipattern)</label>
-        <locationX>50</locationX>
-        <locationY>860</locationY>
-        <connector>
-            <targetReference>Loop_Demo_Items</targetReference>
-        </connector>
-        <inputAssignments>
-            <field>Name</field>
-            <value>
-                <stringValue>FoxLog Demo Loop Account {!LoopCounter}</stringValue>
-            </value>
-        </inputAssignments>
-        <inputAssignments>
-            <field>Description</field>
-            <value>
-                <stringValue>Created one-at-a-time by the FoxLog demo flow's loop, on purpose (DML-in-loop antipattern).</stringValue>
-            </value>
-        </inputAssignments>
-        <object>Account</object>
-    </recordCreates>
+    <loops>
+        <name>Loop_Demo_Items</name>
+        <label>Loop Demo Items</label>
+        <locationX>176</locationX>
+        <locationY>660</locationY>
+        <collectionReference>DemoItems</collectionReference>
+        <iterationOrder>Asc</iterationOrder>
+        <nextValueConnector>
+            <targetReference>Increment_Counter</targetReference>
+        </nextValueConnector>
+        <noMoreValuesConnector>
+            <targetReference>Call_Demo_Subflow</targetReference>
+        </noMoreValuesConnector>
+    </loops>
 
     <subflows>
         <name>Call_Demo_Subflow</name>
