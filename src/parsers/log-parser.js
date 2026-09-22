@@ -228,9 +228,12 @@
     }
 
     _parseCallout(content) {
-      // Best-effort: extract whatever looks like a URL and/or an HTTP
-      // status code from the line; field layout unverified. `raw` is kept
-      // so the detail panel always has something to show.
+      // Confirmed against a real log: CALLOUT_REQUEST is
+      // "[line]|System.HttpRequest[Endpoint=<url>, Method=<verb>]",
+      // CALLOUT_RESPONSE is "[line]|System.HttpResponse[Status=<text>,
+      // StatusCode=<code>]". Kept as a regex extraction rather than a
+      // strict positional parse since the bracketed fields could appear in
+      // a different order/set depending on what was set on the request.
       const details = { raw: content };
       const urlMatch = content.match(/https?:\/\/[^\s,\]|]+/);
       if (urlMatch) details.endpoint = urlMatch[0];
