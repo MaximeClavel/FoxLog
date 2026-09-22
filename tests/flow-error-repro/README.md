@@ -43,21 +43,19 @@ it from your sandbox whenever you're done with it (see Cleanup below).
   - A screen lets you pick one of the scenarios above (plus `FLOW_DML_ERROR`
     and `FLOW_VALIDATION_ERROR`, see below) and a checkbox "Simulate NO
     fault connector".
-  - **Always-run chain** (runs on every single execution, regardless of the
-    chosen scenario), added for points 4/5:
-    - `Set_Demo_Variables` (Assignment) sets a counter and a 3-item text
-      collection.
-    - `Loop_Demo_Items` (Loop) iterates the collection 3 times. Each
-      iteration runs `Increment_Counter` (Assignment) then
-      `Create_Loop_Account` (Create Records) — **one individual DML insert
-      per iteration, on purpose**: this is the Flow DML-in-loop antipattern,
-      to see whether FoxLog's existing SOQL/DML-in-loop check fires for it.
-      This creates 3 `Account` records named `FoxLog Demo Loop Account 1/2/3`
-      **on every run** — see Cleanup.
-    - `Call_Demo_Subflow` calls `FoxLog_Error_Demo_Subflow` (a trivial
-      autolaunched subflow with one Assignment), to exercise
-      `FLOW_SUBFLOW_DETAIL`.
-  - Then routes to one of:
+  - **Scenario dispatch runs first**, then the always-run chain (loop,
+    DML-in-loop, subflow, points 4/5) runs afterward, not before. This
+    order matters for exactly one scenario: `HTTP_CALLOUT`. A callout is
+    only legal in a transaction with no *uncommitted* DML yet -- if the
+    loop's DML ran first, the callout fails with `System.CalloutException:
+    You have uncommitted work pending` before ever reaching the actual
+    HTTP request, no matter what the Apex code does. Running the scenario
+    first keeps that path clean. (Confirmed against a real log: an earlier
+    version of this kit ran the loop first and hit exactly that exception,
+    which is itself a real, useful signal FoxLog now surfaces correctly as
+    a generic Apex error node -- but it never gets to test the actual
+    `CALLOUT_REQUEST`/`CALLOUT_RESPONSE` lines.)
+  - Routes to one of:
     - `Create_Bad_Account` — only when `FLOW_DML_ERROR` is picked. A native
       **Create Records** element inserting an `Account` with no `Name`, no
       Apex involved at all (missing required field, not a Validation Rule).
@@ -74,6 +72,20 @@ it from your sandbox whenever you're done with it (see Cleanup below).
       - `Call_No_Fault_Path` — same action, same input, **no** fault
         connector. An error here isn't caught by the flow itself, letting
         us see how that differs in the raw log.
+  - Then the **always-run chain** (runs on every single execution,
+    regardless of the chosen scenario), added for points 4/5:
+    - `Set_Demo_Variables` (Assignment) sets a counter and a 3-item text
+      collection.
+    - `Loop_Demo_Items` (Loop) iterates the collection 3 times. Each
+      iteration runs `Increment_Counter` (Assignment) then
+      `Create_Loop_Account` (Create Records) — **one individual DML insert
+      per iteration, on purpose**: this is the Flow DML-in-loop antipattern,
+      to see whether FoxLog's existing SOQL/DML-in-loop check fires for it.
+      This creates 3 `Account` records named `FoxLog Demo Loop Account 1/2/3`
+      **on every run** — see Cleanup.
+    - `Call_Demo_Subflow` calls `FoxLog_Error_Demo_Subflow` (a trivial
+      autolaunched subflow with one Assignment), to exercise
+      `FLOW_SUBFLOW_DETAIL`.
 
   `Create_Bad_Account` and `Create_Account_Trip_Validation` always have
   their own Fault Connector (the "simulate no fault connector" checkbox

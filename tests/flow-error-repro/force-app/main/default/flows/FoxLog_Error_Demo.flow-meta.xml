@@ -29,7 +29,7 @@
         <allowFinish>true</allowFinish>
         <allowPause>false</allowPause>
         <connector>
-            <targetReference>Set_Demo_Variables</targetReference>
+            <targetReference>Check_Error_Origin</targetReference>
         </connector>
         <fields>
             <name>ErrorType</name>
@@ -161,7 +161,7 @@
         <actionName>FoxLogErrorDemoController</actionName>
         <actionType>apex</actionType>
         <connector>
-            <targetReference>Show_Success</targetReference>
+            <targetReference>Set_Demo_Variables</targetReference>
         </connector>
         <faultConnector>
             <targetReference>Show_Fault</targetReference>
@@ -184,7 +184,7 @@
         <actionName>FoxLogErrorDemoController</actionName>
         <actionType>apex</actionType>
         <connector>
-            <targetReference>Show_Success</targetReference>
+            <targetReference>Set_Demo_Variables</targetReference>
         </connector>
         <inputParameters>
             <name>errorType</name>
@@ -202,7 +202,7 @@
         <locationX>550</locationX>
         <locationY>374</locationY>
         <connector>
-            <targetReference>Show_Success</targetReference>
+            <targetReference>Set_Demo_Variables</targetReference>
         </connector>
         <faultConnector>
             <targetReference>Show_Fault</targetReference>
@@ -222,7 +222,7 @@
         <locationX>650</locationX>
         <locationY>374</locationY>
         <connector>
-            <targetReference>Show_Success</targetReference>
+            <targetReference>Set_Demo_Variables</targetReference>
         </connector>
         <faultConnector>
             <targetReference>Show_Fault</targetReference>
@@ -341,7 +341,7 @@
         <locationX>176</locationX>
         <locationY>960</locationY>
         <connector>
-            <targetReference>Check_Error_Origin</targetReference>
+            <targetReference>Show_Success</targetReference>
         </connector>
         <flowName>FoxLog_Error_Demo_Subflow</flowName>
     </subflows>
