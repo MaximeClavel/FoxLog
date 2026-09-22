@@ -37,6 +37,25 @@ public with sharing class FoxLogErrorDemoController {
             List<Account> empty = new List<Account>();
             Account first = empty[0]; // List index out of bounds
 
+        } else if (errorType == 'VALIDATION_RULE') {
+            // Trips FoxLog_Demo_Validation_Fail (see
+            // force-app/main/default/objects/Account/validationRules) via
+            // an Apex DML, as opposed to the flow-native path below.
+            insert new Account(Name = 'FoxLog Apex Validation Test', Description = 'FOXLOG_FORCE_VALIDATION_ERROR');
+
+        } else if (errorType == 'HTTP_CALLOUT') {
+            // Requires the FoxLog_Demo_Callout Remote Site Setting.
+            Http http = new Http();
+            HttpRequest req = new HttpRequest();
+            req.setEndpoint('https://jsonplaceholder.typicode.com/todos/1');
+            req.setMethod('GET');
+            HttpResponse httpRes = http.send(req);
+            res.outcome = 'Callout returned HTTP ' + httpRes.getStatusCode();
+
+        } else if (errorType == 'SOSL_QUERY') {
+            List<List<SObject>> results = [FIND 'FoxLog' IN ALL FIELDS RETURNING Account(Id, Name)];
+            res.outcome = 'SOSL query returned ' + results[0].size() + ' Account(s)';
+
         } else {
             res.outcome = 'No error raised (errorType=' + errorType + ')';
         }

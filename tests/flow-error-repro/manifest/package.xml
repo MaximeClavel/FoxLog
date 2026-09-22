@@ -6,7 +6,16 @@
     </types>
     <types>
         <members>FoxLog_Error_Demo</members>
+        <members>FoxLog_Error_Demo_Subflow</members>
         <name>Flow</name>
+    </types>
+    <types>
+        <members>Account.FoxLog_Demo_Validation_Fail</members>
+        <name>ValidationRule</name>
+    </types>
+    <types>
+        <members>FoxLog_Demo_Callout</members>
+        <name>RemoteSiteSetting</name>
     </types>
     <version>61.0</version>
 </Package>
