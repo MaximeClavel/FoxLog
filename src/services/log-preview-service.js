@@ -89,7 +89,13 @@
       const errorPatterns = {
         exception: /EXCEPTION_THROWN\|([^|]+)\|(.+)/g,
         fatal: /FATAL_ERROR\|(.+)/g,
-        validation: /^.*\|(VALIDATION_FORMULA|VALIDATION_RULE|VF_PAGE_MESSAGE)\|/gm
+        // VALIDATION_RULE/VALIDATION_FORMULA fire on every Validation Rule
+        // EVALUATION, pass or fail (confirmed against a real log, see
+        // tests/flow-error-repro/) -- matching on them flagged fully
+        // successful runs as errors just for having a Validation Rule
+        // anywhere in the transaction. VALIDATION_FAIL is the real signal,
+        // and is confirmed bare (no trailing pipe), unlike VF_PAGE_MESSAGE.
+        validation: /^.*\|(?:VALIDATION_FAIL(?=\||$)|VF_PAGE_MESSAGE\|)/gm
       };
 
       let hasError = false;
@@ -119,7 +125,7 @@
       if (errorPatterns.validation.test(logContent)) {
         hasError = true;
         if (errorCount === 0) errorCount++;
-        errorTypes.add('VALIDATION_ERROR');
+        errorTypes.add('VALIDATION_FAIL');
       }
 
       return {
