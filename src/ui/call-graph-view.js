@@ -10,6 +10,19 @@
   const logger = window.FoxLog.logger || console;
   const escapeHtml = window.FoxLog.escapeHtml || (s => s || '');
 
+  // Debug log event types for a Flow/Workflow-action-level error (as
+  // opposed to a raw Apex EXCEPTION_THROWN/FATAL_ERROR) -- see the same
+  // list's comment in src/parsers/log-parser.js for how it was confirmed.
+  const FLOW_ERROR_TYPES = [
+    'FLOW_ELEMENT_ERROR',
+    'FLOW_ELEMENT_FAULT',
+    'FLOW_CREATE_INTERVIEW_ERROR',
+    'FLOW_START_INTERVIEWS_ERROR',
+    'INVOCABLE_ACTION_ERROR',
+    'WF_FLOW_ACTION_ERROR',
+    'WF_FLOW_ACTION_ERROR_DETAIL'
+  ];
+
   // Node type -> visual category, grouped for filtering
   const CATEGORY_META = {
     root:       { icon: 'package',        group: 'automation', label: 'Transaction' },
@@ -30,7 +43,7 @@
   function classify(node) {
     const type = node.type;
     if (type === 'ROOT') return 'root';
-    if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR') return 'error';
+    if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR' || FLOW_ERROR_TYPES.includes(type)) return 'error';
     if (type === 'SOQL_EXECUTE_BEGIN') return 'soql';
     if (type === 'DML_BEGIN') return 'dml';
     if (type === 'METHOD_ENTRY' || type === 'CONSTRUCTOR_ENTRY') return 'method';

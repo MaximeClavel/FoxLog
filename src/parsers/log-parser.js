@@ -4,7 +4,23 @@
   
   window.FoxLog = window.FoxLog || {};
   const logger = window.FoxLog.logger || console;
-  
+
+  // Every debug log event type that represents a Flow/Workflow-action-level
+  // error (as opposed to a raw Apex EXCEPTION_THROWN/FATAL_ERROR), confirmed
+  // against a real "Workflow: FINER" category log: an explicit fault routed
+  // to a Flow element, an interview that failed to start/be created, a
+  // Workflow-Rule-launched flow action's error, and an invocable Apex
+  // action's error (the case where a Flow calls into Apex that fails).
+  const FLOW_ERROR_TYPES = [
+    'FLOW_ELEMENT_ERROR',
+    'FLOW_ELEMENT_FAULT',
+    'FLOW_CREATE_INTERVIEW_ERROR',
+    'FLOW_START_INTERVIEWS_ERROR',
+    'INVOCABLE_ACTION_ERROR',
+    'WF_FLOW_ACTION_ERROR',
+    'WF_FLOW_ACTION_ERROR_DETAIL'
+  ];
+
   class LogParser {
     constructor() {
       this.LOG_TYPES = window.FoxLog.LOG_TYPES || {};
@@ -91,7 +107,10 @@
         [this.LOG_TYPES.USER_DEBUG]: () => this._parseDebug(content),
         [this.LOG_TYPES.ERROR]: () => this._parseException(content)
       };
-      
+      FLOW_ERROR_TYPES.forEach(flowErrorType => {
+        parsers[flowErrorType] = () => this._parseFlowError(content);
+      });
+
       const parser = parsers[type];
       return parser ? parser() : {};
     }
@@ -181,6 +200,30 @@
         }
       }
       
+      return details;
+    }
+
+    _parseFlowError(content) {
+      // Best-effort: the documented shape for these event types is roughly
+      // "<element/action type>|<element/action API name>|<error message>",
+      // but the exact field layout hasn't been verified per-type against a
+      // real log yet -- see tests/flow-error-repro/. Degrades gracefully if
+      // the real shape differs: `raw` always keeps the untouched content so
+      // the UI has something to show either way.
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 3) {
+        details.elementType = parts[0].trim();
+        details.elementName = parts[1].trim();
+        details.message = parts.slice(2).join('|').trim();
+      } else if (parts.length === 2) {
+        details.elementName = parts[0].trim();
+        details.message = parts[1].trim();
+      } else {
+        details.message = content.trim();
+      }
+
       return details;
     }
 
@@ -284,6 +327,9 @@
           });
         }
       };
+      FLOW_ERROR_TYPES.forEach(flowErrorType => {
+        collectors[flowErrorType] = collectors['EXCEPTION_THROWN'];
+      });
 
       const collector = collectors[line.type];
       if (collector) collector();

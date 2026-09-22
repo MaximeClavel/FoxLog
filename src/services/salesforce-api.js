@@ -409,7 +409,7 @@
         throw new Error(`Invalid DebugLevel name: ${developerName}`);
       }
       const query = `
-        SELECT Id, DeveloperName
+        SELECT Id, DeveloperName, ApexCode, ApexProfiling, Callout, Database, System, Validation, Visualforce, Workflow
         FROM DebugLevel
         WHERE DeveloperName = '${developerName}'
         LIMIT 1
@@ -434,6 +434,21 @@
         return { id: data.id, success: true };
       } catch (error) {
         this.logger.error('Error creating DebugLevel', error);
+        throw error;
+      }
+    }
+
+    /**
+     * Update an existing DebugLevel's category levels
+     */
+    async updateDebugLevel(id, config) {
+      this._validateId(id, 'debugLevelId');
+      try {
+        await this._toolingRequest('PATCH', `sobjects/DebugLevel/${id}`, config);
+        this.logger.success('DebugLevel updated:', id);
+        return { id, success: true };
+      } catch (error) {
+        this.logger.error('Error updating DebugLevel', error);
         throw error;
       }
     }

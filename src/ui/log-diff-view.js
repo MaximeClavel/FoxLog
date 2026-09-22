@@ -14,6 +14,19 @@
   const CONTEXT_ROWS = 2;
   const MIN_FOLDED_ROWS = 3;
 
+  // Debug log event types for a Flow/Workflow-action-level error (as
+  // opposed to a raw Apex EXCEPTION_THROWN/FATAL_ERROR) -- see the same
+  // list's comment in src/parsers/log-parser.js for how it was confirmed.
+  const FLOW_ERROR_TYPES = [
+    'FLOW_ELEMENT_ERROR',
+    'FLOW_ELEMENT_FAULT',
+    'FLOW_CREATE_INTERVIEW_ERROR',
+    'FLOW_START_INTERVIEWS_ERROR',
+    'INVOCABLE_ACTION_ERROR',
+    'WF_FLOW_ACTION_ERROR',
+    'WF_FLOW_ACTION_ERROR_DETAIL'
+  ];
+
   class LogDiffView {
     /**
      * A row "removed" exists only in side A and a row "added" only in side B.
@@ -360,12 +373,14 @@
         'SOQL_EXECUTE_BEGIN': 'database',
         'DML_BEGIN': 'database',
         'EXCEPTION_THROWN': 'alert-triangle',
+        'FATAL_ERROR': 'alert-triangle',
         'USER_DEBUG': 'bug',
         'CODE_UNIT_STARTED': 'package',
         'FLOW_START_INTERVIEW_BEGIN': 'shuffle',
         'VALIDATION_RULE': 'shield-check',
         'ROOT': 'git-branch'
       };
+      FLOW_ERROR_TYPES.forEach(flowErrorType => { iconNames[flowErrorType] = 'alert-triangle'; });
       return window.FoxLog.icon(iconNames[type] || 'info', { size: 14 });
     }
 

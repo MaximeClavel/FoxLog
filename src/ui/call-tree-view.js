@@ -8,6 +8,19 @@
   const i18n = window.FoxLog.i18n || {};
   const { logger, callTreeBuilder } = window.FoxLog;
 
+  // Debug log event types for a Flow/Workflow-action-level error (as
+  // opposed to a raw Apex EXCEPTION_THROWN/FATAL_ERROR) -- see the same
+  // list's comment in src/parsers/log-parser.js for how it was confirmed.
+  const FLOW_ERROR_TYPES = [
+    'FLOW_ELEMENT_ERROR',
+    'FLOW_ELEMENT_FAULT',
+    'FLOW_CREATE_INTERVIEW_ERROR',
+    'FLOW_START_INTERVIEWS_ERROR',
+    'INVOCABLE_ACTION_ERROR',
+    'WF_FLOW_ACTION_ERROR',
+    'WF_FLOW_ACTION_ERROR_DETAIL'
+  ];
+
   class CallTreeView {
     constructor(container, callTree, parsedLog) {
       this.container = container;
@@ -711,10 +724,10 @@
         // Errors
         'EXCEPTION_THROWN': 'errors',
         'FATAL_ERROR': 'errors',
-        
+
         // Variables
         'VARIABLE_ASSIGNMENT': 'variables',
-        
+
         // System
         'CODE_UNIT_STARTED': 'system',
         'CODE_UNIT_FINISHED': 'system',
@@ -724,7 +737,8 @@
         'FLOW_START_INTERVIEWS_END': 'system',
         'ROOT': 'system'
       };
-      
+      FLOW_ERROR_TYPES.forEach(flowErrorType => { categoryMap[flowErrorType] = 'errors'; });
+
       return categoryMap[type] || 'system';
     }
 
@@ -829,9 +843,11 @@
         'SOQL_EXECUTE_BEGIN': 'database',
         'DML_BEGIN': 'database',
         'EXCEPTION_THROWN': 'alert-triangle',
+        'FATAL_ERROR': 'alert-triangle',
         'USER_DEBUG': 'bug',
         'CODE_UNIT_STARTED': 'package'
       };
+      FLOW_ERROR_TYPES.forEach(flowErrorType => { iconNames[flowErrorType] = 'alert-triangle'; });
       return window.FoxLog.icon(iconNames[type] || 'info', { size: 16 });
     }
 

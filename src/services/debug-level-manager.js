@@ -34,33 +34,78 @@
     }
 
     /**
+     * The category levels FoxLog needs. Kept separate from DeveloperName/
+     * MasterLabel so the same object can be sent both on create and as a
+     * PATCH body when updating a stale existing DebugLevel.
+     * @private
+     */
+    _desiredLevels() {
+      return {
+        // Detailed logging for debugging
+        ApexCode: 'FINEST',
+        ApexProfiling: 'FINEST',
+        Callout: 'FINEST',
+        Database: 'FINEST',
+        System: 'DEBUG',
+        Validation: 'INFO',
+        Visualforce: 'FINE',
+        // Governs Flow/Process Builder execution logging (FLOW_ELEMENT_ERROR
+        // and friends) -- was 'INFO', which is too low to reliably surface
+        // per-element Flow faults.
+        Workflow: 'FINEST'
+      };
+    }
+
+    /**
+     * Does an existing DebugLevel record fall short of what FoxLog needs?
+     * @private
+     */
+    _needsUpdate(existingDebugLevel) {
+      const desired = this._desiredLevels();
+      return Object.keys(desired).some(field => existingDebugLevel[field] !== desired[field]);
+    }
+
+    /**
      * ✅ Get or create a DebugLevel for FoxLog
      * Utilise salesforce-api.js
      */
     async getOrCreateDebugLevel() {
       const api = this._getAPI();
 
-      // Try custom DebugLevel
+      // FoxLog always wants its own, fully-controlled DebugLevel so every
+      // category -- including Workflow, which governs Flow execution
+      // logging -- is guaranteed to be verbose enough. An org's default
+      // SFDC_DevConsole record is outside FoxLog's control and is only
+      // used as a last resort below.
       logger.log('Looking for custom DebugLevel:', this.customDebugLevelName);
       let debugLevel = await api.getDebugLevel(this.customDebugLevelName);
-      
+
       if (debugLevel) {
-        logger.log('Using existing custom DebugLevel:', debugLevel.Id);
+        if (this._needsUpdate(debugLevel)) {
+          logger.log('Existing custom DebugLevel is out of date, updating:', debugLevel.Id);
+          await api.updateDebugLevel(debugLevel.Id, this._desiredLevels());
+        } else {
+          logger.log('Using existing, up-to-date custom DebugLevel:', debugLevel.Id);
+        }
         return debugLevel.Id;
       }
 
-      // Fallback: default SFDC_DevConsole
-      logger.log('Looking for default DebugLevel:', this.defaultDebugLevelName);
-      debugLevel = await api.getDebugLevel(this.defaultDebugLevelName);
-      
-      if (debugLevel) {
-        logger.log('Using default DebugLevel:', debugLevel.Id);
-        return debugLevel.Id;
+      // Doesn't exist yet: create it with the levels FoxLog needs.
+      try {
+        logger.log('No custom DebugLevel found, creating it...');
+        return await this._createDebugLevel();
+      } catch (error) {
+        // Last resort: reuse whatever the org already has (e.g. the running
+        // user's profile can't create DebugLevel records). Flow/Apex error
+        // capture then depends on that record's own configured levels.
+        logger.warn('Could not create a custom DebugLevel, falling back to SFDC_DevConsole', error);
+        debugLevel = await api.getDebugLevel(this.defaultDebugLevelName);
+        if (debugLevel) {
+          logger.log('Using default DebugLevel:', debugLevel.Id);
+          return debugLevel.Id;
+        }
+        throw error;
       }
-
-      // If neither exists, create custom one
-      logger.log('No DebugLevel found, creating custom one...');
-      return await this._createDebugLevel();
     }
 
     /**

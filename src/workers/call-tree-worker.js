@@ -4,6 +4,19 @@
 
 'use strict';
 
+// This is a standalone Web Worker (no access to window/FoxLog globals),
+// hence this list is duplicated rather than shared with log-parser.js.
+// See the comment there for what confirmed each of these.
+const FLOW_ERROR_TYPES = [
+  'FLOW_ELEMENT_ERROR',
+  'FLOW_ELEMENT_FAULT',
+  'FLOW_CREATE_INTERVIEW_ERROR',
+  'FLOW_START_INTERVIEWS_ERROR',
+  'INVOCABLE_ACTION_ERROR',
+  'WF_FLOW_ACTION_ERROR',
+  'WF_FLOW_ACTION_ERROR_DETAIL'
+];
+
 // ============================================
   // LOGGER LOCAL
   // ============================================
@@ -180,7 +193,7 @@ class CallTreeBuilder {
       this._openNode(line, index);
     } else if (closingTypes.includes(type)) {
       this._closeNode(line, index);
-    } else if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR') {
+    } else if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR' || FLOW_ERROR_TYPES.includes(type)) {
       this._markError(line, index);
     } else if (leafTypes.includes(type)) {
       // Add leaf nodes (debug, variables, heap)
@@ -252,15 +265,21 @@ class CallTreeBuilder {
    */
   _markError(line, index) {
     if (this.stack.length === 0) return;
-    
+
     const currentNode = this.stack[this.stack.length - 1];
-    
-    // Build descriptive name for exception
-    const exType = line.details.exceptionType || 'Exception';
-    const exMsg = line.details.message || '';
+
+    const isFlowError = FLOW_ERROR_TYPES.includes(line.type);
+
+    // Build descriptive name: "ExceptionType: message" for a raw Apex
+    // exception, "elementName: message" for a Flow element error/fault
+    // (the element that failed matters more at a glance than its type).
+    const exType = isFlowError
+      ? (line.details.elementName || line.details.elementType || 'Flow error')
+      : (line.details.exceptionType || 'Exception');
+    const exMsg = line.details.message || (isFlowError ? line.content : '');
     const shortMsg = exMsg.length > 50 ? exMsg.substring(0, 50) + '...' : exMsg;
     const nodeName = exMsg ? `${exType}: ${shortMsg}` : exType;
-    
+
     // Create a child node for the exception
     const errorNode = {
       id: `node_${this.nodeCounter++}`,
@@ -277,11 +296,13 @@ class CallTreeBuilder {
       dmlCount: 0,
       logLineIndex: line.index, // Use the actual raw log line index
       details: {
-        message: line.details.message || line.content,
-        exceptionType: line.details.exceptionType
+        message: exMsg || line.content,
+        exceptionType: isFlowError ? (line.details.elementType || 'Flow error') : line.details.exceptionType,
+        elementType: line.details.elementType,
+        elementName: line.details.elementName
       }
     };
-    
+
     currentNode.children.push(errorNode);
     currentNode.hasError = true;
   }
