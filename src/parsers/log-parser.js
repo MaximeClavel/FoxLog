@@ -12,11 +12,13 @@
   // to a Flow element, an interview that failed to start/be created, a
   // Workflow-Rule-launched flow action's error, and an invocable Apex
   // action's error (the case where a Flow calls into Apex that fails).
-  // VALIDATION_FAIL is a confident guess (VALIDATION_PASS is confirmed to
-  // exist as its sibling on the success path, see tests/flow-error-repro/,
-  // but a real failing run hasn't been captured yet); VALIDATION_ERROR/
+  // VALIDATION_FAIL is confirmed against a real failing run (see
+  // tests/flow-error-repro/): bare, no extra fields, same as its sibling
+  // VALIDATION_PASS -- the fallback label in call-tree-worker.js's
+  // _markError ("Validation Rule failed") is what actually shows, since
+  // there's no message to parse. VALIDATION_ERROR/
   // FIELD_CUSTOM_VALIDATION_EXCEPTION are unconfirmed alternates kept as a
-  // defensive fallback.
+  // defensive fallback (no real log has produced either so far).
   // FLOW_ELEMENT_FAULT specifically is confirmed to have its message FIRST
   // ("<fault message>|<element type>|<element API name>"), unlike the
   // generic elementType|elementName|message shape used below for the
@@ -52,8 +54,8 @@
   // every DML that runs validation, whether or not any rule ends up
   // failing (VALIDATION_RULE names the rule being evaluated,
   // VALIDATION_FORMULA shows its formula/field values, then either
-  // VALIDATION_PASS -- confirmed bare, no extra fields -- or presumably
-  // VALIDATION_FAIL, see STRUCTURED_ERROR_TYPES above).
+  // VALIDATION_PASS or VALIDATION_FAIL -- both confirmed bare, no extra
+  // fields, see STRUCTURED_ERROR_TYPES above).
   const VALIDATION_DETAIL_TYPES = [
     'VALIDATION_RULE',
     'VALIDATION_FORMULA',
