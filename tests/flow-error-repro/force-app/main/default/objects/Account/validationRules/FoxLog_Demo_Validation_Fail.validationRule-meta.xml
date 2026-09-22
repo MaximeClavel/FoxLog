@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FoxLog_Demo_Validation_Fail</fullName>
+    <active>true</active>
+    <description>FoxLog demo: deliberately blocks the Account save so VALIDATION_FAIL/VALIDATION_ERROR show up in the debug log. Safe to delete after testing (see tests/flow-error-repro/README.md).</description>
+    <errorConditionFormula>CONTAINS( Description , &quot;FOXLOG_FORCE_VALIDATION_ERROR&quot;)</errorConditionFormula>
+    <errorMessage>FoxLog demo: validation rule deliberately failed.</errorMessage>
+</ValidationRule>

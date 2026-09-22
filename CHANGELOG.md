@@ -6,7 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-22
+
+### Added
+
+- **Flow tab, full Flow execution visibility**: a Flow interview was previously a black box in the tree — only an explicit unhandled error showed up. Now every element the interview steps through is a real node, built from event types confirmed against real debug logs (see `tests/flow-error-repro/`):
+  - `FLOW_ELEMENT_BEGIN`/`FLOW_ELEMENT_END` — each element (Assignment, Loop, Decision, Record Create, Action Call, Subflow...), named after its own API name, not its generic type
+  - `FLOW_ASSIGNMENT_DETAIL`, `FLOW_RULE_DETAIL`, `FLOW_LOOP_DETAIL`, `FLOW_SUBFLOW_DETAIL`, `FLOW_VALUE_ASSIGNMENT`, `FLOW_BULK_ELEMENT_DETAIL` (the Flow engine auto-bulkifying a DML element inside a loop — the Flow equivalent of the SOQL/DML-in-loop antipattern) and `FLOW_ACTIONCALL_DETAIL` (a Flow-invoked Apex/action call, success or failure) attach as detail nodes under the element they belong to
+  - Validation Rule evaluations (`VALIDATION_RULE`, `VALIDATION_FORMULA`, `VALIDATION_PASS`/`VALIDATION_FAIL`) show the rule name, its formula, and the outcome
+  - Callouts (`CALLOUT_REQUEST`/`CALLOUT_RESPONSE`) and SOSL (`SOSL_EXECUTE_BEGIN`/`SOSL_EXECUTE_END`) are now parsed and shown as tree nodes, the same as SOQL and DML already were
+- **Flow tab, error navigation**: `< i/N >` prev/next buttons next to the Errors stat cycle through every error node in the tree (wrapping around), expanding the path and panning to each one
+- **`tests/flow-error-repro/`**: a deployable SFDX kit (Apex class, Screen Flow, Validation Rule, Remote Site Setting) that exercises every event type above on demand, for regenerating real logs against future parser changes
+
 ### Changed
+
+- **Flow tab filters**: `FLOW_VALUE_ASSIGNMENT` nodes now fall under the "Variables" filter (off by default) instead of "Triggers & Flows", consistent with plain `VARIABLE_ASSIGNMENT`
+- **Flow/Calls tabs, Apex class nodes**: a `CODE_UNIT_STARTED` node for an Apex class/method call, a Validation Rule, or a Workflow/Flow now shows a readable label ("Apex Class: FoxLogErrorDemoController", "Validation Rule: Account (new)") instead of the raw pipe-delimited log line
+- Centralized the Flow/Validation event-type lists (`STRUCTURED_ERROR_TYPES`, `FLOW_DETAIL_TYPES`, `VALIDATION_DETAIL_TYPES`) in `src/core/constants.js` instead of copy-pasting identical arrays into `log-parser.js` and the three `src/ui/*-view.js` files
+- **Performance**: the log parser's and call-tree worker's per-event-type dispatch tables are now built once instead of being rebuilt on every single log line
 
 - **Diff tab roles**: the open log ("Current log") stays in the left pane and the imported file is the reference ("Reference file") in the right pane. A `+` row (green) is now a row that exists only in the current log and a `−` row (red) one that exists only in the file (it was the other way round); both panes have a labelled header and the summary bar spells it out ("+2 Only in the current log")
 - **Diff tab, identical lines**: runs of identical lines fold into a "⋯ N identical lines" separator (click or keyboard to expand) keeping two lines of context and the parent rows around each difference; a "Show all lines" switch in the summary bar shows everything. Nothing is folded when the logs are identical
@@ -16,16 +33,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- **Flow tab, unreadable nodes**: `FLOW_ELEMENT_BEGIN` nodes showed the interview GUID as the element name (rendering as a generic "Flow Element" everywhere), and `FLOW_VALUE_ASSIGNMENT` nodes showed the interview GUID in place of the variable name. Both events are `<interview GUID>|...`-prefixed; the GUID is now dropped and the real fields used
+- **Bare log events mis-typed as CONTINUATION**: some event types have no second pipe at all (`VALIDATION_PASS`/`VALIDATION_FAIL`, `CUMULATIVE_LIMIT_USAGE`...); the line-parsing regex required one, so these fell through to a generic, untyped `CONTINUATION` line instead of getting recognized
+- **Log-list preview, false error badge**: the quick regex-based error scan used for the log-list card flagged any transaction that merely evaluated a Validation Rule as an error, whether the rule passed or failed (`VALIDATION_RULE`/`VALIDATION_FORMULA` fire on every evaluation) — a fully successful log with a Validation Rule anywhere in it showed a red error badge
+- **A failed Flow-to-Apex action call wasn't counted as an error**: `FLOW_ACTIONCALL_DETAIL` with `success: false` (a Flow-invoked Apex action that failed) was marked as an error node in the tree, but the error count, the new error-navigation buttons, and the Calls tab's Errors filter all missed it — they only recognized a fixed list of error event types, which didn't include this one (it's only an error on the failure branch)
+- **Debug Level, silently under-configured on create**: `_createDebugLevel()` had its own separate hardcoded category-level config that never picked up a fix to raise Workflow/Validation verbosity, so a newly-created DebugLevel record could stay too quiet to reliably capture Flow/Validation errors
+- **Debug Level, update failure blocked enabling logs**: updating a stale existing DebugLevel record had no error handling, so a failure there (e.g. missing edit rights on that specific record) now aborted enabling debug logs entirely instead of falling back to the existing record, like the equivalent create-failure path already did
+- **Re-enabling debug logs after expiry deleted the TraceFlag instead of creating a new one**: the "active TraceFlag" query filtered with `ExpirationDate >= TODAY`, but SOQL's `TODAY` means the whole current day, not "right now" — a TraceFlag that expired hours earlier the same day still matched, so clicking to re-enable logs found it, deleted it, and reported logs as disabled instead of creating a fresh one
+
 - **Diff tab, stale file**: after the first comparison, choosing another imported file kept showing the first file's tree. An import was parsed without an `Id`, so every imported file shared the `null` slot of the call tree cache. Imports are now parsed with their `Id`, and `CallTreeBuilderService` no longer caches a log that has no `Id`
 - **Diff tab, log navigation**: using Prev/Next in the modal stacked a new listener on the Diff tab button each time, so choosing a file could diff against a previous log and fill the dropdown with duplicates. The Diff tab now follows navigation like Calls and Flow
 - **Diff tab, concurrent runs**: an older comparison finishing after a newer one, or after the modal was closed, could overwrite the result
 - **Diff tab, root row**: the imported file's name and duration are now used for its root node instead of "Unknown" / 0 ms
 - **Variable values (Flow and Calls tabs)**: a variable assignment showed the object's identity hash instead of its value (`this = 0x5e7d71a3` instead of `this = {}`) and nothing at all for null (`opp = `). The log line is `[line]|name|value` with an optional `|0x<hash>` suffix that only reference types carry; the value is now everything between the name and that suffix, so it also survives a `|` inside the value. On a 4000-line log this fixed 324 of 591 variable nodes showing an address and 46 showing nothing
 
-### Added
+### Testing
 
 - `tests/test-diff-engine.js`: unit tests for the diff engine and its worker copy (`node tests/test-diff-engine.js`)
 - `tests/test-call-tree-worker.js`: unit tests for the variable assignment nodes of the call tree worker (`node tests/test-call-tree-worker.js`)
+- Every Flow/Validation/Callout/SOSL fix above was verified end-to-end against real debug logs (generated with `tests/flow-error-repro/`) through the real parser and the real call-tree worker, not just synthetic data
 
 ## [1.7.0] - 2026-09-19
 

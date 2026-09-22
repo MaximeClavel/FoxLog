@@ -3452,6 +3452,48 @@
   color: var(--fl-red-fg);
 }
 
+/* Error prev/next navigation, inline in the Errors stat */
+.sf-graph-error-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sf-graph-error-nav-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--fl-border-2);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.sf-graph-error-nav-btn svg {
+  width: 12px;
+  height: 12px;
+  color: var(--fl-red-fg);
+}
+
+.sf-graph-error-nav-btn:hover:not(:disabled) {
+  background: var(--fl-hover);
+  border-color: var(--fl-red-fg);
+}
+
+.sf-graph-error-nav-btn:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.sf-graph-error-nav-count {
+  min-width: 34px;
+  text-align: center;
+}
+
 /* Body: 3-column layout */
 .sf-graph-body {
   display: flex !important;

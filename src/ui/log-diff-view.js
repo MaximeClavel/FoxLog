@@ -14,6 +14,15 @@
   const CONTEXT_ROWS = 2;
   const MIN_FOLDED_ROWS = 3;
 
+  // Shared with log-parser.js and the other src/ui/*-view.js files -- see
+  // the comments on these in src/core/constants.js. Only used here for
+  // icon selection, so unlike call-graph-view.js/call-tree-view.js this
+  // file doesn't need FLOW_ACTIONCALL_DETAIL's success/failure to be
+  // content-aware.
+  const STRUCTURED_ERROR_TYPES = window.FoxLog.STRUCTURED_ERROR_TYPES;
+  const FLOW_DETAIL_TYPES = window.FoxLog.FLOW_DETAIL_TYPES;
+  const VALIDATION_DETAIL_TYPES = window.FoxLog.VALIDATION_DETAIL_TYPES;
+
   class LogDiffView {
     /**
      * A row "removed" exists only in side A and a row "added" only in side B.
@@ -358,14 +367,21 @@
       const iconNames = {
         'METHOD_ENTRY': 'code',
         'SOQL_EXECUTE_BEGIN': 'database',
+        'SOSL_EXECUTE_BEGIN': 'search',
         'DML_BEGIN': 'database',
+        'CALLOUT_REQUEST': 'cloud',
         'EXCEPTION_THROWN': 'alert-triangle',
+        'FATAL_ERROR': 'alert-triangle',
         'USER_DEBUG': 'bug',
         'CODE_UNIT_STARTED': 'package',
         'FLOW_START_INTERVIEW_BEGIN': 'shuffle',
+        'FLOW_ELEMENT_BEGIN': 'shuffle',
         'VALIDATION_RULE': 'shield-check',
         'ROOT': 'git-branch'
       };
+      STRUCTURED_ERROR_TYPES.forEach(errorType => { iconNames[errorType] = 'alert-triangle'; });
+      FLOW_DETAIL_TYPES.forEach(detailType => { iconNames[detailType] = 'shuffle'; });
+      VALIDATION_DETAIL_TYPES.forEach(detailType => { iconNames[detailType] = 'shield-check'; });
       return window.FoxLog.icon(iconNames[type] || 'info', { size: 14 });
     }
 

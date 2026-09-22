@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RemoteSiteSetting xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FoxLog_Demo_Callout</fullName>
+    <url>https://jsonplaceholder.typicode.com</url>
+    <description>FoxLog demo: safe public test endpoint used to exercise CALLOUT_REQUEST/CALLOUT_RESPONSE log parsing. Safe to delete after testing (see tests/flow-error-repro/README.md).</description>
+    <disableProtocolSecurity>false</disableProtocolSecurity>
+    <isActive>true</isActive>
+</RemoteSiteSetting>
