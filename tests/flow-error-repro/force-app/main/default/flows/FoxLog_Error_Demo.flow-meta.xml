@@ -29,7 +29,7 @@
         <allowFinish>true</allowFinish>
         <allowPause>false</allowPause>
         <connector>
-            <targetReference>Check_Fault_Path</targetReference>
+            <targetReference>Check_Error_Origin</targetReference>
         </connector>
         <fields>
             <name>ErrorType</name>
@@ -37,6 +37,7 @@
             <choiceReferences>Choice_NullPointer</choiceReferences>
             <choiceReferences>Choice_DmlException</choiceReferences>
             <choiceReferences>Choice_ListIndex</choiceReferences>
+            <choiceReferences>Choice_FlowDml</choiceReferences>
             <choiceReferences>Choice_None</choiceReferences>
             <dataType>String</dataType>
             <fieldText>Error type</fieldText>
@@ -80,6 +81,32 @@
             <fieldType>DisplayText</fieldType>
         </fields>
     </screens>
+
+    <decisions>
+        <name>Check_Error_Origin</name>
+        <label>Check Error Origin</label>
+        <locationX>176</locationX>
+        <locationY>242</locationY>
+        <defaultConnector>
+            <targetReference>Check_Fault_Path</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Apex-driven error</defaultConnectorLabel>
+        <rules>
+            <name>Flow_Native_Dml_Rule</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>ErrorType</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>FLOW_DML_ERROR</stringValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Create_Bad_Account</targetReference>
+            </connector>
+            <label>Flow-native DML error (no Apex)</label>
+        </rules>
+    </decisions>
 
     <decisions>
         <name>Check_Fault_Path</name>
@@ -150,6 +177,26 @@
         <offset>0</offset>
     </actionCalls>
 
+    <recordCreates>
+        <name>Create_Bad_Account</name>
+        <label>Create Bad Account (missing required Name)</label>
+        <locationX>550</locationX>
+        <locationY>374</locationY>
+        <connector>
+            <targetReference>Show_Success</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Show_Fault</targetReference>
+        </faultConnector>
+        <inputAssignments>
+            <field>Industry</field>
+            <value>
+                <stringValue>Technology</stringValue>
+            </value>
+        </inputAssignments>
+        <object>Account</object>
+    </recordCreates>
+
     <choices>
         <name>Choice_CustomException</name>
         <choiceText>Custom Apex exception (explicit, labeled)</choiceText>
@@ -183,6 +230,15 @@
         <dataType>String</dataType>
         <value>
             <stringValue>LIST_INDEX</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_FlowDml</name>
+        <choiceText>Flow-native DML error (no Apex at all)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>FLOW_DML_ERROR</stringValue>
         </value>
     </choices>
 

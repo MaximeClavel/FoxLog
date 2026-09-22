@@ -20,17 +20,24 @@ it from your sandbox whenever you're done with it.
   - anything else — no error, returns normally
 
 - **`FoxLog_Error_Demo` flow** (Screen Flow) — a screen lets you pick the
-  error type above and a checkbox "Simulate NO fault connector". It then
-  calls the Apex action **twice**, on purpose:
-  - `Call_With_Fault_Path` — has a Fault Connector wired to a screen showing
-    `{!$Flow.FaultMessage}`. This is the "explicitly surfaced to the flow" case.
-  - `Call_No_Fault_Path` — same action, same input, **no** fault connector.
-    An error here isn't caught by the flow itself, letting us see how that
-    differs in the raw log (which is the "not explicitly surfaced" case you
-    asked about).
+  error type above (plus a 5th choice, `FLOW_DML_ERROR`, see below) and a
+  checkbox "Simulate NO fault connector". It then routes to one of:
+  - `Create_Bad_Account` — only when `FLOW_DML_ERROR` is picked. A native
+    **Create Records** element inserting an `Account` with no `Name`, no
+    Apex involved at all. This is the "pure Flow error" case — nothing to
+    do with the Apex action below, needed to check that FoxLog handles a
+    flow-native fault the same way it handles an Apex-driven one.
+  - Otherwise, the same Apex action is called **twice**, on purpose:
+    - `Call_With_Fault_Path` — has a Fault Connector wired to a screen
+      showing `{!$Flow.FaultMessage}`. This is the "explicitly surfaced to
+      the flow" case.
+    - `Call_No_Fault_Path` — same action, same input, **no** fault
+      connector. An error here isn't caught by the flow itself, letting us
+      see how that differs in the raw log (the "not explicitly surfaced"
+      case you asked about).
 
-  The decision routes to whichever call matches the "Simulate NO fault
-  connector" checkbox.
+  `Create_Bad_Account` always has its own Fault Connector (the "simulate no
+  fault connector" checkbox only affects the two Apex calls).
 
 ## Deploy
 
@@ -67,10 +74,15 @@ adjust the XML too if you paste me the deploy error.
    panel can toggle this, or Setup > Debug Logs).
 2. Setup > Flows > **FoxLog Error Demo** > Run (screen flows can be run
    directly from the Flows list without adding them to a page).
-3. Run through all these combinations (10 runs) so every scenario shows up
-   in a log at least once:
-   - Each of the 5 `Error type` choices, once with "Simulate NO fault
-     connector" **unchecked**, once **checked**.
+3. Run through all these combinations so every scenario shows up in a log
+   at least once:
+   - The 4 Apex-driven `Error type` choices (`CUSTOM_EXCEPTION`,
+     `NULL_POINTER`, `DML_EXCEPTION`, `LIST_INDEX`) plus `NONE`, each once
+     with "Simulate NO fault connector" **unchecked**, once **checked**
+     (10 runs).
+   - `FLOW_DML_ERROR` once (the checkbox doesn't affect this path, so one
+     run is enough) — this is the pure Flow-native error, no Apex.
+   - 11 runs total.
 4. Open each resulting debug log (in FoxLog itself, or Setup > Debug Logs >
    View, or `sf apex list log` / `sf apex get log`) and grab the lines
    containing `FLOW_` (`FLOW_ELEMENT_ERROR`, `FLOW_ELEMENT_FAULT`,
