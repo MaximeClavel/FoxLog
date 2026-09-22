@@ -755,6 +755,7 @@
 
         // Variables
         'VARIABLE_ASSIGNMENT': 'variables',
+        'FLOW_VALUE_ASSIGNMENT': 'variables',
 
         // System
         'CODE_UNIT_STARTED': 'system',
@@ -768,7 +769,9 @@
         'ROOT': 'system'
       };
       STRUCTURED_ERROR_TYPES.forEach(errorType => { categoryMap[errorType] = 'errors'; });
-      FLOW_DETAIL_TYPES.forEach(detailType => { categoryMap[detailType] = 'system'; });
+      // FLOW_VALUE_ASSIGNMENT is set above ('variables', same as its non-flow
+      // equivalent VARIABLE_ASSIGNMENT) -- don't let this loop overwrite it.
+      FLOW_DETAIL_TYPES.forEach(detailType => { if (!categoryMap[detailType]) categoryMap[detailType] = 'system'; });
       VALIDATION_DETAIL_TYPES.forEach(detailType => { categoryMap[detailType] = 'system'; });
 
       return categoryMap[type] || 'system';
@@ -880,10 +883,11 @@
         'FATAL_ERROR': 'alert-triangle',
         'USER_DEBUG': 'bug',
         'CODE_UNIT_STARTED': 'package',
-        'FLOW_ELEMENT_BEGIN': 'shuffle'
+        'FLOW_ELEMENT_BEGIN': 'shuffle',
+        'FLOW_VALUE_ASSIGNMENT': 'file-text'
       };
       STRUCTURED_ERROR_TYPES.forEach(errorType => { iconNames[errorType] = 'alert-triangle'; });
-      FLOW_DETAIL_TYPES.forEach(detailType => { iconNames[detailType] = 'shuffle'; });
+      FLOW_DETAIL_TYPES.forEach(detailType => { if (!iconNames[detailType]) iconNames[detailType] = 'shuffle'; });
       VALIDATION_DETAIL_TYPES.forEach(detailType => { iconNames[detailType] = 'shield-check'; });
       return window.FoxLog.icon(iconNames[type] || 'info', { size: 16 });
     }

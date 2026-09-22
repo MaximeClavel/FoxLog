@@ -76,7 +76,11 @@
     if (type === 'CALLOUT_REQUEST') return 'callout';
     if (type === 'METHOD_ENTRY' || type === 'CONSTRUCTOR_ENTRY') return 'method';
     if (type === 'USER_DEBUG') return 'debug';
-    if (type === 'VARIABLE_ASSIGNMENT') return 'variable';
+    // FLOW_VALUE_ASSIGNMENT is the flow-native equivalent of
+    // VARIABLE_ASSIGNMENT (every variable write, not just the ones
+    // relevant to an error) -- same category/filter group, hidden by
+    // default along with it.
+    if (type === 'VARIABLE_ASSIGNMENT' || type === 'FLOW_VALUE_ASSIGNMENT') return 'variable';
     if (type === 'FLOW_ELEMENT_BEGIN' || FLOW_DETAIL_TYPES.includes(type)) return 'flow';
     if (VALIDATION_DETAIL_TYPES.includes(type)) return 'validation';
     if (type === 'CODE_UNIT_STARTED') {
@@ -622,10 +626,6 @@
         case 'FLOW_ELEMENT_END':
           label = details.elementType || 'Element';
           body = details.elementName || '';
-          break;
-        case 'FLOW_VALUE_ASSIGNMENT':
-          label = 'Value';
-          body = details.variable !== undefined ? `${details.variable} = ${details.value || ''}` : (details.value || '');
           break;
         case 'FLOW_ASSIGNMENT_DETAIL':
           label = 'Assignment';
