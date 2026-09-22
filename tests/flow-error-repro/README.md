@@ -48,6 +48,13 @@ sf project deploy start -d tests/flow-error-repro/force-app -o foxlog-sandbox
 
 (`-o foxlog-sandbox` is whatever alias you used above.)
 
+Alternative if you'd rather deploy from the manifest (`manifest/package.xml`,
+e.g. via Workbench or `--manifest`):
+
+```bash
+sf project deploy start --manifest tests/flow-error-repro/manifest/package.xml -o foxlog-sandbox
+```
+
 If the deploy fails on the Flow specifically: hand-written Flow XML is the
 one metadata type most likely to need a small fix. Easiest recovery is
 usually to fix it directly in Flow Builder after the Apex class deploys
