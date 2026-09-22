@@ -36,7 +36,17 @@
     'FLOW_ASSIGNMENT_DETAIL',
     'FLOW_VALUE_ASSIGNMENT',
     'FLOW_SUBFLOW_DETAIL',
-    'FLOW_LOOP_DETAIL'
+    'FLOW_LOOP_DETAIL',
+    'FLOW_BULK_ELEMENT_DETAIL',
+    'FLOW_ACTIONCALL_DETAIL'
+  ];
+
+  // Validation Rule execution trace (rule name, formula, pass/fail) --
+  // rendered as part of the existing 'validation' category.
+  const VALIDATION_DETAIL_TYPES = [
+    'VALIDATION_RULE',
+    'VALIDATION_FORMULA',
+    'VALIDATION_PASS'
   ];
 
   // Node type -> visual category, grouped for filtering
@@ -68,6 +78,7 @@
     if (type === 'USER_DEBUG') return 'debug';
     if (type === 'VARIABLE_ASSIGNMENT') return 'variable';
     if (type === 'FLOW_ELEMENT_BEGIN' || FLOW_DETAIL_TYPES.includes(type)) return 'flow';
+    if (VALIDATION_DETAIL_TYPES.includes(type)) return 'validation';
     if (type === 'CODE_UNIT_STARTED') {
       const name = node.name || '';
       if (/trigger event/i.test(name)) return 'trigger';
@@ -558,6 +569,10 @@
             <pre class="sf-graph-detail-code">${escapeHtml(details.value)}</pre>
           </div>
         `;
+      } else if (cat === 'flow') {
+        extra = this._renderFlowDetail(node.type, details);
+      } else if (cat === 'validation') {
+        extra = this._renderValidationDetail(node.type, details);
       }
 
       const gotoBtn = Number.isInteger(node.logLineIndex) ? `
@@ -583,6 +598,83 @@
         </div>
         ${extra}
         ${gotoBtn}
+      `;
+    }
+
+    _renderFlowDetail(type, details) {
+      let label = 'Flow';
+      let body = '';
+
+      switch (type) {
+        case 'FLOW_ELEMENT_BEGIN':
+        case 'FLOW_ELEMENT_END':
+          label = details.elementType || 'Element';
+          body = details.elementName || '';
+          break;
+        case 'FLOW_VALUE_ASSIGNMENT':
+          label = 'Value';
+          body = details.variable !== undefined ? `${details.variable} = ${details.value || ''}` : (details.value || '');
+          break;
+        case 'FLOW_ASSIGNMENT_DETAIL':
+          label = 'Assignment';
+          body = details.variable ? `${details.variable} ${details.operator || ''} ${details.value || ''}`.trim() : '';
+          break;
+        case 'FLOW_LOOP_DETAIL':
+          label = 'Loop iteration';
+          body = details.iteration !== undefined ? `#${details.iteration}: ${details.value || ''}` : '';
+          break;
+        case 'FLOW_RULE_DETAIL':
+          label = 'Rule';
+          body = details.ruleName ? `${details.ruleName} → ${(details.results || []).join(', ')}` : '';
+          break;
+        case 'FLOW_SUBFLOW_DETAIL':
+          label = 'Subflow';
+          body = details.subflowLabel || '';
+          break;
+        case 'FLOW_BULK_ELEMENT_DETAIL':
+          label = 'Bulk DML';
+          body = details.elementName ? `${details.elementName}: ${details.count} record${details.count === 1 ? '' : 's'}` : '';
+          break;
+        case 'FLOW_ACTIONCALL_DETAIL':
+          label = details.actionType || 'Action';
+          body = details.implementationName
+            ? `${details.implementationName} — ${details.success ? 'succeeded' : 'failed'}`
+            : '';
+          break;
+        default:
+          body = details.raw || '';
+      }
+
+      if (!body) return '';
+      return `
+        <div class="sf-graph-detail-block">
+          <div class="sf-graph-detail-label">${escapeHtml(label)}</div>
+          <div>${escapeHtml(body)}</div>
+        </div>
+      `;
+    }
+
+    _renderValidationDetail(type, details) {
+      let label = 'Validation';
+      let body = '';
+
+      if (type === 'VALIDATION_RULE') {
+        label = 'Rule';
+        body = details.ruleName || '';
+      } else if (type === 'VALIDATION_FORMULA') {
+        label = 'Formula';
+        body = details.formula || '';
+      } else if (type === 'VALIDATION_PASS') {
+        label = 'Result';
+        body = 'Passed';
+      }
+
+      if (!body) return '';
+      return `
+        <div class="sf-graph-detail-block">
+          <div class="sf-graph-detail-label">${escapeHtml(label)}</div>
+          <div>${escapeHtml(body)}</div>
+        </div>
       `;
     }
 

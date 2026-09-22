@@ -11,10 +11,16 @@
   // against a real "Workflow: FINER" category log: an explicit fault routed
   // to a Flow element, an interview that failed to start/be created, a
   // Workflow-Rule-launched flow action's error, and an invocable Apex
-  // action's error (the case where a Flow calls into Apex that fails). The
-  // Validation ones are best-effort (not yet confirmed against a real log,
-  // see tests/flow-error-repro/) but a DML blocked by a Validation Rule is
-  // one of the most common real-world errors, so it's treated the same way.
+  // action's error (the case where a Flow calls into Apex that fails).
+  // VALIDATION_FAIL is a confident guess (VALIDATION_PASS is confirmed to
+  // exist as its sibling on the success path, see tests/flow-error-repro/,
+  // but a real failing run hasn't been captured yet); VALIDATION_ERROR/
+  // FIELD_CUSTOM_VALIDATION_EXCEPTION are unconfirmed alternates kept as a
+  // defensive fallback.
+  // FLOW_ELEMENT_FAULT specifically is confirmed to have its message FIRST
+  // ("<fault message>|<element type>|<element API name>"), unlike the
+  // generic elementType|elementName|message shape used below for the
+  // others -- see _parseFlowElementFault.
   const STRUCTURED_ERROR_TYPES = [
     'FLOW_ELEMENT_ERROR',
     'FLOW_ELEMENT_FAULT',
@@ -30,13 +36,28 @@
 
   // Non-error Flow "detail" events: attached as leaf nodes under whichever
   // element/interview is currently open, same treatment as USER_DEBUG/
-  // VARIABLE_ASSIGNMENT already get. Field layout is best-effort/unverified.
+  // VARIABLE_ASSIGNMENT already get. Field layout confirmed against a real
+  // log (see tests/flow-error-repro/) for every entry below.
   const FLOW_DETAIL_TYPES = [
     'FLOW_RULE_DETAIL',
     'FLOW_ASSIGNMENT_DETAIL',
     'FLOW_VALUE_ASSIGNMENT',
     'FLOW_SUBFLOW_DETAIL',
-    'FLOW_LOOP_DETAIL'
+    'FLOW_LOOP_DETAIL',
+    'FLOW_BULK_ELEMENT_DETAIL',
+    'FLOW_ACTIONCALL_DETAIL'
+  ];
+
+  // Validation Rule execution trace, confirmed against a real log: fires on
+  // every DML that runs validation, whether or not any rule ends up
+  // failing (VALIDATION_RULE names the rule being evaluated,
+  // VALIDATION_FORMULA shows its formula/field values, then either
+  // VALIDATION_PASS -- confirmed bare, no extra fields -- or presumably
+  // VALIDATION_FAIL, see STRUCTURED_ERROR_TYPES above).
+  const VALIDATION_DETAIL_TYPES = [
+    'VALIDATION_RULE',
+    'VALIDATION_FORMULA',
+    'VALIDATION_PASS'
   ];
 
   class LogParser {
@@ -44,7 +65,12 @@
       this.LOG_TYPES = window.FoxLog.LOG_TYPES || {};
 
       this.patterns = {
-        timestamp: /^(\d{2}:\d{2}:\d{2}\.\d+)\s+\((\d+)\)\|([A-Z_]+)\|(.*)$/,
+        // The |content group is optional: confirmed against a real log
+        // that some event types are bare, with no second pipe at all
+        // (VALIDATION_PASS, CUMULATIVE_LIMIT_USAGE...). Without this those
+        // lines fell through to CONTINUATION instead of getting their real
+        // type.
+        timestamp: /^(\d{2}:\d{2}:\d{2}\.\d+)\s+\((\d+)\)\|([A-Z_]+)(?:\|(.*))?$/,
         method: /\[(\d+)\]\|([^|]+)\|(.+)/,
         soql: /\[(\d+)\](.+)/,
         rows: /Rows:(\d+)/
@@ -100,7 +126,8 @@
         };
       }
 
-      const [, timestamp, duration, type, content] = match;
+      const [, timestamp, duration, type, rawContent] = match;
+      const content = rawContent || '';
 
       return {
         index,
@@ -129,13 +156,24 @@
         'CALLOUT_REQUEST': () => this._parseCallout(content),
         'CALLOUT_RESPONSE': () => this._parseCallout(content),
         'FLOW_ELEMENT_BEGIN': () => this._parseFlowElement(content),
-        'FLOW_ELEMENT_END': () => this._parseFlowElement(content)
+        'FLOW_ELEMENT_END': () => this._parseFlowElement(content),
+        'FLOW_ELEMENT_FAULT': () => this._parseFlowElementFault(content),
+        'FLOW_VALUE_ASSIGNMENT': () => this._parseFlowValueAssignment(content),
+        'FLOW_ASSIGNMENT_DETAIL': () => this._parseFlowAssignmentDetail(content),
+        'FLOW_LOOP_DETAIL': () => this._parseFlowLoopDetail(content),
+        'FLOW_RULE_DETAIL': () => this._parseFlowRuleDetail(content),
+        'FLOW_SUBFLOW_DETAIL': () => this._parseFlowSubflowDetail(content),
+        'FLOW_BULK_ELEMENT_DETAIL': () => this._parseFlowBulkElementDetail(content),
+        'FLOW_ACTIONCALL_DETAIL': () => this._parseFlowActionCallDetail(content),
+        'VALIDATION_RULE': () => this._parseValidationRule(content),
+        'VALIDATION_FORMULA': () => this._parseValidationFormula(content)
       };
+      // Remaining STRUCTURED_ERROR_TYPES not given a dedicated parser above
+      // (FLOW_ELEMENT_FAULT is handled separately -- see the comment on
+      // that list) share the generic elementType|elementName|message
+      // best-effort shape.
       STRUCTURED_ERROR_TYPES.forEach(errorType => {
-        parsers[errorType] = () => this._parseFlowError(content);
-      });
-      FLOW_DETAIL_TYPES.forEach(detailType => {
-        parsers[detailType] = () => this._parseFlowError(content);
+        if (!parsers[errorType]) parsers[errorType] = () => this._parseFlowError(content);
       });
 
       const parser = parsers[type];
@@ -251,17 +289,217 @@
     }
 
     _parseFlowElement(content) {
-      // Best-effort: "<element type>|<element API name>" -- no error
-      // message component, unlike STRUCTURED_ERROR_TYPES/FLOW_DETAIL_TYPES
-      // below. Unverified against a real log, see tests/flow-error-repro/.
+      // Confirmed against a real log: "<interview GUID>|<element
+      // type>|<element API name>", e.g. "...-55fc|FlowAssignment|
+      // Set_Demo_Variables". The GUID is dropped (not useful for display).
       const parts = content.split('|');
       const details = { raw: content };
 
-      if (parts.length >= 2) {
+      if (parts.length >= 3) {
+        details.interviewGuid = parts[0].trim();
+        details.elementType = parts[1].trim();
+        details.elementName = parts.slice(2).join('|').trim();
+      } else if (parts.length === 2) {
         details.elementType = parts[0].trim();
         details.elementName = parts[1].trim();
       } else {
         details.elementType = content.trim();
+      }
+
+      return details;
+    }
+
+    _parseFlowElementFault(content) {
+      // Confirmed against a real log: "<fault message>|<element
+      // type>|<element API name>" -- message FIRST, unlike the generic
+      // elementType|elementName|message shape _parseFlowError uses for the
+      // other STRUCTURED_ERROR_TYPES. E.g. "Fault path taken.|
+      // FlowActionCall|Call_With_Fault_Path".
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 3) {
+        details.message = parts[0].trim();
+        details.elementType = parts[1].trim();
+        details.elementName = parts.slice(2).join('|').trim();
+      } else {
+        details.message = content.trim();
+      }
+
+      return details;
+    }
+
+    _parseFlowValueAssignment(content) {
+      // Confirmed: "<interview GUID>|<variable name>|<value>". Value can be
+      // an empty string (e.g. a loop's currentIteration var after the last
+      // pass: "...|Loop_Demo_Items__currentIteration|").
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 3) {
+        details.interviewGuid = parts[0].trim();
+        details.variable = parts[1].trim();
+        details.value = parts.slice(2).join('|').trim();
+      } else if (parts.length === 2) {
+        details.variable = parts[0].trim();
+        details.value = parts[1].trim();
+      } else {
+        details.value = content.trim();
+      }
+
+      return details;
+    }
+
+    _parseFlowAssignmentDetail(content) {
+      // Confirmed: "<interview GUID>|<variable name>|<operator>|<value>",
+      // e.g. "...-55fc|LoopCounter|ASSIGN|0" or "...|DemoItems|ADD|a".
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 4) {
+        details.interviewGuid = parts[0].trim();
+        details.variable = parts[1].trim();
+        details.operator = parts[2].trim();
+        details.value = parts.slice(3).join('|').trim();
+      } else {
+        details.message = content.trim();
+      }
+
+      return details;
+    }
+
+    _parseFlowLoopDetail(content) {
+      // Confirmed: "<interview GUID>|<0-based iteration index>|<current
+      // item value>", e.g. "...-55fc|0|a".
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 3) {
+        details.interviewGuid = parts[0].trim();
+        details.iteration = parts[1].trim();
+        details.value = parts.slice(2).join('|').trim();
+      } else {
+        details.message = content.trim();
+      }
+
+      return details;
+    }
+
+    _parseFlowRuleDetail(content) {
+      // Confirmed: "<interview GUID>|<rule name>|<result>[|<result>...]",
+      // e.g. "...-55fc|Flow_Native_Dml_Rule|false|false" -- exact meaning
+      // of the (so far always duplicated) trailing result values isn't
+      // confirmed, kept as-is in `results`.
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 2) {
+        details.interviewGuid = parts[0].trim();
+        details.ruleName = parts[1].trim();
+        details.results = parts.slice(2).map(p => p.trim());
+      } else {
+        details.message = content.trim();
+      }
+
+      return details;
+    }
+
+    _parseFlowSubflowDetail(content) {
+      // Confirmed: "<interview GUID>|<subflow label>|<flow definition
+      // Id>|<flow version Id>", e.g. "...-55fc|FoxLog Error Demo
+      // Subflow|300DJ000000avtG|301DJ000000xUK2".
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 2) {
+        details.interviewGuid = parts[0].trim();
+        details.subflowLabel = parts[1].trim();
+        details.flowDefinitionId = parts[2] ? parts[2].trim() : undefined;
+        details.flowVersionId = parts[3] ? parts[3].trim() : undefined;
+      } else {
+        details.message = content.trim();
+      }
+
+      return details;
+    }
+
+    _parseFlowBulkElementDetail(content) {
+      // Confirmed: "<element type>|<element API name>|<count>" -- no
+      // interview GUID prefix, unlike the other FLOW_*_DETAIL events. This
+      // is what actually fires when a DML element sits inside a loop (the
+      // Flow engine auto-bulkifies it): one line per iteration, not one
+      // combined DML for the whole loop, which is worth surfacing as the
+      // Flow equivalent of the SOQL/DML-in-loop antipattern.
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 3) {
+        details.elementType = parts[0].trim();
+        details.elementName = parts[1].trim();
+        details.count = parseInt(parts[2], 10);
+      } else {
+        details.message = content.trim();
+      }
+
+      return details;
+    }
+
+    _parseFlowActionCallDetail(content) {
+      // Confirmed: "<interview GUID>|<action element name>|<action
+      // type>|<action/class name>|<success true/false>|<message>". This is
+      // the clearest "a Flow called into Apex/an action that failed" line
+      // in the whole log -- it carries the human-readable error message
+      // directly, e.g. "...-55fc|Call_With_Fault_Path|Apex|
+      // FoxLogErrorDemoController|false|An Apex error occurred: ...".
+      // elementName/elementType are aliased from actionName/actionType so
+      // this reads the same as STRUCTURED_ERROR_TYPES for naming purposes
+      // (see call-tree-worker.js's _markError).
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 6) {
+        details.interviewGuid = parts[0].trim();
+        details.actionName = parts[1].trim();
+        details.actionType = parts[2].trim();
+        details.implementationName = parts[3].trim();
+        details.success = parts[4].trim() === 'true';
+        details.message = parts.slice(5).join('|').trim();
+        details.elementName = details.actionName;
+        details.elementType = details.actionType;
+      } else {
+        details.message = content.trim();
+      }
+
+      return details;
+    }
+
+    _parseValidationRule(content) {
+      // Confirmed: "<rule Id>|<rule name>", e.g.
+      // "03dDJ000000umFt|FoxLog_Demo_Validation_Fail".
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 2) {
+        details.ruleId = parts[0].trim();
+        details.ruleName = parts[1].trim();
+      } else {
+        details.ruleName = content.trim();
+      }
+
+      return details;
+    }
+
+    _parseValidationFormula(content) {
+      // Confirmed: "<formula>|<field=value that it evaluated against>",
+      // e.g. 'CONTAINS( Description , "X")|Description=some text'.
+      const parts = content.split('|');
+      const details = { raw: content };
+
+      if (parts.length >= 2) {
+        details.formula = parts[0].trim();
+        details.fieldValues = parts.slice(1).join('|').trim();
+      } else {
+        details.formula = content.trim();
       }
 
       return details;

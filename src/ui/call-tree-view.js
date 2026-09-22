@@ -32,7 +32,17 @@
     'FLOW_ASSIGNMENT_DETAIL',
     'FLOW_VALUE_ASSIGNMENT',
     'FLOW_SUBFLOW_DETAIL',
-    'FLOW_LOOP_DETAIL'
+    'FLOW_LOOP_DETAIL',
+    'FLOW_BULK_ELEMENT_DETAIL',
+    'FLOW_ACTIONCALL_DETAIL'
+  ];
+
+  // Validation Rule execution trace -- see the comment on the equivalent
+  // list in call-graph-view.js.
+  const VALIDATION_DETAIL_TYPES = [
+    'VALIDATION_RULE',
+    'VALIDATION_FORMULA',
+    'VALIDATION_PASS'
   ];
 
   class CallTreeView {
@@ -759,6 +769,7 @@
       };
       STRUCTURED_ERROR_TYPES.forEach(errorType => { categoryMap[errorType] = 'errors'; });
       FLOW_DETAIL_TYPES.forEach(detailType => { categoryMap[detailType] = 'system'; });
+      VALIDATION_DETAIL_TYPES.forEach(detailType => { categoryMap[detailType] = 'system'; });
 
       return categoryMap[type] || 'system';
     }
@@ -873,6 +884,7 @@
       };
       STRUCTURED_ERROR_TYPES.forEach(errorType => { iconNames[errorType] = 'alert-triangle'; });
       FLOW_DETAIL_TYPES.forEach(detailType => { iconNames[detailType] = 'shuffle'; });
+      VALIDATION_DETAIL_TYPES.forEach(detailType => { iconNames[detailType] = 'shield-check'; });
       return window.FoxLog.icon(iconNames[type] || 'info', { size: 16 });
     }
 
