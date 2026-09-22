@@ -87,7 +87,16 @@
       if (debugLevel) {
         if (this._needsUpdate(debugLevel)) {
           logger.log('Existing custom DebugLevel is out of date, updating:', debugLevel.Id);
-          await api.updateDebugLevel(debugLevel.Id, this._desiredLevels());
+          try {
+            await api.updateDebugLevel(debugLevel.Id, this._desiredLevels());
+          } catch (error) {
+            // Not fatal: reuse the existing record as-is (e.g. the running
+            // user's profile can view but not edit this specific
+            // DebugLevel). Flow/Apex error capture then depends on its
+            // current, possibly stale levels -- same degraded-but-usable
+            // outcome as the create-failure fallback below.
+            logger.warn('Could not update the existing DebugLevel, using it as-is', error);
+          }
         } else {
           logger.log('Using existing, up-to-date custom DebugLevel:', debugLevel.Id);
         }
