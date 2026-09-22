@@ -5,62 +5,11 @@
   window.FoxLog = window.FoxLog || {};
   const logger = window.FoxLog.logger || console;
 
-  // Every debug log event type that represents a Flow/Workflow-action-level
-  // or Validation-Rule-level error (as opposed to a raw Apex
-  // EXCEPTION_THROWN/FATAL_ERROR). The Flow/Workflow ones are confirmed
-  // against a real "Workflow: FINER" category log: an explicit fault routed
-  // to a Flow element, an interview that failed to start/be created, a
-  // Workflow-Rule-launched flow action's error, and an invocable Apex
-  // action's error (the case where a Flow calls into Apex that fails).
-  // VALIDATION_FAIL is confirmed against a real failing run (see
-  // tests/flow-error-repro/): bare, no extra fields, same as its sibling
-  // VALIDATION_PASS -- the fallback label in call-tree-worker.js's
-  // _markError ("Validation Rule failed") is what actually shows, since
-  // there's no message to parse. VALIDATION_ERROR/
-  // FIELD_CUSTOM_VALIDATION_EXCEPTION are unconfirmed alternates kept as a
-  // defensive fallback (no real log has produced either so far).
-  // FLOW_ELEMENT_FAULT specifically is confirmed to have its message FIRST
-  // ("<fault message>|<element type>|<element API name>"), unlike the
-  // generic elementType|elementName|message shape used below for the
-  // others -- see _parseFlowElementFault.
-  const STRUCTURED_ERROR_TYPES = [
-    'FLOW_ELEMENT_ERROR',
-    'FLOW_ELEMENT_FAULT',
-    'FLOW_CREATE_INTERVIEW_ERROR',
-    'FLOW_START_INTERVIEWS_ERROR',
-    'INVOCABLE_ACTION_ERROR',
-    'WF_FLOW_ACTION_ERROR',
-    'WF_FLOW_ACTION_ERROR_DETAIL',
-    'VALIDATION_FAIL',
-    'VALIDATION_ERROR',
-    'FIELD_CUSTOM_VALIDATION_EXCEPTION'
-  ];
-
-  // Non-error Flow "detail" events: attached as leaf nodes under whichever
-  // element/interview is currently open, same treatment as USER_DEBUG/
-  // VARIABLE_ASSIGNMENT already get. Field layout confirmed against a real
-  // log (see tests/flow-error-repro/) for every entry below.
-  const FLOW_DETAIL_TYPES = [
-    'FLOW_RULE_DETAIL',
-    'FLOW_ASSIGNMENT_DETAIL',
-    'FLOW_VALUE_ASSIGNMENT',
-    'FLOW_SUBFLOW_DETAIL',
-    'FLOW_LOOP_DETAIL',
-    'FLOW_BULK_ELEMENT_DETAIL',
-    'FLOW_ACTIONCALL_DETAIL'
-  ];
-
-  // Validation Rule execution trace, confirmed against a real log: fires on
-  // every DML that runs validation, whether or not any rule ends up
-  // failing (VALIDATION_RULE names the rule being evaluated,
-  // VALIDATION_FORMULA shows its formula/field values, then either
-  // VALIDATION_PASS or VALIDATION_FAIL -- both confirmed bare, no extra
-  // fields, see STRUCTURED_ERROR_TYPES above).
-  const VALIDATION_DETAIL_TYPES = [
-    'VALIDATION_RULE',
-    'VALIDATION_FORMULA',
-    'VALIDATION_PASS'
-  ];
+  // Shared with the src/ui/*-view.js files -- see src/core/constants.js
+  // for what's confirmed vs. best-effort. Every FLOW_DETAIL_TYPES/
+  // VALIDATION_DETAIL_TYPES member has its own explicit dispatch entry
+  // below, so only STRUCTURED_ERROR_TYPES is needed as a list here.
+  const STRUCTURED_ERROR_TYPES = window.FoxLog.STRUCTURED_ERROR_TYPES;
 
   class LogParser {
     constructor() {
@@ -77,6 +26,49 @@
         soql: /\[(\d+)\](.+)/,
         rows: /Rows:(\d+)/
       };
+
+      // Built once here rather than per-line in _parseDetails()/
+      // _collectStats() (a log with tens of thousands of lines was
+      // rebuilding these tables, plus a STRUCTURED_ERROR_TYPES.forEach
+      // each, on every single call).
+      this._detailParsers = this._buildDetailParsers();
+      this._statsCollectors = this._buildStatsCollectors();
+    }
+
+    _buildDetailParsers() {
+      const parsers = {
+        [this.LOG_TYPES.METHOD_ENTRY]: this._parseMethod,
+        [this.LOG_TYPES.METHOD_EXIT]: this._parseMethod,
+        [this.LOG_TYPES.SOQL]: this._parseSOQL,
+        [this.LOG_TYPES.SOQL_END]: this._parseSOQLEnd,
+        [this.LOG_TYPES.DML]: this._parseDML,
+        [this.LOG_TYPES.USER_DEBUG]: this._parseDebug,
+        [this.LOG_TYPES.ERROR]: this._parseException,
+        'SOSL_EXECUTE_BEGIN': this._parseSOSL,
+        'SOSL_EXECUTE_END': this._parseSOQLEnd,
+        'CALLOUT_REQUEST': this._parseCallout,
+        'CALLOUT_RESPONSE': this._parseCallout,
+        'FLOW_ELEMENT_BEGIN': this._parseFlowElement,
+        'FLOW_ELEMENT_END': this._parseFlowElement,
+        'FLOW_ELEMENT_FAULT': this._parseFlowElementFault,
+        'FLOW_VALUE_ASSIGNMENT': this._parseFlowValueAssignment,
+        'FLOW_ASSIGNMENT_DETAIL': this._parseFlowAssignmentDetail,
+        'FLOW_LOOP_DETAIL': this._parseFlowLoopDetail,
+        'FLOW_RULE_DETAIL': this._parseFlowRuleDetail,
+        'FLOW_SUBFLOW_DETAIL': this._parseFlowSubflowDetail,
+        'FLOW_BULK_ELEMENT_DETAIL': this._parseFlowBulkElementDetail,
+        'FLOW_ACTIONCALL_DETAIL': this._parseFlowActionCallDetail,
+        'VALIDATION_RULE': this._parseValidationRule,
+        'VALIDATION_FORMULA': this._parseValidationFormula
+      };
+      // Remaining STRUCTURED_ERROR_TYPES not given a dedicated parser above
+      // (FLOW_ELEMENT_FAULT is handled separately -- see the comment on
+      // that list) share the generic elementType|elementName|message
+      // best-effort shape.
+      STRUCTURED_ERROR_TYPES.forEach(errorType => {
+        if (!parsers[errorType]) parsers[errorType] = this._parseFlowError;
+      });
+      return parsers;
     }
 
     parse(rawLog, metadata = {}) {
@@ -145,41 +137,8 @@
     }
 
     _parseDetails(type, content) {
-      const parsers = {
-        [this.LOG_TYPES.METHOD_ENTRY]: () => this._parseMethod(content),
-        [this.LOG_TYPES.METHOD_EXIT]: () => this._parseMethod(content),
-        [this.LOG_TYPES.SOQL]: () => this._parseSOQL(content),
-        [this.LOG_TYPES.SOQL_END]: () => this._parseSOQLEnd(content),
-        [this.LOG_TYPES.DML]: () => this._parseDML(content),
-        [this.LOG_TYPES.USER_DEBUG]: () => this._parseDebug(content),
-        [this.LOG_TYPES.ERROR]: () => this._parseException(content),
-        'SOSL_EXECUTE_BEGIN': () => this._parseSOSL(content),
-        'SOSL_EXECUTE_END': () => this._parseSOQLEnd(content),
-        'CALLOUT_REQUEST': () => this._parseCallout(content),
-        'CALLOUT_RESPONSE': () => this._parseCallout(content),
-        'FLOW_ELEMENT_BEGIN': () => this._parseFlowElement(content),
-        'FLOW_ELEMENT_END': () => this._parseFlowElement(content),
-        'FLOW_ELEMENT_FAULT': () => this._parseFlowElementFault(content),
-        'FLOW_VALUE_ASSIGNMENT': () => this._parseFlowValueAssignment(content),
-        'FLOW_ASSIGNMENT_DETAIL': () => this._parseFlowAssignmentDetail(content),
-        'FLOW_LOOP_DETAIL': () => this._parseFlowLoopDetail(content),
-        'FLOW_RULE_DETAIL': () => this._parseFlowRuleDetail(content),
-        'FLOW_SUBFLOW_DETAIL': () => this._parseFlowSubflowDetail(content),
-        'FLOW_BULK_ELEMENT_DETAIL': () => this._parseFlowBulkElementDetail(content),
-        'FLOW_ACTIONCALL_DETAIL': () => this._parseFlowActionCallDetail(content),
-        'VALIDATION_RULE': () => this._parseValidationRule(content),
-        'VALIDATION_FORMULA': () => this._parseValidationFormula(content)
-      };
-      // Remaining STRUCTURED_ERROR_TYPES not given a dedicated parser above
-      // (FLOW_ELEMENT_FAULT is handled separately -- see the comment on
-      // that list) share the generic elementType|elementName|message
-      // best-effort shape.
-      STRUCTURED_ERROR_TYPES.forEach(errorType => {
-        if (!parsers[errorType]) parsers[errorType] = () => this._parseFlowError(content);
-      });
-
-      const parser = parsers[type];
-      return parser ? parser() : {};
+      const parser = this._detailParsers[type];
+      return parser ? parser.call(this, content) : {};
     }
 
     _parseMethod(content) {
@@ -580,101 +539,139 @@
       };
     }
 
-    _collectStats(line, stats) {
+    _buildStatsCollectors() {
       const collectors = {
-        'SOQL_EXECUTE_BEGIN': () => {
-          stats.limits.soqlQueries++;
-          stats.queries.push({
-            query: line.details.query,
-            timestamp: line.timestamp,
-            index: line.index
-          });
-        },
-        'SOQL_EXECUTE_END': () => {
-          if (stats.queries.length > 0) {
-            stats.queries[stats.queries.length - 1].rows = line.details.rows;
-          }
-        },
-        'SOSL_EXECUTE_BEGIN': () => {
-          stats.limits.soslQueries++;
-          stats.soslQueries.push({
-            query: line.details.query,
-            timestamp: line.timestamp,
-            index: line.index
-          });
-        },
-        'SOSL_EXECUTE_END': () => {
-          if (stats.soslQueries.length > 0) {
-            stats.soslQueries[stats.soslQueries.length - 1].rows = line.details.rows;
-          }
-        },
-        'CALLOUT_REQUEST': () => {
-          stats.limits.callouts++;
-          stats.callouts.push({
-            endpoint: line.details.endpoint,
-            timestamp: line.timestamp,
-            index: line.index
-          });
-        },
-        'CALLOUT_RESPONSE': () => {
-          if (stats.callouts.length > 0) {
-            stats.callouts[stats.callouts.length - 1].status = line.details.status;
-          }
-        },
-        'DML_BEGIN': () => {
-          stats.limits.dmlStatements++;
-          stats.dmlOperations.push({
-            operation: line.details.operation,
-            objectType: line.details.objectType,
-            timestamp: line.timestamp
-          });
-        },
-        'METHOD_ENTRY': () => {
-          const key = `${line.details.class || ''}.${line.details.method || ''}`;
-          const existingIndex = stats.methodMap.get(key);
-          
-          if (existingIndex !== undefined) {
-            stats.methods[existingIndex].calls++;
-          } else {
-            const newEntry = {
-              class: line.details.class,
-              method: line.details.method,
-              calls: 1,
-              firstCall: line.timestamp
-            };
-            stats.methodMap.set(key, stats.methods.length);
-            stats.methods.push(newEntry);
-          }
-          
-          stats.methodStack.push({
-            class: line.details.class,
-            method: line.details.method,
-            timestamp: line.timestamp
-          });
-        },
-        'METHOD_EXIT': () => {
-          stats.methodStack.pop();
-        },
-        'EXCEPTION_THROWN': () => {
-          const currentMethod = stats.methodStack.length > 0
-            ? `${stats.methodStack[stats.methodStack.length - 1].class}.${stats.methodStack[stats.methodStack.length - 1].method}`
-            : null;
-
-          stats.errors.push({
-            type: line.type,
-            message: line.details.message || line.content,
-            timestamp: line.timestamp,
-            method: currentMethod,
-            depth: line.depth
-          });
-        }
+        'SOQL_EXECUTE_BEGIN': this._collectSoqlBegin,
+        'SOQL_EXECUTE_END': this._collectSoqlEnd,
+        'SOSL_EXECUTE_BEGIN': this._collectSoslBegin,
+        'SOSL_EXECUTE_END': this._collectSoslEnd,
+        'CALLOUT_REQUEST': this._collectCalloutRequest,
+        'CALLOUT_RESPONSE': this._collectCalloutResponse,
+        'DML_BEGIN': this._collectDmlBegin,
+        'METHOD_ENTRY': this._collectMethodEntry,
+        'METHOD_EXIT': this._collectMethodExit,
+        'EXCEPTION_THROWN': this._pushError,
+        'FLOW_ACTIONCALL_DETAIL': this._collectFlowActionCallDetail
       };
       STRUCTURED_ERROR_TYPES.forEach(errorType => {
-        collectors[errorType] = collectors['EXCEPTION_THROWN'];
+        collectors[errorType] = this._pushError;
       });
+      return collectors;
+    }
 
-      const collector = collectors[line.type];
-      if (collector) collector();
+    _collectStats(line, stats) {
+      const collector = this._statsCollectors[line.type];
+      if (collector) collector.call(this, line, stats);
+    }
+
+    _collectSoqlBegin(line, stats) {
+      stats.limits.soqlQueries++;
+      stats.queries.push({
+        query: line.details.query,
+        timestamp: line.timestamp,
+        index: line.index
+      });
+    }
+
+    _collectSoqlEnd(line, stats) {
+      if (stats.queries.length > 0) {
+        stats.queries[stats.queries.length - 1].rows = line.details.rows;
+      }
+    }
+
+    _collectSoslBegin(line, stats) {
+      stats.limits.soslQueries++;
+      stats.soslQueries.push({
+        query: line.details.query,
+        timestamp: line.timestamp,
+        index: line.index
+      });
+    }
+
+    _collectSoslEnd(line, stats) {
+      if (stats.soslQueries.length > 0) {
+        stats.soslQueries[stats.soslQueries.length - 1].rows = line.details.rows;
+      }
+    }
+
+    _collectCalloutRequest(line, stats) {
+      stats.limits.callouts++;
+      stats.callouts.push({
+        endpoint: line.details.endpoint,
+        timestamp: line.timestamp,
+        index: line.index
+      });
+    }
+
+    _collectCalloutResponse(line, stats) {
+      if (stats.callouts.length > 0) {
+        stats.callouts[stats.callouts.length - 1].status = line.details.status;
+      }
+    }
+
+    _collectDmlBegin(line, stats) {
+      stats.limits.dmlStatements++;
+      stats.dmlOperations.push({
+        operation: line.details.operation,
+        objectType: line.details.objectType,
+        timestamp: line.timestamp
+      });
+    }
+
+    _collectMethodEntry(line, stats) {
+      const key = `${line.details.class || ''}.${line.details.method || ''}`;
+      const existingIndex = stats.methodMap.get(key);
+
+      if (existingIndex !== undefined) {
+        stats.methods[existingIndex].calls++;
+      } else {
+        const newEntry = {
+          class: line.details.class,
+          method: line.details.method,
+          calls: 1,
+          firstCall: line.timestamp
+        };
+        stats.methodMap.set(key, stats.methods.length);
+        stats.methods.push(newEntry);
+      }
+
+      stats.methodStack.push({
+        class: line.details.class,
+        method: line.details.method,
+        timestamp: line.timestamp
+      });
+    }
+
+    _collectMethodExit(line, stats) {
+      stats.methodStack.pop();
+    }
+
+    // Unlike the other structured error types, FLOW_ACTIONCALL_DETAIL
+    // fires on every action call, success or failure (see
+    // _parseFlowActionCallDetail) -- only count it as an error when
+    // details.success is explicitly false, or every successful Flow
+    // action call (e.g. a plain HTTP callout) would inflate the error
+    // count.
+    _collectFlowActionCallDetail(line, stats) {
+      if (line.details.success === false) this._pushError(line, stats);
+    }
+
+    /**
+     * Record a structured/exception error into stats.errors.
+     * @private
+     */
+    _pushError(line, stats) {
+      const currentMethod = stats.methodStack.length > 0
+        ? `${stats.methodStack[stats.methodStack.length - 1].class}.${stats.methodStack[stats.methodStack.length - 1].method}`
+        : null;
+
+      stats.errors.push({
+        type: line.type,
+        message: line.details.message || line.content,
+        timestamp: line.timestamp,
+        method: currentMethod,
+        depth: line.depth
+      });
     }
 
     _parseCumulativeLimits(lines, stats) {

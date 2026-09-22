@@ -10,44 +10,14 @@
   const logger = window.FoxLog.logger || console;
   const escapeHtml = window.FoxLog.escapeHtml || (s => s || '');
 
-  // Debug log event types for a Flow/Workflow-action-level or
-  // Validation-Rule-level error (as opposed to a raw Apex
-  // EXCEPTION_THROWN/FATAL_ERROR) -- see the same list's comment in
-  // src/parsers/log-parser.js for how each was confirmed/is best-effort.
-  const STRUCTURED_ERROR_TYPES = [
-    'FLOW_ELEMENT_ERROR',
-    'FLOW_ELEMENT_FAULT',
-    'FLOW_CREATE_INTERVIEW_ERROR',
-    'FLOW_START_INTERVIEWS_ERROR',
-    'INVOCABLE_ACTION_ERROR',
-    'WF_FLOW_ACTION_ERROR',
-    'WF_FLOW_ACTION_ERROR_DETAIL',
-    'VALIDATION_FAIL',
-    'VALIDATION_ERROR',
-    'FIELD_CUSTOM_VALIDATION_EXCEPTION'
-  ];
-
-  // Non-error Flow "detail" events (decision outcome, assignment, subflow,
-  // loop iteration) -- rendered as part of the 'flow' category alongside
-  // FLOW_ELEMENT_BEGIN/END, since they're all sub-parts of the same
-  // element-by-element flow execution trace.
-  const FLOW_DETAIL_TYPES = [
-    'FLOW_RULE_DETAIL',
-    'FLOW_ASSIGNMENT_DETAIL',
-    'FLOW_VALUE_ASSIGNMENT',
-    'FLOW_SUBFLOW_DETAIL',
-    'FLOW_LOOP_DETAIL',
-    'FLOW_BULK_ELEMENT_DETAIL',
-    'FLOW_ACTIONCALL_DETAIL'
-  ];
-
-  // Validation Rule execution trace (rule name, formula, pass/fail) --
-  // rendered as part of the existing 'validation' category.
-  const VALIDATION_DETAIL_TYPES = [
-    'VALIDATION_RULE',
-    'VALIDATION_FORMULA',
-    'VALIDATION_PASS'
-  ];
+  // Shared with log-parser.js and the other src/ui/*-view.js files -- see
+  // the comments on these in src/core/constants.js for what's confirmed
+  // vs. best-effort, and why FLOW_ACTIONCALL_DETAIL lives in
+  // FLOW_DETAIL_TYPES rather than STRUCTURED_ERROR_TYPES (classify()
+  // below special-cases it using node.hasError instead).
+  const STRUCTURED_ERROR_TYPES = window.FoxLog.STRUCTURED_ERROR_TYPES;
+  const FLOW_DETAIL_TYPES = window.FoxLog.FLOW_DETAIL_TYPES;
+  const VALIDATION_DETAIL_TYPES = window.FoxLog.VALIDATION_DETAIL_TYPES;
 
   // Node type -> visual category, grouped for filtering
   const CATEGORY_META = {
@@ -70,7 +40,11 @@
   function classify(node) {
     const type = node.type;
     if (type === 'ROOT') return 'root';
-    if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR' || STRUCTURED_ERROR_TYPES.includes(type)) return 'error';
+    // FLOW_ACTIONCALL_DETAIL fires on every action call, success or
+    // failure -- node.hasError (set by call-tree-worker.js's _markError,
+    // only for the details.success === false case) is what distinguishes
+    // a real error here from an informational "action succeeded" leaf.
+    if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR' || STRUCTURED_ERROR_TYPES.includes(type) || (type === 'FLOW_ACTIONCALL_DETAIL' && node.hasError)) return 'error';
     if (type === 'SOQL_EXECUTE_BEGIN' || type === 'SOSL_EXECUTE_BEGIN') return 'soql';
     if (type === 'DML_BEGIN') return 'dml';
     if (type === 'CALLOUT_REQUEST') return 'callout';

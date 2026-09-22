@@ -36,6 +36,42 @@ const VALIDATION_DETAIL_TYPES = [
   'VALIDATION_PASS'
 ];
 
+// Hoisted out of _processLine() (called once per log line, so a log with
+// tens of thousands of lines was rebuilding all three of these --
+// including two array spreads -- on every single call).
+const OPENING_TYPES = [
+  'CODE_UNIT_STARTED',
+  'METHOD_ENTRY',
+  'CONSTRUCTOR_ENTRY',
+  'SOQL_EXECUTE_BEGIN',
+  'DML_BEGIN',
+  'SOSL_EXECUTE_BEGIN',
+  'CALLOUT_REQUEST',
+  // Every Flow element (screen, decision, assignment, loop, action
+  // call...) a flow interview steps through -- previously the only
+  // thing visible inside a Flow's CODE_UNIT wrapper was an explicit
+  // error. Field layout confirmed, see tests/flow-error-repro/.
+  'FLOW_ELEMENT_BEGIN'
+];
+
+const CLOSING_TYPES = [
+  'CODE_UNIT_FINISHED',
+  'METHOD_EXIT',
+  'CONSTRUCTOR_EXIT',
+  'SOQL_EXECUTE_END',
+  'DML_END',
+  'SOSL_EXECUTE_END',
+  'CALLOUT_RESPONSE',
+  'FLOW_ELEMENT_END'
+];
+
+const LEAF_TYPES = [
+  'USER_DEBUG',
+  'VARIABLE_ASSIGNMENT',
+  ...FLOW_DETAIL_TYPES,
+  ...VALIDATION_DETAIL_TYPES
+];
+
 // ============================================
   // LOGGER LOCAL
   // ============================================
@@ -183,55 +219,19 @@ class CallTreeBuilder {
    */
   _processLine(line, index) {
     const { type } = line;
-    
-    // Event types that open a new node
-    const openingTypes = [
-      'CODE_UNIT_STARTED',
-      'METHOD_ENTRY',
-      'CONSTRUCTOR_ENTRY',
-      'SOQL_EXECUTE_BEGIN',
-      'DML_BEGIN',
-      'SOSL_EXECUTE_BEGIN',
-      'CALLOUT_REQUEST',
-      // Every Flow element (screen, decision, assignment, loop, action
-      // call...) a flow interview steps through -- previously the only
-      // thing visible inside a Flow's CODE_UNIT wrapper was an explicit
-      // error. Field layout confirmed, see tests/flow-error-repro/.
-      'FLOW_ELEMENT_BEGIN'
-    ];
-
-    // Event types that close a node
-    const closingTypes = [
-      'CODE_UNIT_FINISHED',
-      'METHOD_EXIT',
-      'CONSTRUCTOR_EXIT',
-      'SOQL_EXECUTE_END',
-      'DML_END',
-      'SOSL_EXECUTE_END',
-      'CALLOUT_RESPONSE',
-      'FLOW_ELEMENT_END'
-    ];
-
-    // Event types that are added as leaf nodes
-    const leafTypes = [
-      'USER_DEBUG',
-      'VARIABLE_ASSIGNMENT',
-      ...FLOW_DETAIL_TYPES,
-      ...VALIDATION_DETAIL_TYPES
-    ];
 
     // FLOW_ACTIONCALL_DETAIL carries an explicit success flag -- only the
     // failing case (an Apex/action error surfaced to the flow) should
     // become an error node; a successful call is just informational.
     const isFailedActionCall = type === 'FLOW_ACTIONCALL_DETAIL' && line.details.success === false;
 
-    if (openingTypes.includes(type)) {
+    if (OPENING_TYPES.includes(type)) {
       this._openNode(line, index);
-    } else if (closingTypes.includes(type)) {
+    } else if (CLOSING_TYPES.includes(type)) {
       this._closeNode(line, index);
     } else if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR' || STRUCTURED_ERROR_TYPES.includes(type) || isFailedActionCall) {
       this._markError(line, index);
-    } else if (leafTypes.includes(type)) {
+    } else if (LEAF_TYPES.includes(type)) {
       // Add leaf nodes (debug, variables, heap, flow element detail)
       this._addLeafNode(line, index);
     }

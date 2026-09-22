@@ -14,42 +14,14 @@
   const CONTEXT_ROWS = 2;
   const MIN_FOLDED_ROWS = 3;
 
-  // Debug log event types for a Flow/Workflow-action-level or
-  // Validation-Rule-level error (as opposed to a raw Apex
-  // EXCEPTION_THROWN/FATAL_ERROR) -- see the same list's comment in
-  // src/parsers/log-parser.js for how each was confirmed/is best-effort.
-  const STRUCTURED_ERROR_TYPES = [
-    'FLOW_ELEMENT_ERROR',
-    'FLOW_ELEMENT_FAULT',
-    'FLOW_CREATE_INTERVIEW_ERROR',
-    'FLOW_START_INTERVIEWS_ERROR',
-    'INVOCABLE_ACTION_ERROR',
-    'WF_FLOW_ACTION_ERROR',
-    'WF_FLOW_ACTION_ERROR_DETAIL',
-    'VALIDATION_FAIL',
-    'VALIDATION_ERROR',
-    'FIELD_CUSTOM_VALIDATION_EXCEPTION'
-  ];
-
-  // Non-error Flow "detail" events -- see the comment on the equivalent
-  // list in call-graph-view.js.
-  const FLOW_DETAIL_TYPES = [
-    'FLOW_RULE_DETAIL',
-    'FLOW_ASSIGNMENT_DETAIL',
-    'FLOW_VALUE_ASSIGNMENT',
-    'FLOW_SUBFLOW_DETAIL',
-    'FLOW_LOOP_DETAIL',
-    'FLOW_BULK_ELEMENT_DETAIL',
-    'FLOW_ACTIONCALL_DETAIL'
-  ];
-
-  // Validation Rule execution trace -- see the comment on the equivalent
-  // list in call-graph-view.js.
-  const VALIDATION_DETAIL_TYPES = [
-    'VALIDATION_RULE',
-    'VALIDATION_FORMULA',
-    'VALIDATION_PASS'
-  ];
+  // Shared with log-parser.js and the other src/ui/*-view.js files -- see
+  // the comments on these in src/core/constants.js. Only used here for
+  // icon selection, so unlike call-graph-view.js/call-tree-view.js this
+  // file doesn't need FLOW_ACTIONCALL_DETAIL's success/failure to be
+  // content-aware.
+  const STRUCTURED_ERROR_TYPES = window.FoxLog.STRUCTURED_ERROR_TYPES;
+  const FLOW_DETAIL_TYPES = window.FoxLog.FLOW_DETAIL_TYPES;
+  const VALIDATION_DETAIL_TYPES = window.FoxLog.VALIDATION_DETAIL_TYPES;
 
   class LogDiffView {
     /**
