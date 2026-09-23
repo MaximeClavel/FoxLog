@@ -3,13 +3,13 @@
   "name": "FoxLog - Salesforce Debug Log Viewer",
   "version": "1.10.0",
   "description": "Display Salesforce debug logs in a modern UI with flow graph, anti-pattern analysis, log diffing, and one-click debug control.",
-  
+
   "permissions": [
     "cookies",
     "storage",
     "unlimitedStorage"
   ],
-  
+
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -19,18 +19,18 @@
     },
     "default_title": "FoxLog Settings"
   },
-  
+
   "host_permissions": [
     "https://*.my.salesforce.com/*",
     "https://*.lightning.force.com/*"
   ],
-  
+
   "icons": {
     "16": "src/assets/icon16.png",
     "48": "src/assets/icon48.png",
     "128": "src/assets/icon128.png"
   },
-  
+
   "content_scripts": [
     {
       "matches": [
@@ -62,9 +62,9 @@
       "all_frames": false
     }
   ],
-  
+
   "background": {
-    "service_worker": "src/background.js"
+    "scripts": ["src/background.js"]
   },
 
   "web_accessible_resources": [
@@ -79,5 +79,18 @@
         "https://*.lightning.force.com/*"
       ]
     }
-  ]
+  ],
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "foxlog@foxlog.extension",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  }
 }

@@ -28,5 +28,8 @@ tmp/
 *.crx
 *.zip
 
+# Firefox extension
+*.xpi
+
 # Salesforce stuff
 *.sfdx
