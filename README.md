@@ -85,11 +85,22 @@ See [docs/ui-design-system.md](docs/ui-design-system.md) for the tokens and comp
 
 ## 📦 Installation
 
+### Chrome
+
 1. Clone the repository
 2. Open Chrome and go to `chrome://extensions/`
 3. Enable "Developer mode"
 4. Click "Load unpacked extension"
 5. Select the project folder
+
+### Firefox
+
+1. Clone the repository
+2. Build the `.xpi`: `./scripts/build-firefox-xpi.sh`
+3. Open Firefox and go to `about:debugging#/runtime/this-firefox`
+4. Click "Load Temporary Add-on…" and select the generated `.xpi`
+
+(Firefox reads `manifest.firefox.json`, not `manifest.json` — see [docs/tech-solution/firefox-port.md](docs/tech-solution/firefox-port.md) for why the two are separate.)
 
 ## 🎯 Usage
 
