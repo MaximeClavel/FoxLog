@@ -294,26 +294,31 @@
 
       statusText.textContent = message;
 
-      const reset = () => {
-        clearTimeout(this.statusMessageTimeout);
-        statusIndicator.className = 'sf-status-disconnected';
-        statusText.textContent = i18n.ready || 'Ready';
-        if (statusAction) {
-          statusAction.hidden = true;
-          statusAction.onclick = null;
-        }
-      };
-
       if (statusAction) {
         statusAction.hidden = !action;
         statusAction.textContent = action?.label || '';
         statusAction.onclick = action
-          ? () => { reset(); action.onClick(); }
+          ? () => { this.resetStatusMessage(); action.onClick(); }
           : null;
       }
 
       // Auto-clear after 5 seconds (longer when the message offers an action)
-      this.statusMessageTimeout = setTimeout(reset, action ? 8000 : 5000);
+      this.statusMessageTimeout = setTimeout(() => this.resetStatusMessage(), action ? 8000 : 5000);
+    }
+
+    /** Put the status line back to "Ready", dropping any pending action (e.g. Undo) */
+    resetStatusMessage() {
+      clearTimeout(this.statusMessageTimeout);
+      const statusIndicator = this.panel.querySelector('#sf-status-indicator');
+      const statusText = this.panel.querySelector('#sf-status-text');
+      const statusAction = this.panel.querySelector('#sf-status-action');
+
+      if (statusIndicator) statusIndicator.className = 'sf-status-disconnected';
+      if (statusText) statusText.textContent = i18n.ready || 'Ready';
+      if (statusAction) {
+        statusAction.hidden = true;
+        statusAction.onclick = null;
+      }
     }
 
     getSelectedUserId() {

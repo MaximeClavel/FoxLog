@@ -438,6 +438,8 @@
       document.addEventListener('foxlog:userChanged', async (e) => {
         this.selectedUserId = e.detail.userId;
         this.showCleared = false;
+        // A pending Undo belongs to the previous user's list
+        window.FoxLog.panelManager.resetStatusMessage();
         await this.refreshLogs();
       });
 
@@ -907,15 +909,31 @@
     async _undoClear(userId, mark, previousMark) {
       if (this.clearMarks.get(userId) !== mark) return;
       this._setClearMark(userId, previousMark);
+      await this._renderLogsIfSelected(userId);
+    }
+
+    /**
+     * Re-render only if `userId` is still the one listed: `fetchedLogs` belongs to the selected user
+     * @private
+     */
+    async _renderLogsIfSelected(userId) {
+      if (userId !== (this.selectedUserId || this.currentUserId)) return;
       await this._renderLogs(userId);
     }
 
     /** Show or hide the logs hidden by the last clear (dimmed, below the others) */
     async toggleClearedLogs() {
+      const { panelManager } = window.FoxLog;
       const userId = this.selectedUserId || this.currentUserId;
       if (!userId) return;
       this.showCleared = !this.showCleared;
       await this._renderLogs(userId);
+
+      // Cleared logs come last: jump to the page where they start instead of page 1
+      if (this.showCleared) {
+        const { visibleCount } = panelManager.clearState;
+        panelManager.goToPage(Math.floor(visibleCount / panelManager.logsPerPage) + 1);
+      }
     }
 
     /** Forget the clear mark: every log goes back to the normal list */
@@ -941,7 +959,7 @@
     async _undoRestore(userId, mark) {
       if (this.clearMarks.get(userId) !== null) return;
       this._setClearMark(userId, mark);
-      await this._renderLogs(userId);
+      await this._renderLogsIfSelected(userId);
     }
 
     _startAutoRefresh() {
