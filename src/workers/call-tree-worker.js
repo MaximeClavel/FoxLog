@@ -4,6 +4,74 @@
 
 'use strict';
 
+// This is a standalone Web Worker (no access to window/FoxLog globals),
+// hence these lists are duplicated rather than shared with log-parser.js.
+// See the comments there for what confirmed each of these.
+const STRUCTURED_ERROR_TYPES = [
+  'FLOW_ELEMENT_ERROR',
+  'FLOW_ELEMENT_FAULT',
+  'FLOW_CREATE_INTERVIEW_ERROR',
+  'FLOW_START_INTERVIEWS_ERROR',
+  'INVOCABLE_ACTION_ERROR',
+  'WF_FLOW_ACTION_ERROR',
+  'WF_FLOW_ACTION_ERROR_DETAIL',
+  'VALIDATION_FAIL',
+  'VALIDATION_ERROR',
+  'FIELD_CUSTOM_VALIDATION_EXCEPTION'
+];
+
+const FLOW_DETAIL_TYPES = [
+  'FLOW_RULE_DETAIL',
+  'FLOW_ASSIGNMENT_DETAIL',
+  'FLOW_VALUE_ASSIGNMENT',
+  'FLOW_SUBFLOW_DETAIL',
+  'FLOW_LOOP_DETAIL',
+  'FLOW_BULK_ELEMENT_DETAIL',
+  'FLOW_ACTIONCALL_DETAIL'
+];
+
+const VALIDATION_DETAIL_TYPES = [
+  'VALIDATION_RULE',
+  'VALIDATION_FORMULA',
+  'VALIDATION_PASS'
+];
+
+// Hoisted out of _processLine() (called once per log line, so a log with
+// tens of thousands of lines was rebuilding all three of these --
+// including two array spreads -- on every single call).
+const OPENING_TYPES = [
+  'CODE_UNIT_STARTED',
+  'METHOD_ENTRY',
+  'CONSTRUCTOR_ENTRY',
+  'SOQL_EXECUTE_BEGIN',
+  'DML_BEGIN',
+  'SOSL_EXECUTE_BEGIN',
+  'CALLOUT_REQUEST',
+  // Every Flow element (screen, decision, assignment, loop, action
+  // call...) a flow interview steps through -- previously the only
+  // thing visible inside a Flow's CODE_UNIT wrapper was an explicit
+  // error. Field layout confirmed, see tests/flow-error-repro/.
+  'FLOW_ELEMENT_BEGIN'
+];
+
+const CLOSING_TYPES = [
+  'CODE_UNIT_FINISHED',
+  'METHOD_EXIT',
+  'CONSTRUCTOR_EXIT',
+  'SOQL_EXECUTE_END',
+  'DML_END',
+  'SOSL_EXECUTE_END',
+  'CALLOUT_RESPONSE',
+  'FLOW_ELEMENT_END'
+];
+
+const LEAF_TYPES = [
+  'USER_DEBUG',
+  'VARIABLE_ASSIGNMENT',
+  ...FLOW_DETAIL_TYPES,
+  ...VALIDATION_DETAIL_TYPES
+];
+
 // ============================================
   // LOGGER LOCAL
   // ============================================
@@ -151,39 +219,20 @@ class CallTreeBuilder {
    */
   _processLine(line, index) {
     const { type } = line;
-    
-    // Event types that open a new node
-    const openingTypes = [
-      'CODE_UNIT_STARTED',
-      'METHOD_ENTRY',
-      'CONSTRUCTOR_ENTRY',
-      'SOQL_EXECUTE_BEGIN',
-      'DML_BEGIN'
-    ];
-    
-    // Event types that close a node
-    const closingTypes = [
-      'CODE_UNIT_FINISHED',
-      'METHOD_EXIT',
-      'CONSTRUCTOR_EXIT',
-      'SOQL_EXECUTE_END',
-      'DML_END'
-    ];
-    
-    // Event types that are added as leaf nodes
-    const leafTypes = [
-      'USER_DEBUG',
-      'VARIABLE_ASSIGNMENT'
-    ];
-    
-    if (openingTypes.includes(type)) {
+
+    // FLOW_ACTIONCALL_DETAIL carries an explicit success flag -- only the
+    // failing case (an Apex/action error surfaced to the flow) should
+    // become an error node; a successful call is just informational.
+    const isFailedActionCall = type === 'FLOW_ACTIONCALL_DETAIL' && line.details.success === false;
+
+    if (OPENING_TYPES.includes(type)) {
       this._openNode(line, index);
-    } else if (closingTypes.includes(type)) {
+    } else if (CLOSING_TYPES.includes(type)) {
       this._closeNode(line, index);
-    } else if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR') {
+    } else if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR' || STRUCTURED_ERROR_TYPES.includes(type) || isFailedActionCall) {
       this._markError(line, index);
-    } else if (leafTypes.includes(type)) {
-      // Add leaf nodes (debug, variables, heap)
+    } else if (LEAF_TYPES.includes(type)) {
+      // Add leaf nodes (debug, variables, heap, flow element detail)
       this._addLeafNode(line, index);
     }
   }
@@ -208,7 +257,9 @@ class CallTreeBuilder {
       exclusiveDuration: 0,
       children: [],
       hasError: false,
-      soqlCount: line.type === 'SOQL_EXECUTE_BEGIN' ? 1 : 0,
+      // SOSL folds into the same counter as SOQL (both a "query the
+      // database" operation) rather than adding a second counter/badge.
+      soqlCount: (line.type === 'SOQL_EXECUTE_BEGIN' || line.type === 'SOSL_EXECUTE_BEGIN') ? 1 : 0,
       dmlCount: line.type === 'DML_BEGIN' ? 1 : 0,
       logLineIndex: line.index, // Use the actual raw log line index
       details: this._extractDetails(line)
@@ -240,9 +291,13 @@ class CallTreeBuilder {
       node.duration = Math.max(0, line.timestampMs - node.startTimeMs);
     }
     
-    // Update details (e.g., number of rows for SOQL_END)
-    if (line.type === 'SOQL_EXECUTE_END' && line.details.rows !== undefined) {
+    // Update details (e.g., number of rows for SOQL_END/SOSL_EXECUTE_END)
+    if ((line.type === 'SOQL_EXECUTE_END' || line.type === 'SOSL_EXECUTE_END') && line.details.rows !== undefined) {
       node.details.rows = line.details.rows;
+    }
+    // CALLOUT_RESPONSE carries the HTTP status; attach it to the request node.
+    if (line.type === 'CALLOUT_RESPONSE' && line.details.status !== undefined) {
+      node.details.status = line.details.status;
     }
   }
 
@@ -252,15 +307,31 @@ class CallTreeBuilder {
    */
   _markError(line, index) {
     if (this.stack.length === 0) return;
-    
+
     const currentNode = this.stack[this.stack.length - 1];
-    
-    // Build descriptive name for exception
-    const exType = line.details.exceptionType || 'Exception';
-    const exMsg = line.details.message || '';
+
+    // FLOW_ACTIONCALL_DETAIL (only reached here when details.success ===
+    // false, see _processLine) aliases elementName/elementType from
+    // actionName/actionType in the parser, so it reads the same as the
+    // other structured errors from here on.
+    const isStructuredError = STRUCTURED_ERROR_TYPES.includes(line.type) || line.type === 'FLOW_ACTIONCALL_DETAIL';
+
+    // Build descriptive name: "ExceptionType: message" for a raw Apex
+    // exception, "elementName: message" for a Flow element/Validation Rule
+    // error or fault (what failed matters more at a glance than its type).
+    const exType = isStructuredError
+      ? (line.details.elementName || line.details.elementType || line.type)
+      : (line.details.exceptionType || 'Exception');
+    // VALIDATION_FAIL is confirmed bare (no message field, see
+    // VALIDATION_PASS) -- fall back to a generic label rather than an
+    // empty message; the rule name/formula show up as sibling detail
+    // nodes right next to this one.
+    const exMsg = line.details.message
+      || (isStructuredError ? line.content : '')
+      || (line.type === 'VALIDATION_FAIL' ? 'Validation Rule failed' : '');
     const shortMsg = exMsg.length > 50 ? exMsg.substring(0, 50) + '...' : exMsg;
     const nodeName = exMsg ? `${exType}: ${shortMsg}` : exType;
-    
+
     // Create a child node for the exception
     const errorNode = {
       id: `node_${this.nodeCounter++}`,
@@ -277,11 +348,13 @@ class CallTreeBuilder {
       dmlCount: 0,
       logLineIndex: line.index, // Use the actual raw log line index
       details: {
-        message: line.details.message || line.content,
-        exceptionType: line.details.exceptionType
+        message: exMsg || line.content,
+        exceptionType: isStructuredError ? (line.details.elementType || line.type) : line.details.exceptionType,
+        elementType: line.details.elementType,
+        elementName: line.details.elementName
       }
     };
-    
+
     currentNode.children.push(errorNode);
     currentNode.hasError = true;
   }
@@ -318,7 +391,96 @@ class CallTreeBuilder {
         // Keep the full value here: the node name truncates it
         nodeDetails = assignment ? { variable: assignment.variable, value: assignment.value } : { assignment: line.content };
         break;
-        
+
+      // Field layout for every case below is confirmed against a real log,
+      // see tests/flow-error-repro/.
+      case 'FLOW_VALUE_ASSIGNMENT':
+        // The user-facing ask this fixes: was showing the interview GUID
+        // as if it were the variable name (e.g. "VALUE ASSIGNMENT:
+        // 3591fc7...") -- now "ErrorType__isVisible = true".
+        nodeName = line.details.variable !== undefined
+          ? `${line.details.variable} = ${line.details.value || ''}`
+          : (line.details.value || line.content);
+        nodeDetails = { variable: line.details.variable, value: line.details.value };
+        break;
+
+      case 'FLOW_ASSIGNMENT_DETAIL':
+        nodeName = line.details.variable
+          ? `${line.details.variable} ${line.details.operator || '='} ${line.details.value || ''}`.trim()
+          : (line.details.message || line.content);
+        nodeDetails = { variable: line.details.variable, operator: line.details.operator, value: line.details.value };
+        break;
+
+      case 'FLOW_LOOP_DETAIL':
+        nodeName = line.details.iteration !== undefined
+          ? `Iteration ${line.details.iteration}: ${line.details.value || ''}`
+          : (line.details.message || line.content);
+        nodeDetails = { iteration: line.details.iteration, value: line.details.value };
+        break;
+
+      case 'FLOW_RULE_DETAIL': {
+        const results = (line.details.results || []).join(', ');
+        nodeName = line.details.ruleName
+          ? `${line.details.ruleName}: ${results}`
+          : (line.details.message || line.content);
+        nodeDetails = { ruleName: line.details.ruleName, results: line.details.results };
+        break;
+      }
+
+      case 'FLOW_SUBFLOW_DETAIL':
+        nodeName = line.details.subflowLabel ? `Subflow: ${line.details.subflowLabel}` : (line.details.message || line.content);
+        nodeDetails = {
+          subflowLabel: line.details.subflowLabel,
+          flowDefinitionId: line.details.flowDefinitionId,
+          flowVersionId: line.details.flowVersionId
+        };
+        break;
+
+      case 'FLOW_BULK_ELEMENT_DETAIL': {
+        // The Flow engine auto-bulkifies a DML element sitting inside a
+        // loop: this is what actually fires per iteration (see
+        // _parseFlowBulkElementDetail) -- the Flow equivalent of the
+        // SOQL/DML-in-loop antipattern.
+        const count = line.details.count;
+        nodeName = line.details.elementName
+          ? `${line.details.elementName}: ${count} record${count === 1 ? '' : 's'} (bulk)`
+          : (line.details.message || line.content);
+        nodeDetails = { elementName: line.details.elementName, elementType: line.details.elementType, count };
+        break;
+      }
+
+      case 'FLOW_ACTIONCALL_DETAIL':
+        // Only reached here when details.success !== false -- the failing
+        // case is routed to _markError instead, see _processLine.
+        nodeName = line.details.actionName
+          ? `${line.details.actionName}: ${line.details.actionType || 'action'} succeeded`
+          : (line.details.message || line.content);
+        nodeDetails = {
+          actionName: line.details.actionName,
+          actionType: line.details.actionType,
+          implementationName: line.details.implementationName,
+          success: line.details.success
+        };
+        break;
+
+      case 'VALIDATION_RULE':
+        nodeName = line.details.ruleName ? `Validation Rule: ${line.details.ruleName}` : (line.content || 'Validation Rule');
+        nodeDetails = { ruleId: line.details.ruleId, ruleName: line.details.ruleName };
+        break;
+
+      case 'VALIDATION_FORMULA': {
+        const formula = line.details.formula || line.content;
+        const shortFormula = formula.length > 60 ? formula.substring(0, 60) + '...' : formula;
+        nodeName = `Formula: ${shortFormula}`;
+        nodeDetails = { formula: line.details.formula, fieldValues: line.details.fieldValues };
+        break;
+      }
+
+      case 'VALIDATION_PASS':
+        nodeName = 'Validation passed';
+        nodeDetails = {};
+        break;
+
       default:
         nodeName = line.type;
         nodeDetails = { content: line.content };
@@ -501,22 +663,75 @@ class CallTreeBuilder {
           : details.method || 'Unknown Method';
       
       case 'SOQL_EXECUTE_BEGIN':
-        return details.query 
+      case 'SOSL_EXECUTE_BEGIN':
+        return details.query
           ? details.query.substring(0, 60) + (details.query.length > 60 ? '...' : '')
-          : 'SOQL Query';
-      
+          : (type === 'SOSL_EXECUTE_BEGIN' ? 'SOSL Query' : 'SOQL Query');
+
       case 'DML_BEGIN':
         const op = details.operation || 'DML';
         const objType = details.objectType || '';
         const rows = details.rows ? ` (${details.rows} row${details.rows > 1 ? 's' : ''})` : '';
         return `${op} ${objType}${rows}`.trim();
-      
+
       case 'CODE_UNIT_STARTED':
-        return line.content || 'Code Unit';
-      
+        return this._extractCodeUnitName(line.content) || line.content || 'Code Unit';
+
+      case 'CALLOUT_REQUEST':
+        return details.endpoint ? `Callout: ${details.endpoint}` : 'HTTP Callout';
+
+      case 'FLOW_ELEMENT_BEGIN':
+        // "<element type>: <element API name>", e.g. "FlowAssignment:
+        // Set_Demo_Variables" -- the type alone was ambiguous (every
+        // Assignment element showed as just "Assignment").
+        return details.elementType && details.elementName
+          ? `${details.elementType}: ${details.elementName}`
+          : (details.elementName || details.elementType || 'Flow Element');
+
       default:
         return type;
     }
+  }
+
+  /**
+   * CODE_UNIT_STARTED's content varies a lot by trigger source -- best
+   * effort recognition of the common shapes so the tree shows something
+   * readable instead of the raw pipe-delimited line. Returns null (caller
+   * falls back to the raw content) when nothing is recognized.
+   * @private
+   */
+  _extractCodeUnitName(content) {
+    if (!content) return null;
+    const parts = content.split('|').map(p => p.trim());
+    const last = parts[parts.length - 1];
+    if (!last) return null;
+
+    const validationMatch = last.match(/^Validation:([^:]+):(.+)$/);
+    if (validationMatch) {
+      return `Validation Rule: ${validationMatch[1]} (${validationMatch[2]})`;
+    }
+
+    const workflowMatch = last.match(/^Workflow:(.+)$/);
+    if (workflowMatch) {
+      return `Workflow: ${workflowMatch[1]}`;
+    }
+
+    const flowMatch = last.match(/^Flow:(.+)$/);
+    if (flowMatch) {
+      return `Flow: ${flowMatch[1]}`;
+    }
+
+    // "ClassName.method(...)" or "ClassName.method" -- truncate at the
+    // first '(' first so a generic type param's own dots (e.g.
+    // "raiseError(List<Foo.Request>)") don't get mistaken for the
+    // class/method separator.
+    const beforeParen = last.split('(')[0];
+    const dotIndex = beforeParen.indexOf('.');
+    if (dotIndex > -1 && /^[A-Za-z_][A-Za-z0-9_]*$/.test(beforeParen.substring(0, dotIndex))) {
+      return `Apex Class: ${beforeParen.substring(0, dotIndex)}`;
+    }
+
+    return null;
   }
 
   /**
@@ -532,7 +747,7 @@ class CallTreeBuilder {
     };
     
       // Add specifics details
-    if (type === 'SOQL_EXECUTE_BEGIN') {
+    if (type === 'SOQL_EXECUTE_BEGIN' || type === 'SOSL_EXECUTE_BEGIN') {
       baseDetails.fullQuery = details.query;
     }
     

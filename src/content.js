@@ -8,7 +8,10 @@
       this.refreshInterval = null;
       this.currentUserId = null;  // Logged-in user
       this.selectedUserId = null; // User selected in the picklist
-      this.currentLogs = [];
+      this.currentLogs = [];       // Logs displayed in the panel (and navigable in the modal)
+      this.fetchedLogs = [];       // Every log returned by Salesforce, cleared ones included
+      this.clearMarks = new Map(); // userId -> { startTime, clearedOn } | null (see _getClearMark)
+      this.showCleared = false;    // Whether logs hidden by Clear are listed (dimmed) below the others
       this.logger = null;
       this.preloadedLogs = false;  // Flag to track if logs have been preloaded
       this.preloadPromise = null;  // Promise to track preloading status
@@ -425,6 +428,8 @@
     _attachEventListeners() {
       document.addEventListener('foxlog:refresh', () => this.refreshLogs());
       document.addEventListener('foxlog:clear', () => this.clearLogs());
+      document.addEventListener('foxlog:toggleCleared', () => this.toggleClearedLogs());
+      document.addEventListener('foxlog:restoreCleared', () => this.restoreClearedLogs());
       document.addEventListener('foxlog:viewLog', (e) => {
         this.viewLogDetails(e.detail.logId);
       });
@@ -432,6 +437,9 @@
       // User selection change
       document.addEventListener('foxlog:userChanged', async (e) => {
         this.selectedUserId = e.detail.userId;
+        this.showCleared = false;
+        // A pending Undo belongs to the previous user's list
+        window.FoxLog.panelManager.resetStatusMessage();
         await this.refreshLogs();
       });
 
@@ -515,7 +523,7 @@
         try {
           // Fetch logs
           const logs = await salesforceAPI.fetchLogs(userId);
-          this.currentLogs = logs;
+          this.fetchedLogs = logs;
           
           this.logger.success(`Preloaded ${logs.length} logs for user ${userId}`);
           
@@ -561,13 +569,17 @@
         if (this.preloadPromise) {
           this.logger.log('Waiting for preload to complete...');
           await this.preloadPromise;
+
+          // The selected user may have changed while waiting for the preload
+          if (userId !== (this.selectedUserId || this.currentUserId)) {
+            return;
+          }
         }
-        
+
         // Use preloaded logs if available and requested
-        if (usePreloaded && this.preloadedLogs && this.currentLogs.length > 0) {
+        if (usePreloaded && this.preloadedLogs && this.fetchedLogs.length > 0) {
           this.logger.log('Using preloaded logs');
-          const analysisResults = panelManager.logAnalysis;
-          panelManager.updateLogList(this.currentLogs, analysisResults, false);
+          await this._renderLogs(userId, panelManager.logAnalysis);
           this.preloadedLogs = false; // Reset flag after use
           return;
         }
@@ -589,7 +601,7 @@
         }
 
         const logs = await salesforceAPI.fetchLogs(userId);
-        
+
         if (!isAutoRefresh && spinnerTimeout) {
           clearTimeout(spinnerTimeout);
 
@@ -602,14 +614,23 @@
           }
         }
 
+        // The selected user may have changed while this fetch was in flight;
+        // these logs are stale, so drop them instead of overwriting the current user's list
+        if (userId !== (this.selectedUserId || this.currentUserId)) {
+          if (!isAutoRefresh) {
+            panelManager.hideLoading();
+          }
+          return;
+        }
+
         // Detect whether logs changed
-        const hasChanged = this._hasLogsChanged(this.currentLogs, logs);
-        this.currentLogs = logs;
+        const hasChanged = this._hasLogsChanged(this.fetchedLogs, logs);
+        this.fetchedLogs = logs;
 
         // Display logs immediately
         // preservePage = true during auto-refresh when logs are unchanged
         const preservePage = isAutoRefresh && !hasChanged;
-        panelManager.updateLogList(logs, null, preservePage);
+        await this._renderLogs(userId, null, preservePage);
         
         this.logger.success(`Loaded ${logs.length} logs for user ${userId}${isAutoRefresh ? ' (auto-refresh)' : ''}`);
 
@@ -617,9 +638,17 @@
         if (hasChanged) {
           this.logger.log('Starting error analysis in background...');
           const analysisResults = await logPreviewService.analyzeBatch(logs);
-          
+
+          // Bail out again if the user changed while the analysis was running
+          if (userId !== (this.selectedUserId || this.currentUserId)) {
+            if (!isAutoRefresh) {
+              panelManager.hideLoading();
+            }
+            return;
+          }
+
           // Update the list with error badges
-          panelManager.updateLogList(logs, analysisResults, preservePage);
+          await this._renderLogs(userId, analysisResults, preservePage);
           this.logger.success('Error analysis complete');
         } else {
           this.logger.log('Logs unchanged, skipping analysis');
@@ -683,6 +712,7 @@
           );
           
           const parsedLog = window.FoxLog.logParser.parse(logBody, logMetadata);
+          this._decorateLogMetadata(parsedLog.metadata, logMetadata);
           modalManager.showParsedLog(parsedLog, window.FoxLog.logParser);
         } else {
           if (modalManager) {
@@ -717,6 +747,7 @@
       
       if (window.FoxLog.logParser && modalManager) {
         const parsedLog = window.FoxLog.logParser.parse(logBody, logMetadata);
+        this._decorateLogMetadata(parsedLog.metadata, logMetadata);
         // Use updateOnly=true to avoid closing/reopening the modal
         modalManager.showParsedLog(parsedLog, window.FoxLog.logParser, true);
       } else if (modalManager) {
@@ -767,17 +798,190 @@
       }
     }
 
-    clearLogs() {
-      const { cache, sessionManager, panelManager, logger, logPreviewService } = window.FoxLog;
-      
-      cache.clear();
-      sessionManager.clearCache();
-      logPreviewService.clearCache();
-      this.currentLogs = [];
-      this.preloadedLogs = false;
-      this.preloadPromise = null;
-      panelManager.updateLogList([]);
-      this.logger.success('Cache cleared');
+    // ============================================
+    // CLEAR: hides logs in the panel only, they stay in Salesforce
+    // ============================================
+
+    /**
+     * Storage key of a user's clear mark, scoped to the org so two orgs never share it
+     * @private
+     */
+    _clearMarkKey(userId) {
+      const org = window.FoxLog.salesforceAPI?.baseUrl || window.location.hostname;
+      return `foxlog.clearedAt.${org}.${userId}`;
+    }
+
+    /**
+     * The user's clear mark: logs started at or before `startTime` are hidden.
+     * `startTime` comes from Salesforce (not the browser clock) so clock skew never hides new logs.
+     * @private
+     * @returns {Promise<{startTime: string, clearedOn: number}|null>}
+     */
+    async _getClearMark(userId) {
+      if (this.clearMarks.has(userId)) return this.clearMarks.get(userId);
+
+      const key = this._clearMarkKey(userId);
+      const mark = await new Promise((resolve) => {
+        chrome.storage.local.get([key], (result) => resolve(result?.[key] || null));
+      });
+      this.clearMarks.set(userId, mark);
+      return mark;
+    }
+
+    /** @private */
+    _setClearMark(userId, mark) {
+      this.clearMarks.set(userId, mark);
+      const key = this._clearMarkKey(userId);
+      if (mark) {
+        chrome.storage.local.set({ [key]: mark });
+      } else {
+        chrome.storage.local.remove(key);
+      }
+    }
+
+    /**
+     * Split fetched logs into the ones shown by default and the ones hidden by the clear mark
+     * @private
+     */
+    _splitLogs(mark) {
+      const markTime = mark ? new Date(mark.startTime).getTime() : -Infinity;
+      const visible = [];
+      const cleared = [];
+      this.fetchedLogs.forEach(log => {
+        (new Date(log.StartTime).getTime() > markTime ? visible : cleared).push(log);
+      });
+      return { visible, cleared };
+    }
+
+    /**
+     * Add what the modal header shows beyond the parsed log: the user the log belongs to
+     * (several users may have debug logs on) and whether Clear hid it
+     * @private
+     */
+    _decorateLogMetadata(metadata, log) {
+      const { panelManager } = window.FoxLog;
+      metadata.userName = log.LogUser?.Name
+        || panelManager.usersCache.find(user => user.id === log.LogUserId)?.name
+        || null;
+      metadata.cleared = this._isClearedLog(log);
+    }
+
+    /**
+     * Whether a listed log is one the selected user's last Clear hid (shown in the modal header)
+     * @private
+     */
+    _isClearedLog(log) {
+      const mark = this.clearMarks.get(this.selectedUserId || this.currentUserId);
+      return !!mark && new Date(log.StartTime).getTime() <= new Date(mark.startTime).getTime();
+    }
+
+    /**
+     * Push the fetched logs to the panel, honouring the clear mark
+     * @private
+     */
+    async _renderLogs(userId, analysisResults = null, preservePage = false) {
+      const { panelManager } = window.FoxLog;
+      const mark = await this._getClearMark(userId);
+      const { visible, cleared } = this._splitLogs(mark);
+
+      // Cleared logs sort after the visible ones (the query orders by StartTime DESC)
+      this.currentLogs = this.showCleared ? visible.concat(cleared) : visible;
+      panelManager.updateLogList(this.currentLogs, analysisResults, preservePage, {
+        visibleCount: visible.length,
+        clearedCount: cleared.length,
+        clearedOn: mark?.clearedOn || null,
+        showCleared: this.showCleared
+      });
+    }
+
+    async clearLogs() {
+      const { panelManager, i18n } = window.FoxLog;
+      const userId = this.selectedUserId || this.currentUserId;
+      if (!userId) return;
+
+      const previousMark = await this._getClearMark(userId);
+      const { visible } = this._splitLogs(previousMark);
+      this.showCleared = false;
+
+      if (visible.length === 0) {
+        await this._renderLogs(userId);
+        return;
+      }
+
+      const newest = Math.max(...visible.map(log => new Date(log.StartTime).getTime()));
+      const mark = { startTime: new Date(newest).toISOString(), clearedOn: Date.now() };
+      this._setClearMark(userId, mark);
+      await this._renderLogs(userId);
+
+      const count = visible.length;
+      const message = count === 1
+        ? (i18n.clearedOneLog || '1 log hidden · still in Salesforce')
+        : (i18n.clearedLogs || '{count} logs hidden · still in Salesforce').replace('{count}', count);
+      panelManager.showStatusMessage(message, 'success', {
+        label: i18n.undo || 'Undo',
+        onClick: () => this._undoClear(userId, mark, previousMark)
+      });
+      this.logger.success(`Cleared ${count} logs from the panel (kept in Salesforce)`);
+    }
+
+    /**
+     * Undo the clear that set `mark`, unless another clear or a restore happened since
+     * @private
+     */
+    async _undoClear(userId, mark, previousMark) {
+      if (this.clearMarks.get(userId) !== mark) return;
+      this._setClearMark(userId, previousMark);
+      await this._renderLogsIfSelected(userId);
+    }
+
+    /**
+     * Re-render only if `userId` is still the one listed: `fetchedLogs` belongs to the selected user
+     * @private
+     */
+    async _renderLogsIfSelected(userId) {
+      if (userId !== (this.selectedUserId || this.currentUserId)) return;
+      await this._renderLogs(userId);
+    }
+
+    /** Show or hide the logs hidden by the last clear (dimmed, below the others) */
+    async toggleClearedLogs() {
+      const { panelManager } = window.FoxLog;
+      const userId = this.selectedUserId || this.currentUserId;
+      if (!userId) return;
+      this.showCleared = !this.showCleared;
+      await this._renderLogs(userId);
+
+      // Cleared logs come last: jump to the page where they start instead of page 1
+      if (this.showCleared) {
+        const { visibleCount } = panelManager.clearState;
+        panelManager.goToPage(Math.floor(visibleCount / panelManager.logsPerPage) + 1);
+      }
+    }
+
+    /** Forget the clear mark: every log goes back to the normal list */
+    async restoreClearedLogs() {
+      const { panelManager, i18n } = window.FoxLog;
+      const userId = this.selectedUserId || this.currentUserId;
+      if (!userId) return;
+
+      const mark = await this._getClearMark(userId);
+      this.showCleared = false;
+      this._setClearMark(userId, null);
+      await this._renderLogs(userId);
+      panelManager.showStatusMessage(i18n.clearedLogsRestored || 'Hidden logs restored', 'success', {
+        label: i18n.undo || 'Undo',
+        onClick: () => this._undoRestore(userId, mark)
+      });
+    }
+
+    /**
+     * Undo a restore, unless a clear happened since
+     * @private
+     */
+    async _undoRestore(userId, mark) {
+      if (this.clearMarks.get(userId) !== null) return;
+      this._setClearMark(userId, mark);
+      await this._renderLogsIfSelected(userId);
     }
 
     _startAutoRefresh() {
@@ -806,6 +1010,7 @@
       }
       cache.clear();
       this.currentLogs = [];
+      this.fetchedLogs = [];
       this.initialized = false;
       
       this.logger.log('FoxLog destroyed');

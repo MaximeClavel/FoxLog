@@ -11,7 +11,7 @@
       this.panel = null;
       this.isOpen = false;
       this.currentPage = 1;
-      this.logsPerPage = 5;
+      this.logsPerPage = 4;
       this.allLogs = [];
       this.logAnalysis = new Map();
       this.usersCache = [];
@@ -254,10 +254,21 @@
       this.hideLoading();
     }
 
-    _showStatusMessage(message, type = 'info') {
+    /**
+     * Show a transient message in the status line
+     * @param {string} message
+     * @param {'success'|'error'|'warning'|'info'} type
+     * @param {{label: string, onClick: Function}} [action] - Optional inline button (e.g. Undo)
+     */
+    showStatusMessage(message, type = 'info', action = null) {
+      this._showStatusMessage(message, type, action);
+    }
+
+    _showStatusMessage(message, type = 'info', action = null) {
       const statusIndicator = this.panel.querySelector('#sf-status-indicator');
       const statusText = this.panel.querySelector('#sf-status-text');
-      
+      const statusAction = this.panel.querySelector('#sf-status-action');
+
       if (!statusIndicator || !statusText) return;
 
       if (this.statusMessageTimeout) {
@@ -283,11 +294,31 @@
 
       statusText.textContent = message;
 
-      // Auto-clear after 5 seconds
-      this.statusMessageTimeout = setTimeout(() => {
-        statusIndicator.className = 'sf-status-disconnected';
-        statusText.textContent = i18n.ready || 'Ready';
-      }, 5000);
+      if (statusAction) {
+        statusAction.hidden = !action;
+        statusAction.textContent = action?.label || '';
+        statusAction.onclick = action
+          ? () => { this.resetStatusMessage(); action.onClick(); }
+          : null;
+      }
+
+      // Auto-clear after 5 seconds (longer when the message offers an action)
+      this.statusMessageTimeout = setTimeout(() => this.resetStatusMessage(), action ? 8000 : 5000);
+    }
+
+    /** Put the status line back to "Ready", dropping any pending action (e.g. Undo) */
+    resetStatusMessage() {
+      clearTimeout(this.statusMessageTimeout);
+      const statusIndicator = this.panel.querySelector('#sf-status-indicator');
+      const statusText = this.panel.querySelector('#sf-status-text');
+      const statusAction = this.panel.querySelector('#sf-status-action');
+
+      if (statusIndicator) statusIndicator.className = 'sf-status-disconnected';
+      if (statusText) statusText.textContent = i18n.ready || 'Ready';
+      if (statusAction) {
+        statusAction.hidden = true;
+        statusAction.onclick = null;
+      }
     }
 
     getSelectedUserId() {
@@ -295,11 +326,19 @@
       return userSelect?.value || this.selectedUserId;
     }
 
-    async updateLogList(logs, analysisResults = null, preservePage = false) {
+    /**
+     * @param {Array} logs - Logs to list (cleared ones last, when shown)
+     * @param {Map|null} analysisResults
+     * @param {boolean} preservePage
+     * @param {{visibleCount: number, clearedCount: number, clearedOn: number|null, showCleared: boolean}} [clearState]
+     *   How many of `logs` are regular logs, and how many logs the last Clear hid
+     */
+    async updateLogList(logs, analysisResults = null, preservePage = false, clearState = null) {
       const previousLogsCount = this.allLogs.length;
       const previousPage = this.currentPage;
-      
+
       this.allLogs = logs;
+      this.clearState = clearState || { visibleCount: logs.length, clearedCount: 0, clearedOn: null, showCleared: false };
       
       if (!preservePage) {
         const hasNewLogs = logs.length !== previousLogsCount;
@@ -327,6 +366,7 @@
       } else {
         this._renderPaginatedLogs();
       }
+      this._renderClearedBar();
       this.updateLastRefreshTime();
     }
 
@@ -335,9 +375,65 @@
       const start = (this.currentPage - 1) * this.logsPerPage;
       const end = start + this.logsPerPage;
       const logsToDisplay = this.allLogs.slice(start, end);
+      const visibleCount = this.clearState?.visibleCount ?? this.allLogs.length;
 
-      container.innerHTML = logsToDisplay.map(log => this._createLogItem(log)).join('');
+      container.innerHTML = logsToDisplay.map((log, i) => {
+        const isCleared = start + i >= visibleCount;
+        // Label the cleared block where it starts, and again at the top of later pages
+        const separator = isCleared && (start + i === visibleCount || i === 0)
+          ? this._createClearedSeparator()
+          : '';
+        return separator + this._createLogItem(log, isCleared);
+      }).join('');
       this._renderPagination();
+    }
+
+    _createClearedSeparator() {
+      const clearedOn = this.clearState?.clearedOn;
+      const date = clearedOn
+        ? new Date(clearedOn).toLocaleString(this.locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+        : '';
+      const label = (i18n.clearedSeparator || 'Cleared {date}').replace('{date}', date);
+      return `<div class="sf-cleared-separator" role="separator" title="${i18n.clearedBarHint || 'Hidden in FoxLog only: they are still in Salesforce'}"><span>${label}</span></div>`;
+    }
+
+    /**
+     * Bar under the list: how many logs the last Clear hid, with Show/Hide and Restore
+     * @private
+     */
+    _renderClearedBar() {
+      const bar = this.panel.querySelector('#sf-cleared-bar');
+      if (!bar) return;
+
+      const { clearedCount = 0, showCleared = false } = this.clearState || {};
+      bar.hidden = clearedCount === 0;
+      if (clearedCount === 0) {
+        bar.innerHTML = '';
+        return;
+      }
+
+      const countLabel = clearedCount === 1
+        ? (i18n.clearedCountOne || '1 cleared log')
+        : (i18n.clearedCount || '{count} cleared logs').replace('{count}', clearedCount);
+      const hint = i18n.clearedBarHint || 'Hidden in FoxLog only: they are still in Salesforce';
+      const toggleLabel = showCleared ? (i18n.hideClearedLogs || 'Hide') : (i18n.showClearedLogs || 'Show');
+      const restoreLabel = i18n.restoreClearedLogs || 'Restore';
+
+      bar.innerHTML = `
+        <span class="sf-cleared-bar-label" title="${hint}">
+          ${window.FoxLog.icon('eye-off', { size: 13 })}
+          <span>${countLabel}</span>
+          <span class="sf-sr-only">(${hint})</span>
+        </span>
+        <span class="sf-cleared-bar-actions">
+          <button type="button" class="sf-cleared-bar-btn" data-cleared-action="toggle" aria-pressed="${showCleared}">
+            ${window.FoxLog.icon(showCleared ? 'eye-off' : 'eye', { size: 13 })} ${toggleLabel}
+          </button>
+          <button type="button" class="sf-cleared-bar-btn" data-cleared-action="restore" title="${i18n.restoreClearedTooltip || 'Put the cleared logs back in the list'}">
+            ${window.FoxLog.icon('rotate-ccw', { size: 13 })} ${restoreLabel}
+          </button>
+        </span>
+      `;
     }
 
     _renderPagination() {
@@ -454,7 +550,7 @@
           </div>
           <div class="sf-panel-controls">
             <button type="button" id="sf-refresh-btn" title="${i18n.refresh || 'Refresh'}" aria-label="${i18n.refresh || 'Refresh'}">${window.FoxLog.icon('refresh-cw', { size: 16 })}</button>
-            <button type="button" id="sf-clear-logs-btn" title="${i18n.clear || 'Clear'}" aria-label="${i18n.clear || 'Clear'}">${window.FoxLog.icon('trash', { size: 16 })}</button>
+            <button type="button" id="sf-clear-logs-btn" title="${i18n.clearTooltip || 'Clear the list (logs stay in Salesforce)'}" aria-label="${i18n.clearTooltip || 'Clear the list (logs stay in Salesforce)'}">${window.FoxLog.icon('eye-off', { size: 16 })}</button>
             <button type="button" id="sf-close-panel" title="${i18n.close || 'Close'}" aria-label="${i18n.close || 'Close'}">${window.FoxLog.icon('x', { size: 16 })}</button>
           </div>
         </div>
@@ -468,6 +564,7 @@
           <div class="sf-panel-status" role="status" aria-live="polite">
             <span id="sf-status-indicator" class="sf-status-disconnected" aria-hidden="true">●</span>
             <span id="sf-status-text">${i18n.ready || 'Ready'}</span>
+            <button type="button" id="sf-status-action" class="sf-status-action" hidden></button>
           </div>
           <div class="sf-panel-filters">
             <select id="sf-user-select" class="sf-user-picklist" aria-label="${i18n.selectUser || 'Select a user'}" title="${i18n.userPicklistLegend || '● = TraceFlag or logs available | ○ = No activity'}">
@@ -493,6 +590,7 @@
               <p class="sf-hint">${i18n.selectUser || 'Select a user'}</p>
             </div>
           </div>
+          <div class="sf-cleared-bar" id="sf-cleared-bar" hidden></div>
         </div>
 
         <div id="sf-tab-import" class="sf-panel-tab-content" role="tabpanel" aria-labelledby="sf-tabbtn-import">
@@ -545,6 +643,15 @@
       
       this.panel.querySelector('#sf-clear-logs-btn')?.addEventListener('click', () => {
         document.dispatchEvent(new CustomEvent('foxlog:clear'));
+      });
+
+      this.panel.querySelector('#sf-cleared-bar')?.addEventListener('click', (e) => {
+        const action = e.target.closest('[data-cleared-action]')?.dataset.clearedAction;
+        if (action === 'toggle') {
+          document.dispatchEvent(new CustomEvent('foxlog:toggleCleared'));
+        } else if (action === 'restore') {
+          document.dispatchEvent(new CustomEvent('foxlog:restoreCleared'));
+        }
       });
       
       this.panel.querySelector('#sf-close-panel')?.addEventListener('click', () => {
@@ -693,7 +800,24 @@
       const container = this.panel.querySelector('#sf-logs-list');
       const selectedUser = this.usersCache.find(u => u.id === this.selectedUserId);
       const userName = selectedUser?.name || (i18n.thisUser || 'this user');
-      
+
+      const paginationContainer = this.panel.querySelector('.sf-pagination');
+      if (paginationContainer) {
+        paginationContainer.style.display = 'none';
+      }
+
+      // Everything was cleared: say so, since "No logs" alone reads as if they were deleted
+      if (this.clearState?.clearedCount > 0) {
+        container.innerHTML = `
+          <div class="sf-empty-state">
+            <div class="sf-empty-icon">${window.FoxLog.icon('eye-off', { size: 22 })}</div>
+            <p class="sf-empty-title">${i18n.noNewLogs || 'No new logs'}</p>
+            <p class="sf-hint">${i18n.clearedEmptyHint || 'Cleared logs are only hidden here, they stay in Salesforce.'}</p>
+          </div>
+        `;
+        return;
+      }
+
       let hint = i18n.clickRefresh || 'Click Refresh';
       
       if (selectedUser?.hasTraceFlag && selectedUser?.logCount === 0) {
@@ -708,11 +832,6 @@
           <p class="sf-hint">${hint}</p>
         </div>
       `;
-
-      const paginationContainer = this.panel.querySelector('.sf-pagination');
-      if (paginationContainer) {
-        paginationContainer.style.display = 'none';
-      }
     }
 
     _getStatusTone(status) {
@@ -724,7 +843,7 @@
       return status.split(':')[0].trim() || status;
     }
 
-    _createLogItem(log) {
+    _createLogItem(log, isCleared = false) {
       const escapeHtml = window.FoxLog.escapeHtml || ((value) => value);
       const time = this._formatTime(log.StartTime);
       const status = log.Status || 'INFO';
@@ -741,7 +860,7 @@
       const operation = escapeHtml(log.Operation || 'Unknown');
 
       return `
-        <div class="sf-log-entry sf-log-item sf-log-tone-${tone} ${hasError ? 'sf-log-has-error' : ''}" data-log-id="${escapeHtml(log.Id)}" role="button" tabindex="0">
+        <div class="sf-log-entry sf-log-item sf-log-tone-${tone} ${hasError ? 'sf-log-has-error' : ''} ${isCleared ? 'sf-log-cleared' : ''}" data-log-id="${escapeHtml(log.Id)}" role="button" tabindex="0">
           <div class="sf-log-header">
             <span class="sf-log-operation" title="${operation}">${operation}</span>
             <span class="sf-log-time">${time}</span>

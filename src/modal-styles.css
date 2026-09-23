@@ -114,6 +114,10 @@
 .sf-tone-chip--success { background: var(--fl-success-tint); color: var(--fl-success-fg); }
 .sf-tone-chip--danger { background: var(--fl-danger-tint); color: var(--fl-danger-fg); }
 .sf-tone-chip--neutral { background: var(--fl-hover); color: var(--fl-text-2); }
+.sf-tone-chip--user { gap: 4px; flex: 0 1 auto; min-width: 0; max-width: 220px; background: var(--fl-hover); color: var(--fl-text-2); }
+.sf-tone-chip--user svg { flex: none; }
+.sf-tone-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sf-tone-chip--hidden { gap: 4px; flex: none; background: var(--fl-hover); color: var(--fl-text-3); cursor: help; }
 
 .sf-nav-placeholder { display: none; }
 
@@ -3450,6 +3454,48 @@
 
 .sf-graph-stat--error .sf-graph-stat-value {
   color: var(--fl-red-fg);
+}
+
+/* Error prev/next navigation, inline in the Errors stat */
+.sf-graph-error-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sf-graph-error-nav-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--fl-border-2);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.sf-graph-error-nav-btn svg {
+  width: 12px;
+  height: 12px;
+  color: var(--fl-red-fg);
+}
+
+.sf-graph-error-nav-btn:hover:not(:disabled) {
+  background: var(--fl-hover);
+  border-color: var(--fl-red-fg);
+}
+
+.sf-graph-error-nav-btn:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.sf-graph-error-nav-count {
+  min-width: 34px;
+  text-align: center;
 }
 
 /* Body: 3-column layout */

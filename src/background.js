@@ -87,9 +87,11 @@ class CookieService {
       
       logger.log(`Checking direct cookie on: ${myDomain}`);
       
-      const cookie = await chrome.cookies.get({
-        url: `https://${myDomain}`,
-        name: 'sid'
+      const cookie = await new Promise((resolve) => {
+        chrome.cookies.get({
+          url: `https://${myDomain}`,
+          name: 'sid'
+        }, resolve);
       });
 
       if (cookie && cookie.value) {
@@ -111,7 +113,9 @@ class CookieService {
     
     try {
       // Get ALL cookies
-      const allCookies = await chrome.cookies.getAll({});
+      const allCookies = await new Promise((resolve) => {
+        chrome.cookies.getAll({}, resolve);
+      });
       
       // Filter Salesforce 'sid' cookies
       const sidCookies = allCookies.filter(c =>

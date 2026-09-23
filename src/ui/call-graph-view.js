@@ -10,6 +10,15 @@
   const logger = window.FoxLog.logger || console;
   const escapeHtml = window.FoxLog.escapeHtml || (s => s || '');
 
+  // Shared with log-parser.js and the other src/ui/*-view.js files -- see
+  // the comments on these in src/core/constants.js for what's confirmed
+  // vs. best-effort, and why FLOW_ACTIONCALL_DETAIL lives in
+  // FLOW_DETAIL_TYPES rather than STRUCTURED_ERROR_TYPES (classify()
+  // below special-cases it using node.hasError instead).
+  const STRUCTURED_ERROR_TYPES = window.FoxLog.STRUCTURED_ERROR_TYPES;
+  const FLOW_DETAIL_TYPES = window.FoxLog.FLOW_DETAIL_TYPES;
+  const VALIDATION_DETAIL_TYPES = window.FoxLog.VALIDATION_DETAIL_TYPES;
+
   // Node type -> visual category, grouped for filtering
   const CATEGORY_META = {
     root:       { icon: 'package',        group: 'automation', label: 'Transaction' },
@@ -21,6 +30,7 @@
     method:     { icon: 'code',           group: 'apex',        label: 'Method' },
     soql:       { icon: 'search',         group: 'database',    label: 'SOQL' },
     dml:        { icon: 'database',       group: 'database',    label: 'DML' },
+    callout:    { icon: 'cloud',          group: 'database',    label: 'Callout' },
     error:      { icon: 'alert-triangle', group: 'errors',      label: 'Error' },
     debug:      { icon: 'bug',            group: 'debug',       label: 'Debug' },
     variable:   { icon: 'file-text',      group: 'variables',   label: 'Variable' },
@@ -30,12 +40,23 @@
   function classify(node) {
     const type = node.type;
     if (type === 'ROOT') return 'root';
-    if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR') return 'error';
-    if (type === 'SOQL_EXECUTE_BEGIN') return 'soql';
+    // FLOW_ACTIONCALL_DETAIL fires on every action call, success or
+    // failure -- node.hasError (set by call-tree-worker.js's _markError,
+    // only for the details.success === false case) is what distinguishes
+    // a real error here from an informational "action succeeded" leaf.
+    if (type === 'EXCEPTION_THROWN' || type === 'FATAL_ERROR' || STRUCTURED_ERROR_TYPES.includes(type) || (type === 'FLOW_ACTIONCALL_DETAIL' && node.hasError)) return 'error';
+    if (type === 'SOQL_EXECUTE_BEGIN' || type === 'SOSL_EXECUTE_BEGIN') return 'soql';
     if (type === 'DML_BEGIN') return 'dml';
+    if (type === 'CALLOUT_REQUEST') return 'callout';
     if (type === 'METHOD_ENTRY' || type === 'CONSTRUCTOR_ENTRY') return 'method';
     if (type === 'USER_DEBUG') return 'debug';
-    if (type === 'VARIABLE_ASSIGNMENT') return 'variable';
+    // FLOW_VALUE_ASSIGNMENT is the flow-native equivalent of
+    // VARIABLE_ASSIGNMENT (every variable write, not just the ones
+    // relevant to an error) -- same category/filter group, hidden by
+    // default along with it.
+    if (type === 'VARIABLE_ASSIGNMENT' || type === 'FLOW_VALUE_ASSIGNMENT') return 'variable';
+    if (type === 'FLOW_ELEMENT_BEGIN' || FLOW_DETAIL_TYPES.includes(type)) return 'flow';
+    if (VALIDATION_DETAIL_TYPES.includes(type)) return 'validation';
     if (type === 'CODE_UNIT_STARTED') {
       const name = node.name || '';
       if (/trigger event/i.test(name)) return 'trigger';
@@ -75,6 +96,8 @@
       this.allNodesFlat = [];
       this.nodeById = new Map();
       this.parentById = new Map();
+      this.errorNodesList = [];
+      this.currentErrorIndex = -1;
 
       this.searchDebounce = null;
       this.listenersAttached = false;
@@ -103,6 +126,10 @@
         node.children.forEach(child => walk(child, node));
       };
       walk(this.callTree.root, null);
+      // DFS order roughly matches chronological/log order (children are
+      // added as their events occur), good enough for stepping through
+      // errors in sequence with the nav buttons.
+      this.errorNodesList = this.allNodesFlat.filter(node => classify(node) === 'error');
     }
 
     /**
@@ -152,7 +179,13 @@
             </div>
             <div class="sf-graph-stat ${meta.errorCount ? 'sf-graph-stat--error' : ''}">
               <span class="sf-graph-stat-label">${i18n.errors || 'Errors'}</span>
-              <span class="sf-graph-stat-value">${meta.errorCount || 0}</span>
+              ${this.errorNodesList.length > 0 ? `
+                <span class="sf-graph-error-nav">
+                  <button class="sf-graph-error-nav-btn" data-action="error-prev" title="${i18n.previousError || 'Previous error'}" ${this.errorNodesList.length < 2 ? 'disabled' : ''}>${window.FoxLog.icon('chevron-left', { size: 14 })}</button>
+                  <span class="sf-graph-stat-value sf-graph-error-nav-count">${this.currentErrorIndex >= 0 ? this.currentErrorIndex + 1 : 0}/${this.errorNodesList.length}</span>
+                  <button class="sf-graph-error-nav-btn" data-action="error-next" title="${i18n.nextError || 'Next error'}" ${this.errorNodesList.length < 2 ? 'disabled' : ''}>${window.FoxLog.icon('chevron-right', { size: 14 })}</button>
+                </span>
+              ` : `<span class="sf-graph-stat-value">${meta.errorCount || 0}</span>`}
             </div>
           </div>
 
@@ -496,6 +529,14 @@
             <div>${escapeHtml(parts.join(' '))}</div>
           </div>
         `;
+      } else if (cat === 'callout') {
+        const parts = [details.endpoint, details.status ? `(HTTP ${details.status})` : ''].filter(Boolean);
+        extra = `
+          <div class="sf-graph-detail-block">
+            <div class="sf-graph-detail-label">Callout</div>
+            <div>${escapeHtml(parts.join(' ') || details.raw || '')}</div>
+          </div>
+        `;
       } else if (cat === 'error') {
         extra = `
           <div class="sf-graph-detail-block sf-graph-detail-block--error">
@@ -518,6 +559,10 @@
             <pre class="sf-graph-detail-code">${escapeHtml(details.value)}</pre>
           </div>
         `;
+      } else if (cat === 'flow') {
+        extra = this._renderFlowDetail(node.type, details);
+      } else if (cat === 'validation') {
+        extra = this._renderValidationDetail(node.type, details);
       }
 
       const gotoBtn = Number.isInteger(node.logLineIndex) ? `
@@ -543,6 +588,79 @@
         </div>
         ${extra}
         ${gotoBtn}
+      `;
+    }
+
+    _renderFlowDetail(type, details) {
+      let label = 'Flow';
+      let body = '';
+
+      switch (type) {
+        case 'FLOW_ELEMENT_BEGIN':
+        case 'FLOW_ELEMENT_END':
+          label = details.elementType || 'Element';
+          body = details.elementName || '';
+          break;
+        case 'FLOW_ASSIGNMENT_DETAIL':
+          label = 'Assignment';
+          body = details.variable ? `${details.variable} ${details.operator || ''} ${details.value || ''}`.trim() : '';
+          break;
+        case 'FLOW_LOOP_DETAIL':
+          label = 'Loop iteration';
+          body = details.iteration !== undefined ? `#${details.iteration}: ${details.value || ''}` : '';
+          break;
+        case 'FLOW_RULE_DETAIL':
+          label = 'Rule';
+          body = details.ruleName ? `${details.ruleName} → ${(details.results || []).join(', ')}` : '';
+          break;
+        case 'FLOW_SUBFLOW_DETAIL':
+          label = 'Subflow';
+          body = details.subflowLabel || '';
+          break;
+        case 'FLOW_BULK_ELEMENT_DETAIL':
+          label = 'Bulk DML';
+          body = details.elementName ? `${details.elementName}: ${details.count} record${details.count === 1 ? '' : 's'}` : '';
+          break;
+        case 'FLOW_ACTIONCALL_DETAIL':
+          label = details.actionType || 'Action';
+          body = details.implementationName
+            ? `${details.implementationName} — ${details.success ? 'succeeded' : 'failed'}`
+            : '';
+          break;
+        default:
+          body = details.raw || '';
+      }
+
+      if (!body) return '';
+      return `
+        <div class="sf-graph-detail-block">
+          <div class="sf-graph-detail-label">${escapeHtml(label)}</div>
+          <div>${escapeHtml(body)}</div>
+        </div>
+      `;
+    }
+
+    _renderValidationDetail(type, details) {
+      let label = 'Validation';
+      let body = '';
+
+      if (type === 'VALIDATION_RULE') {
+        label = 'Rule';
+        body = details.ruleName || '';
+      } else if (type === 'VALIDATION_FORMULA') {
+        label = 'Formula';
+        body = details.formula || '';
+      } else if (type === 'VALIDATION_PASS') {
+        label = 'Result';
+        body = 'Passed';
+      }
+
+      if (!body) return '';
+      return `
+        <div class="sf-graph-detail-block">
+          <div class="sf-graph-detail-label">${escapeHtml(label)}</div>
+          <div>${escapeHtml(body)}</div>
+        </div>
       `;
     }
 
@@ -953,7 +1071,31 @@
           }
           break;
         }
+        case 'error-prev':
+          this._gotoError(-1);
+          break;
+        case 'error-next':
+          this._gotoError(1);
+          break;
       }
+    }
+
+    /**
+     * Step to the previous/next error node (wraps around) and select it.
+     * @private
+     * @param {number} direction -1 for previous, 1 for next
+     */
+    _gotoError(direction) {
+      const count = this.errorNodesList.length;
+      if (count === 0) return;
+
+      this.currentErrorIndex = (this.currentErrorIndex + direction + count) % count;
+      const node = this.errorNodesList[this.currentErrorIndex];
+
+      const countEl = this.container.querySelector('.sf-graph-error-nav-count');
+      if (countEl) countEl.textContent = `${this.currentErrorIndex + 1}/${count}`;
+
+      this._selectAndReveal(node.id);
     }
 
     /**

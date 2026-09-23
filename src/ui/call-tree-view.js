@@ -8,6 +8,15 @@
   const i18n = window.FoxLog.i18n || {};
   const { logger, callTreeBuilder } = window.FoxLog;
 
+  // Shared with log-parser.js and the other src/ui/*-view.js files -- see
+  // the comments on these in src/core/constants.js for what's confirmed
+  // vs. best-effort, and why FLOW_ACTIONCALL_DETAIL lives in
+  // FLOW_DETAIL_TYPES rather than STRUCTURED_ERROR_TYPES (_getNodeCategory
+  // below special-cases it using node.hasError instead).
+  const STRUCTURED_ERROR_TYPES = window.FoxLog.STRUCTURED_ERROR_TYPES;
+  const FLOW_DETAIL_TYPES = window.FoxLog.FLOW_DETAIL_TYPES;
+  const VALIDATION_DETAIL_TYPES = window.FoxLog.VALIDATION_DETAIL_TYPES;
+
   class CallTreeView {
     constructor(container, callTree, parsedLog) {
       this.container = container;
@@ -686,12 +695,14 @@
     }
 
     /**
-     * Get the category for a node type
+     * Get the filter category for a node
      * @private
-     * @param {string} type - The node type
+     * @param {Object} node - The node (needs .type, and .hasError for the
+     *   FLOW_ACTIONCALL_DETAIL special case below)
      * @returns {string} The category name
      */
-    _getNodeCategory(type) {
+    _getNodeCategory(node) {
+      const type = node.type;
       const categoryMap = {
         // Methods
         'METHOD_ENTRY': 'methods',
@@ -702,19 +713,24 @@
         // Database
         'SOQL_EXECUTE_BEGIN': 'database',
         'SOQL_EXECUTE_END': 'database',
+        'SOSL_EXECUTE_BEGIN': 'database',
+        'SOSL_EXECUTE_END': 'database',
         'DML_BEGIN': 'database',
         'DML_END': 'database',
-        
+        'CALLOUT_REQUEST': 'database',
+        'CALLOUT_RESPONSE': 'database',
+
         // Debug
         'USER_DEBUG': 'debug',
-        
+
         // Errors
         'EXCEPTION_THROWN': 'errors',
         'FATAL_ERROR': 'errors',
-        
+
         // Variables
         'VARIABLE_ASSIGNMENT': 'variables',
-        
+        'FLOW_VALUE_ASSIGNMENT': 'variables',
+
         // System
         'CODE_UNIT_STARTED': 'system',
         'CODE_UNIT_FINISHED': 'system',
@@ -722,9 +738,22 @@
         'EXECUTION_FINISHED': 'system',
         'FLOW_START_INTERVIEWS_BEGIN': 'system',
         'FLOW_START_INTERVIEWS_END': 'system',
+        'FLOW_ELEMENT_BEGIN': 'system',
+        'FLOW_ELEMENT_END': 'system',
         'ROOT': 'system'
       };
-      
+      STRUCTURED_ERROR_TYPES.forEach(errorType => { categoryMap[errorType] = 'errors'; });
+      // FLOW_VALUE_ASSIGNMENT is set above ('variables', same as its non-flow
+      // equivalent VARIABLE_ASSIGNMENT) -- don't let this loop overwrite it.
+      FLOW_DETAIL_TYPES.forEach(detailType => { if (!categoryMap[detailType]) categoryMap[detailType] = 'system'; });
+      VALIDATION_DETAIL_TYPES.forEach(detailType => { categoryMap[detailType] = 'system'; });
+
+      // FLOW_ACTIONCALL_DETAIL fires on every action call, success or
+      // failure -- node.hasError (set by call-tree-worker.js's _markError,
+      // only for the details.success === false case) distinguishes a real
+      // error here from an informational "action succeeded" leaf.
+      if (type === 'FLOW_ACTIONCALL_DETAIL' && node.hasError) return 'errors';
+
       return categoryMap[type] || 'system';
     }
 
@@ -756,7 +785,7 @@
         if (node.depth === 0) return true;
         
         // Check if the node's category is enabled
-        const category = this._getNodeCategory(node.type);
+        const category = this._getNodeCategory(node);
         if (!this.typeFilters[category]) return false;
         
         // Legacy filters (kept for compatibility)
@@ -827,11 +856,19 @@
         'ROOT': 'package',
         'METHOD_ENTRY': 'code',
         'SOQL_EXECUTE_BEGIN': 'database',
+        'SOSL_EXECUTE_BEGIN': 'search',
         'DML_BEGIN': 'database',
+        'CALLOUT_REQUEST': 'cloud',
         'EXCEPTION_THROWN': 'alert-triangle',
+        'FATAL_ERROR': 'alert-triangle',
         'USER_DEBUG': 'bug',
-        'CODE_UNIT_STARTED': 'package'
+        'CODE_UNIT_STARTED': 'package',
+        'FLOW_ELEMENT_BEGIN': 'shuffle',
+        'FLOW_VALUE_ASSIGNMENT': 'file-text'
       };
+      STRUCTURED_ERROR_TYPES.forEach(errorType => { iconNames[errorType] = 'alert-triangle'; });
+      FLOW_DETAIL_TYPES.forEach(detailType => { if (!iconNames[detailType]) iconNames[detailType] = 'shuffle'; });
+      VALIDATION_DETAIL_TYPES.forEach(detailType => { iconNames[detailType] = 'shield-check'; });
       return window.FoxLog.icon(iconNames[type] || 'info', { size: 16 });
     }
 

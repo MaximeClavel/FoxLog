@@ -319,7 +319,7 @@
       this._validateId(userId, 'userId');
       const safeLimit = Math.max(1, Math.min(Math.floor(Number(limit)) || 100, 200));
       const query = `
-        SELECT Id, LogUserId, LogLength, Operation, Request, Status, 
+        SELECT Id, LogUserId, LogUser.Name, LogLength, Operation, Request, Status,
                DurationMilliseconds, StartTime, Location 
         FROM ApexLog 
         WHERE LogUserId='${userId}' 
@@ -381,13 +381,21 @@
      */
     async getActiveTraceFlag(userId) {
       this._validateId(userId, 'userId');
+      // SOQL's TODAY literal means "any time today" (00:00:00-23:59:59),
+      // not "right now" -- a TraceFlag that expired at 11am was still
+      // matched by ExpirationDate >= TODAY until midnight, so re-enabling
+      // logs later the same day would find this "active" stale record,
+      // delete it (toggleDebugLogs treats any match as already-on), and
+      // report logs as disabled instead of creating a new TraceFlag.
+      // Comparing against an actual current datetime fixes that.
+      const nowIso = new Date().toISOString();
       const query = `
-        SELECT Id, TracedEntityId, DebugLevelId, DebugLevel.DeveloperName, 
+        SELECT Id, TracedEntityId, DebugLevelId, DebugLevel.DeveloperName,
                ExpirationDate, LogType, StartDate
         FROM TraceFlag
         WHERE TracedEntityId = '${userId}'
         AND LogType = 'USER_DEBUG'
-        AND ExpirationDate >= TODAY
+        AND ExpirationDate >= ${nowIso}
         ORDER BY ExpirationDate DESC
         LIMIT 1
       `;
@@ -409,7 +417,7 @@
         throw new Error(`Invalid DebugLevel name: ${developerName}`);
       }
       const query = `
-        SELECT Id, DeveloperName
+        SELECT Id, DeveloperName, ApexCode, ApexProfiling, Callout, Database, System, Validation, Visualforce, Workflow
         FROM DebugLevel
         WHERE DeveloperName = '${developerName}'
         LIMIT 1
@@ -434,6 +442,21 @@
         return { id: data.id, success: true };
       } catch (error) {
         this.logger.error('Error creating DebugLevel', error);
+        throw error;
+      }
+    }
+
+    /**
+     * Update an existing DebugLevel's category levels
+     */
+    async updateDebugLevel(id, config) {
+      this._validateId(id, 'debugLevelId');
+      try {
+        await this._toolingRequest('PATCH', `sobjects/DebugLevel/${id}`, config);
+        this.logger.success('DebugLevel updated:', id);
+        return { id, success: true };
+      } catch (error) {
+        this.logger.error('Error updating DebugLevel', error);
         throw error;
       }
     }

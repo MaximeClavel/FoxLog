@@ -1,0 +1,455 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>61.0</apiVersion>
+    <interviewLabel>FoxLog Error Demo {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>FoxLog Error Demo</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>Flow</processType>
+    <status>Active</status>
+
+    <start>
+        <locationX>50</locationX>
+        <locationY>50</locationY>
+        <connector>
+            <targetReference>Choose_Scenario</targetReference>
+        </connector>
+    </start>
+
+    <screens>
+        <name>Choose_Scenario</name>
+        <label>Choose Scenario</label>
+        <locationX>176</locationX>
+        <locationY>158</locationY>
+        <allowBack>true</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <connector>
+            <targetReference>Check_Error_Origin</targetReference>
+        </connector>
+        <fields>
+            <name>ErrorType</name>
+            <choiceReferences>Choice_CustomException</choiceReferences>
+            <choiceReferences>Choice_NullPointer</choiceReferences>
+            <choiceReferences>Choice_DmlException</choiceReferences>
+            <choiceReferences>Choice_ListIndex</choiceReferences>
+            <choiceReferences>Choice_FlowDml</choiceReferences>
+            <choiceReferences>Choice_FlowValidationError</choiceReferences>
+            <choiceReferences>Choice_ValidationRule</choiceReferences>
+            <choiceReferences>Choice_HttpCallout</choiceReferences>
+            <choiceReferences>Choice_Sosl</choiceReferences>
+            <choiceReferences>Choice_None</choiceReferences>
+            <dataType>String</dataType>
+            <fieldText>Error type</fieldText>
+            <fieldType>DropdownBox</fieldType>
+            <isRequired>true</isRequired>
+        </fields>
+        <fields>
+            <name>SkipFaultPath</name>
+            <dataType>Boolean</dataType>
+            <fieldText>Simulate NO fault connector (let it crash unhandled)</fieldText>
+            <fieldType>InputField</fieldType>
+        </fields>
+    </screens>
+
+    <screens>
+        <name>Show_Fault</name>
+        <label>Fault</label>
+        <locationX>50</locationX>
+        <locationY>458</locationY>
+        <allowBack>true</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>Fault_Message_Display</name>
+            <fieldText>&lt;p&gt;The flow caught a fault:&lt;/p&gt;&lt;p&gt;{!$Flow.FaultMessage}&lt;/p&gt;</fieldText>
+            <fieldType>DisplayText</fieldType>
+        </fields>
+    </screens>
+
+    <screens>
+        <name>Show_Success</name>
+        <label>Success</label>
+        <locationX>350</locationX>
+        <locationY>458</locationY>
+        <allowBack>true</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>Success_Display</name>
+            <fieldText>&lt;p&gt;No unhandled fault reached this screen. If you picked an error type, check the debug log for how it actually surfaced.&lt;/p&gt;</fieldText>
+            <fieldType>DisplayText</fieldType>
+        </fields>
+    </screens>
+
+    <decisions>
+        <name>Check_Error_Origin</name>
+        <label>Check Error Origin</label>
+        <locationX>176</locationX>
+        <locationY>242</locationY>
+        <defaultConnector>
+            <targetReference>Check_Fault_Path</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Apex-driven error</defaultConnectorLabel>
+        <rules>
+            <name>Flow_Native_Dml_Rule</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>ErrorType</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>FLOW_DML_ERROR</stringValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Create_Bad_Account</targetReference>
+            </connector>
+            <label>Flow-native DML error (no Apex)</label>
+        </rules>
+        <rules>
+            <name>Flow_Native_Validation_Rule</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>ErrorType</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>FLOW_VALIDATION_ERROR</stringValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Create_Account_Trip_Validation</targetReference>
+            </connector>
+            <label>Flow-native Validation Rule failure (no Apex)</label>
+        </rules>
+    </decisions>
+
+    <decisions>
+        <name>Check_Fault_Path</name>
+        <label>Check Fault Path</label>
+        <locationX>176</locationX>
+        <locationY>266</locationY>
+        <defaultConnector>
+            <targetReference>Call_With_Fault_Path</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>With fault path</defaultConnectorLabel>
+        <rules>
+            <name>No_Fault_Path_Rule</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>SkipFaultPath</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Call_No_Fault_Path</targetReference>
+            </connector>
+            <label>No fault path</label>
+        </rules>
+    </decisions>
+
+    <actionCalls>
+        <name>Call_With_Fault_Path</name>
+        <label>Call With Fault Path</label>
+        <locationX>50</locationX>
+        <locationY>374</locationY>
+        <actionName>FoxLogErrorDemoController</actionName>
+        <actionType>apex</actionType>
+        <connector>
+            <targetReference>Set_Demo_Variables</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Show_Fault</targetReference>
+        </faultConnector>
+        <inputParameters>
+            <name>errorType</name>
+            <value>
+                <elementReference>ErrorType</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>FoxLogErrorDemoController</nameSegment>
+        <offset>0</offset>
+    </actionCalls>
+
+    <actionCalls>
+        <name>Call_No_Fault_Path</name>
+        <label>Call No Fault Path</label>
+        <locationX>350</locationX>
+        <locationY>374</locationY>
+        <actionName>FoxLogErrorDemoController</actionName>
+        <actionType>apex</actionType>
+        <connector>
+            <targetReference>Set_Demo_Variables</targetReference>
+        </connector>
+        <inputParameters>
+            <name>errorType</name>
+            <value>
+                <elementReference>ErrorType</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>FoxLogErrorDemoController</nameSegment>
+        <offset>0</offset>
+    </actionCalls>
+
+    <recordCreates>
+        <name>Create_Bad_Account</name>
+        <label>Create Bad Account (missing required Name)</label>
+        <locationX>550</locationX>
+        <locationY>374</locationY>
+        <connector>
+            <targetReference>Set_Demo_Variables</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Show_Fault</targetReference>
+        </faultConnector>
+        <inputAssignments>
+            <field>Industry</field>
+            <value>
+                <stringValue>Technology</stringValue>
+            </value>
+        </inputAssignments>
+        <object>Account</object>
+    </recordCreates>
+
+    <recordCreates>
+        <name>Create_Account_Trip_Validation</name>
+        <label>Create Account (trips Validation Rule)</label>
+        <locationX>650</locationX>
+        <locationY>374</locationY>
+        <connector>
+            <targetReference>Set_Demo_Variables</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Show_Fault</targetReference>
+        </faultConnector>
+        <inputAssignments>
+            <field>Name</field>
+            <value>
+                <stringValue>FoxLog Native Validation Test</stringValue>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>Description</field>
+            <value>
+                <stringValue>FOXLOG_FORCE_VALIDATION_ERROR</stringValue>
+            </value>
+        </inputAssignments>
+        <object>Account</object>
+    </recordCreates>
+
+    <recordCreates>
+        <name>Create_Loop_Account</name>
+        <label>Create Loop Account (DML-in-loop antipattern)</label>
+        <locationX>50</locationX>
+        <locationY>860</locationY>
+        <connector>
+            <targetReference>Loop_Demo_Items</targetReference>
+        </connector>
+        <inputAssignments>
+            <field>Name</field>
+            <value>
+                <stringValue>FoxLog Demo Loop Account {!LoopCounter}</stringValue>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>Description</field>
+            <value>
+                <stringValue>Created one-at-a-time by the FoxLog demo flow's loop, on purpose (DML-in-loop antipattern).</stringValue>
+            </value>
+        </inputAssignments>
+        <object>Account</object>
+    </recordCreates>
+
+    <assignments>
+        <name>Set_Demo_Variables</name>
+        <label>Set Demo Variables</label>
+        <locationX>176</locationX>
+        <locationY>560</locationY>
+        <connector>
+            <targetReference>Loop_Demo_Items</targetReference>
+        </connector>
+        <assignmentItems>
+            <assignToReference>LoopCounter</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <numberValue>0.0</numberValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>DemoItems</assignToReference>
+            <operator>Add</operator>
+            <value>
+                <stringValue>a</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>DemoItems</assignToReference>
+            <operator>Add</operator>
+            <value>
+                <stringValue>b</stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>DemoItems</assignToReference>
+            <operator>Add</operator>
+            <value>
+                <stringValue>c</stringValue>
+            </value>
+        </assignmentItems>
+    </assignments>
+
+    <assignments>
+        <name>Increment_Counter</name>
+        <label>Increment Counter</label>
+        <locationX>50</locationX>
+        <locationY>760</locationY>
+        <connector>
+            <targetReference>Create_Loop_Account</targetReference>
+        </connector>
+        <assignmentItems>
+            <assignToReference>LoopCounter</assignToReference>
+            <operator>Add</operator>
+            <value>
+                <numberValue>1.0</numberValue>
+            </value>
+        </assignmentItems>
+    </assignments>
+
+    <loops>
+        <name>Loop_Demo_Items</name>
+        <label>Loop Demo Items</label>
+        <locationX>176</locationX>
+        <locationY>660</locationY>
+        <collectionReference>DemoItems</collectionReference>
+        <iterationOrder>Asc</iterationOrder>
+        <nextValueConnector>
+            <targetReference>Increment_Counter</targetReference>
+        </nextValueConnector>
+        <noMoreValuesConnector>
+            <targetReference>Call_Demo_Subflow</targetReference>
+        </noMoreValuesConnector>
+    </loops>
+
+    <subflows>
+        <name>Call_Demo_Subflow</name>
+        <label>Call Demo Subflow</label>
+        <locationX>176</locationX>
+        <locationY>960</locationY>
+        <connector>
+            <targetReference>Show_Success</targetReference>
+        </connector>
+        <flowName>FoxLog_Error_Demo_Subflow</flowName>
+    </subflows>
+
+    <variables>
+        <name>LoopCounter</name>
+        <dataType>Number</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <scale>0</scale>
+    </variables>
+
+    <variables>
+        <name>DemoItems</name>
+        <dataType>String</dataType>
+        <isCollection>true</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+
+    <choices>
+        <name>Choice_CustomException</name>
+        <choiceText>Custom Apex exception (explicit, labeled)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>CUSTOM_EXCEPTION</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_NullPointer</name>
+        <choiceText>NullPointerException</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>NULL_POINTER</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_DmlException</name>
+        <choiceText>DmlException (missing required field)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>DML_EXCEPTION</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_ListIndex</name>
+        <choiceText>List index out of bounds</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>LIST_INDEX</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_FlowDml</name>
+        <choiceText>Flow-native DML error (no Apex at all)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>FLOW_DML_ERROR</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_FlowValidationError</name>
+        <choiceText>Flow-native Validation Rule failure (no Apex)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>FLOW_VALIDATION_ERROR</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_ValidationRule</name>
+        <choiceText>Validation Rule failure (via Apex DML)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>VALIDATION_RULE</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_HttpCallout</name>
+        <choiceText>HTTP callout (no error)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>HTTP_CALLOUT</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_Sosl</name>
+        <choiceText>SOSL query (no error)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>SOSL_QUERY</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_None</name>
+        <choiceText>No error (baseline)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>NONE</stringValue>
+        </value>
+    </choices>
+</Flow>

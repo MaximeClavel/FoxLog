@@ -95,7 +95,73 @@
     ERROR: 'EXCEPTION_THROWN',
     USER_DEBUG: 'USER_DEBUG'
   };
-  
+
+  // ============================================
+  // STRUCTURED FLOW/VALIDATION EVENT TYPES
+  // ============================================
+  // Shared by log-parser.js and the src/ui/*-view.js files (all run in
+  // this same window context). src/workers/call-tree-worker.js keeps its
+  // own duplicate of these three lists -- it's a Web Worker with no
+  // access to window/FoxLog globals.
+
+  // Every debug log event type that represents a Flow/Workflow-action-level
+  // or Validation-Rule-level error (as opposed to a raw Apex
+  // EXCEPTION_THROWN/FATAL_ERROR). The Flow/Workflow ones are confirmed
+  // against a real "Workflow: FINER" category log: an explicit fault routed
+  // to a Flow element, an interview that failed to start/be created, a
+  // Workflow-Rule-launched flow action's error, and an invocable Apex
+  // action's error (the case where a Flow calls into Apex that fails).
+  // VALIDATION_FAIL/VALIDATION_ERROR/FIELD_CUSTOM_VALIDATION_EXCEPTION are
+  // confirmed bare (VALIDATION_FAIL) or defensive alternates (the other
+  // two), see tests/flow-error-repro/.
+  //
+  // FLOW_ACTIONCALL_DETAIL specifically is NOT in this list even though a
+  // failed one is a real error: it fires on every action call, success or
+  // failure (see _parseFlowActionCallDetail), so callers must additionally
+  // check details.success === false / node.hasError before treating one as
+  // an error -- see FLOW_DETAIL_TYPES below.
+  window.FoxLog.STRUCTURED_ERROR_TYPES = [
+    'FLOW_ELEMENT_ERROR',
+    'FLOW_ELEMENT_FAULT',
+    'FLOW_CREATE_INTERVIEW_ERROR',
+    'FLOW_START_INTERVIEWS_ERROR',
+    'INVOCABLE_ACTION_ERROR',
+    'WF_FLOW_ACTION_ERROR',
+    'WF_FLOW_ACTION_ERROR_DETAIL',
+    'VALIDATION_FAIL',
+    'VALIDATION_ERROR',
+    'FIELD_CUSTOM_VALIDATION_EXCEPTION'
+  ];
+
+  // Non-error Flow "detail" events: attached as leaf nodes under whichever
+  // element/interview is currently open, same treatment as USER_DEBUG/
+  // VARIABLE_ASSIGNMENT already get. Field layout confirmed against a real
+  // log (see tests/flow-error-repro/) for every entry below.
+  // FLOW_ACTIONCALL_DETAIL is here (not STRUCTURED_ERROR_TYPES) because
+  // it's only an error when its own details.success is false -- see the
+  // comment above.
+  window.FoxLog.FLOW_DETAIL_TYPES = [
+    'FLOW_RULE_DETAIL',
+    'FLOW_ASSIGNMENT_DETAIL',
+    'FLOW_VALUE_ASSIGNMENT',
+    'FLOW_SUBFLOW_DETAIL',
+    'FLOW_LOOP_DETAIL',
+    'FLOW_BULK_ELEMENT_DETAIL',
+    'FLOW_ACTIONCALL_DETAIL'
+  ];
+
+  // Validation Rule execution trace, confirmed against a real log: fires on
+  // every DML that runs validation, whether or not any rule ends up
+  // failing (VALIDATION_RULE names the rule being evaluated,
+  // VALIDATION_FORMULA shows its formula/field values, then either
+  // VALIDATION_PASS or VALIDATION_FAIL -- both confirmed bare, no extra
+  // fields, see STRUCTURED_ERROR_TYPES above).
+  window.FoxLog.VALIDATION_DETAIL_TYPES = [
+    'VALIDATION_RULE',
+    'VALIDATION_FORMULA',
+    'VALIDATION_PASS'
+  ];
+
   // ============================================
   // I18N - INTERNATIONALIZATION
   // ============================================
@@ -113,6 +179,23 @@
     ready: isFrench ? 'Prêt' : 'Ready',
     refresh: isFrench ? 'Actualiser' : 'Refresh',
     clear: isFrench ? 'Effacer' : 'Clear',
+    clearTooltip: isFrench ? 'Effacer la liste (les logs restent dans Salesforce)' : 'Clear the list (logs stay in Salesforce)',
+    clearedLogs: isFrench ? '{count} logs masqués · toujours dans Salesforce' : '{count} logs hidden · still in Salesforce',
+    clearedOneLog: isFrench ? '1 log masqué · toujours dans Salesforce' : '1 log hidden · still in Salesforce',
+    clearedLogsRestored: isFrench ? 'Logs effacés restaurés' : 'Cleared logs restored',
+    undo: isFrench ? 'Annuler' : 'Undo',
+    clearedCount: isFrench ? '{count} logs effacés' : '{count} cleared logs',
+    clearedCountOne: isFrench ? '1 log effacé' : '1 cleared log',
+    clearedBarHint: isFrench ? 'Masqués dans FoxLog uniquement : ils sont toujours dans Salesforce' : 'Hidden in FoxLog only: they are still in Salesforce',
+    showClearedLogs: isFrench ? 'Afficher' : 'Show',
+    hideClearedLogs: isFrench ? 'Masquer' : 'Hide',
+    restoreClearedLogs: isFrench ? 'Restaurer' : 'Restore',
+    restoreClearedTooltip: isFrench ? 'Remettre les logs effacés dans la liste' : 'Put the cleared logs back in the list',
+    clearedSeparator: isFrench ? 'Effacés le {date}' : 'Cleared {date}',
+    hiddenLog: isFrench ? 'Masqué' : 'Hidden',
+    logUser: isFrench ? 'Utilisateur : ' : 'Log user: ',
+    noNewLogs: isFrench ? 'Aucun nouveau log' : 'No new logs',
+    clearedEmptyHint: isFrench ? 'Les logs effacés sont seulement masqués ici, ils restent dans Salesforce.' : 'Cleared logs are only hidden here, they stay in Salesforce.',
     close: isFrench ? 'Fermer' : 'Close',
     openLogs: isFrench ? 'FoxLog - Ouvrir les logs' : 'FoxLog - Open logs',
     userIdUnavailable: isFrench ? 'ID utilisateur indisponible' : 'User ID not available',
