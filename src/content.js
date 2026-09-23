@@ -569,8 +569,13 @@
         if (this.preloadPromise) {
           this.logger.log('Waiting for preload to complete...');
           await this.preloadPromise;
+
+          // The selected user may have changed while waiting for the preload
+          if (userId !== (this.selectedUserId || this.currentUserId)) {
+            return;
+          }
         }
-        
+
         // Use preloaded logs if available and requested
         if (usePreloaded && this.preloadedLogs && this.fetchedLogs.length > 0) {
           this.logger.log('Using preloaded logs');
@@ -596,7 +601,7 @@
         }
 
         const logs = await salesforceAPI.fetchLogs(userId);
-        
+
         if (!isAutoRefresh && spinnerTimeout) {
           clearTimeout(spinnerTimeout);
 
@@ -607,6 +612,15 @@
               await new Promise(resolve => setTimeout(resolve, remaining));
             }
           }
+        }
+
+        // The selected user may have changed while this fetch was in flight;
+        // these logs are stale, so drop them instead of overwriting the current user's list
+        if (userId !== (this.selectedUserId || this.currentUserId)) {
+          if (!isAutoRefresh) {
+            panelManager.hideLoading();
+          }
+          return;
         }
 
         // Detect whether logs changed
@@ -624,7 +638,12 @@
         if (hasChanged) {
           this.logger.log('Starting error analysis in background...');
           const analysisResults = await logPreviewService.analyzeBatch(logs);
-          
+
+          // Bail out again if the user changed while the analysis was running
+          if (userId !== (this.selectedUserId || this.currentUserId)) {
+            return;
+          }
+
           // Update the list with error badges
           await this._renderLogs(userId, analysisResults, preservePage);
           this.logger.success('Error analysis complete');
