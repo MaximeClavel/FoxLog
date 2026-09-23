@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-09-22
+
 ### Changed
 
 - **Clear no longer comes back on the next refresh**: Clear now hides the listed logs until the user restores them, instead of emptying the list until the next auto-refresh re-fetched everything. It remembers the start time of the newest cleared log, per org and user in `chrome.storage.local`, so it survives page reloads and only logs that start later show up. Nothing is deleted in Salesforce
