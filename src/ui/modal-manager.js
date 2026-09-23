@@ -475,6 +475,8 @@
           <h3 title="${this._escapeHtml(metadata.operation)}">${this._escapeHtml(metadata.operation)}</h3>
           <p class="sf-modal-subtitle">
             <span class="sf-tone-chip sf-tone-chip--${this._getStatusTone(status)}" title="${this._escapeHtml(status)}">${this._escapeHtml(status.split(':')[0])}</span>
+            ${metadata.userName ? `<span class="sf-tone-chip sf-tone-chip--user" title="${i18n.logUser || 'Log user: '}${this._escapeHtml(metadata.userName)}">${window.FoxLog.icon('user', { size: 12 })}<span class="sf-tone-chip-text">${this._escapeHtml(metadata.userName)}</span></span>` : ''}
+            ${metadata.cleared ?`<span class="sf-tone-chip sf-tone-chip--hidden" title="${i18n.clearedBarHint || 'Hidden in FoxLog only: they are still in Salesforce'}">${window.FoxLog.icon('eye-off', { size: 12 })} ${i18n.hiddenLog || 'Hidden'}</span>` : ''}
             <span>${window.FoxLog.formatDuration(metadata.duration)}</span>
             ${startedAt ? `<span>${this._escapeHtml(startedAt)}</span>` : ''}
           </p>

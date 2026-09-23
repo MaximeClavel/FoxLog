@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Clear no longer comes back on the next refresh**: Clear now hides the listed logs until the user restores them, instead of emptying the list until the next auto-refresh re-fetched everything. It remembers the start time of the newest cleared log, per org and user in `chrome.storage.local`, so it survives page reloads and only logs that start later show up. Nothing is deleted in Salesforce
+- **Getting cleared logs back**:
+  - an "Undo" link in the status line right after a Clear
+  - a "N cleared logs" bar under the list, with **Show** (lists them dimmed below the others, under a "Cleared on …" separator, still openable) and **Restore** (puts them back in the list, itself undoable)
+- **Saying that Clear doesn't delete**: the Clear button uses an "eye-off" icon instead of the trash can. Its tooltip, the status message, the cleared bar and the empty state ("No new logs") all say the logs stay in Salesforce
+- **Modal header**: a cleared log opened from the list shows a "Hidden" chip next to its status
+- **Modal header, log user**: the user the log belongs to is shown next to the status, so it's clear whose logs are being browsed when several users have debug logs on. It comes from `LogUser.Name` (now queried with the log list), with the user picklist as a fallback
+- **Panel**: 4 log cards per page instead of 5, to make room for the cleared bar
+- Clear no longer throws away the session and error-analysis caches
+
 ## [1.8.0] - 2026-09-22
 
 ### Added

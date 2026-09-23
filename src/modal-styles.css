@@ -114,6 +114,10 @@
 .sf-tone-chip--success { background: var(--fl-success-tint); color: var(--fl-success-fg); }
 .sf-tone-chip--danger { background: var(--fl-danger-tint); color: var(--fl-danger-fg); }
 .sf-tone-chip--neutral { background: var(--fl-hover); color: var(--fl-text-2); }
+.sf-tone-chip--user { gap: 4px; flex: 0 1 auto; min-width: 0; max-width: 220px; background: var(--fl-hover); color: var(--fl-text-2); }
+.sf-tone-chip--user svg { flex: none; }
+.sf-tone-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sf-tone-chip--hidden { gap: 4px; flex: none; background: var(--fl-hover); color: var(--fl-text-3); cursor: help; }
 
 .sf-nav-placeholder { display: none; }
 
