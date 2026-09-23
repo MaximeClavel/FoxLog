@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-09-22
+
+### Fixed
+
+- **Race condition on user switch**: switching the picklist while an auto-refresh was in flight for the previous user could show that previous user's logs (and run error analysis on them) after the switch, until the next refresh corrected it. `refreshLogs()` now drops a response if the selected user changed while it was awaiting the fetch, the error analysis, or a pending preload
+
 ## [1.9.0] - 2026-09-22
 
 ### Changed
