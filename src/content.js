@@ -641,6 +641,9 @@
 
           // Bail out again if the user changed while the analysis was running
           if (userId !== (this.selectedUserId || this.currentUserId)) {
+            if (!isAutoRefresh) {
+              panelManager.hideLoading();
+            }
             return;
           }
 
