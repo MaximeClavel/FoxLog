@@ -1,7 +1,7 @@
 <div align="center">
   <img src="src/assets/icon128.png" alt="FoxLog Logo" width="128" height="128">
   <h1>FoxLog 🦊</h1>
-  <p>Chrome extension to visualize and analyze Salesforce debug logs with a modern interface and advanced features.</p>
+  <p>Chrome and Firefox extension to visualize and analyze Salesforce debug logs with a modern interface and advanced features.</p>
 </div>
 
 ## 🚀 Key Features
