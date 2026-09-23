@@ -220,7 +220,6 @@
 .sf-panel-controls button:active { background: var(--fl-pressed); }
 .sf-panel-controls button svg { width: 16px; height: 16px; }
 
-#sf-clear-logs-btn:hover { background: var(--fl-danger-tint); color: var(--fl-danger-fg); }
 
 /* ---------- Segmented tabs (Salesforce / Files) ---------- */
 .sf-panel-tabs {
@@ -290,6 +289,21 @@
 .sf-status-error { color: var(--fl-danger-fg); }
 .sf-status-warning { color: var(--fl-warning-fg); }
 .sf-status-info { color: var(--fl-info-fg); animation: fl-fade-in 0.8s ease infinite alternate; }
+
+.sf-status-action {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--fl-r-md);
+  background: transparent;
+  color: var(--fl-accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sf-status-action:hover { background: var(--fl-accent-tint); }
+.sf-status-action[hidden] { display: none; }
 
 .sf-panel-filters {
   flex: none;
@@ -474,6 +488,29 @@
 
 .sf-log-entry:active { transform: scale(0.995); }
 
+/* Logs hidden by Clear, listed on demand */
+.sf-log-entry.sf-log-cleared { opacity: 0.6; }
+.sf-log-entry.sf-log-cleared:hover,
+.sf-log-entry.sf-log-cleared:focus-visible { opacity: 1; }
+
+.sf-cleared-separator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fl-text-3);
+}
+
+.sf-cleared-separator::before,
+.sf-cleared-separator::after {
+  content: '';
+  flex: 1;
+  border-top: 1px dashed var(--fl-border-2);
+}
+
 .sf-log-header {
   display: flex;
   align-items: baseline;
@@ -633,6 +670,54 @@
 }
 
 .sf-pagination-count { color: var(--fl-text-3); }
+
+.sf-cleared-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+  padding: 6px 12px 6px 16px;
+  border-top: 1px solid var(--fl-border);
+  font-size: 12px;
+  color: var(--fl-text-3);
+}
+
+.sf-cleared-bar[hidden] { display: none; }
+
+.sf-cleared-bar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.sf-cleared-bar-actions {
+  display: inline-flex;
+  gap: 2px;
+  flex: none;
+}
+
+.sf-cleared-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--fl-r-md);
+  background: transparent;
+  color: var(--fl-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--fl-dur), color var(--fl-dur);
+}
+
+.sf-cleared-bar-btn:hover { background: var(--fl-hover); color: var(--fl-text); }
+.sf-cleared-bar-btn[aria-pressed="true"] { color: var(--fl-accent); }
 
 .sf-panel-footer {
   display: flex;

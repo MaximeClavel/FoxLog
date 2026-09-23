@@ -46,7 +46,7 @@ All data is stored **locally in your browser** using:
 
 - Session tokens are cached for 30 seconds
 - Parsed log data expires after 30 seconds
-- Cache can be manually cleared at any time using the "Clear" button in the extension
+- The panel's "Clear" button hides the listed logs in FoxLog only: it stores the time of the last clear locally (per organization and user) and never deletes anything in Salesforce
 
 ### Security Measures
 
@@ -87,7 +87,7 @@ The extension makes API calls to your Salesforce organization to:
 ### Data Control
 
 You have full control over your data:
-- **Clear Cache**: Use the "Clear" button to immediately delete all cached data
+- **Clear**: Use the "Clear" button to hide the current logs from the panel, and "Restore" to bring them back (the logs themselves stay in Salesforce)
 - **Uninstall**: Removing the extension will delete all locally stored data
 - **Browser Settings**: You can clear browser storage at any time through Chrome's settings
 

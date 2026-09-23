@@ -31,6 +31,12 @@
         localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
       });
       if (callback) callback();
+    },
+    remove(keys, callback) {
+      (Array.isArray(keys) ? keys : [keys]).forEach((key) => {
+        localStorage.removeItem(STORAGE_PREFIX + key);
+      });
+      if (callback) callback();
     }
   };
 

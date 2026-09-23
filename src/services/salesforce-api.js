@@ -319,7 +319,7 @@
       this._validateId(userId, 'userId');
       const safeLimit = Math.max(1, Math.min(Math.floor(Number(limit)) || 100, 200));
       const query = `
-        SELECT Id, LogUserId, LogLength, Operation, Request, Status, 
+        SELECT Id, LogUserId, LogUser.Name, LogLength, Operation, Request, Status,
                DurationMilliseconds, StartTime, Location 
         FROM ApexLog 
         WHERE LogUserId='${userId}' 
