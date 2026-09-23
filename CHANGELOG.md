@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- **Firefox support**: `manifest.json` now declares `background.scripts` alongside `service_worker` (Firefox MV3 background page), `browser_specific_settings.gecko.id` and the `unlimitedStorage` permission (Firefox's default `storage.local` quota isn't guaranteed to match Chrome's). `background.js`'s two cookie lookups now use an explicit callback instead of relying on Chrome's promise-returning `chrome.cookies` overload, which Firefox's `chrome.*` compatibility shim doesn't provide
+- **Firefox support**: a new `manifest.firefox.json` (Firefox MV3 background page via `background.scripts`, `browser_specific_settings.gecko.id`, and the `unlimitedStorage` permission, since Firefox's default `storage.local` quota isn't guaranteed to match Chrome's) sits alongside the existing Chrome `manifest.json`, which only gains `unlimitedStorage` — Chrome rejects `background.scripts` on a manifest_version 3 background object, so the two can't share one file. `scripts/build-firefox-xpi.sh` packages the Firefox manifest into a `.xpi`. `background.js`'s two cookie lookups now use an explicit callback instead of relying on Chrome's promise-returning `chrome.cookies` overload, which Firefox's `chrome.*` compatibility shim doesn't provide
 
 ## [1.9.1] - 2026-09-22
 
