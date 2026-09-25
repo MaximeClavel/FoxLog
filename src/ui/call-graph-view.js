@@ -98,6 +98,7 @@
       this.parentById = new Map();
       this.errorNodesList = [];
       this.currentErrorIndex = -1;
+      this.focusSet = null;
 
       this.searchDebounce = null;
       this.listenersAttached = false;
@@ -252,6 +253,8 @@
                 </div>
               </div>
 
+              <div class="sf-graph-focus-bar" hidden></div>
+
               <div class="sf-graph-viewport">
                 <div class="sf-graph-canvas">
                   <svg class="sf-graph-edges"></svg>
@@ -277,6 +280,7 @@
           this.detailEl = this.container.querySelector('.sf-graph-detail');
           this.breadcrumbEl = this.container.querySelector('.sf-graph-breadcrumb');
           this.zoomLabelEl = this.container.querySelector('.sf-graph-zoom-label');
+          this.focusBarEl = this.container.querySelector('.sf-graph-focus-bar');
 
           this._layoutAndRender();
           this._setupEventListeners();
@@ -825,12 +829,17 @@
       const node = this.nodeById.get(nodeId);
       if (!node) return;
 
-      const cat = classify(node);
-      const group = CATEGORY_META[cat].group;
-      if (!this.groupFilters[group]) {
-        this.groupFilters[group] = true;
-        this._syncFilterChipsUI();
+      // A node is only drawn when its whole ancestor chain passes the filters
+      // (a hidden ancestor hides the branch), so enable every group on the path.
+      let filtersChanged = false;
+      for (let n = node; n; n = this.parentById.get(n.id)) {
+        const group = (CATEGORY_META[classify(n)] || CATEGORY_META.other).group;
+        if (!this.groupFilters[group]) {
+          this.groupFilters[group] = true;
+          filtersChanged = true;
+        }
       }
+      if (filtersChanged) this._syncFilterChipsUI();
 
       this._expandPathTo(nodeId);
       this.selectedNodeId = nodeId;
@@ -1077,7 +1086,133 @@
         case 'error-next':
           this._gotoError(1);
           break;
+        case 'focus-prev':
+          this._gotoFocus(-1);
+          break;
+        case 'focus-next':
+          this._gotoFocus(1);
+          break;
+        case 'focus-clear':
+          this._clearFocus();
+          break;
       }
+    }
+
+    /**
+     * Entry point for Summary links: one node is selected, several open a prev/next stepper.
+     * @param {{lines?: number[], group?: 'soql'|'dml', method?: string}} spec - exactly one key
+     */
+    jumpTo(spec) {
+      let nodes = [];
+      let label = '';
+      let icon = 'code';
+
+      if (spec.lines) {
+        nodes = spec.lines.map(line => this._findNodeByLine(line)).filter(Boolean);
+        if (nodes.length === 1) {
+          this.selectNodeByLineIndex(nodes[0].logLineIndex);
+          return;
+        }
+        label = nodes[0] ? nodes[0].name : '';
+        icon = 'alert-triangle';
+      } else if (spec.group === 'soql') {
+        nodes = this.allNodesFlat.filter(n => n.type === 'SOQL_EXECUTE_BEGIN');
+        label = i18n.limitSoql || 'SOQL Queries';
+        icon = 'search';
+      } else if (spec.group === 'dml') {
+        nodes = this.allNodesFlat.filter(n => n.type === 'DML_BEGIN');
+        label = i18n.limitDml || 'DML Statements';
+        icon = 'database';
+      } else if (spec.method) {
+        nodes = this.allNodesFlat.filter(n => n.type === 'METHOD_ENTRY' && n.name === spec.method);
+        label = spec.method;
+      }
+
+      if (nodes.length === 0) {
+        logger.warn('[CallGraphView] Nothing to show in Flow for', spec);
+        return;
+      }
+
+      this.focusSet = { label, icon, nodes, index: -1 };
+      this._gotoFocus(1);
+    }
+
+    // The root also carries logLineIndex 0, so it must not shadow a real line 0;
+    // error nodes win because the Summary cards point at them.
+    _findNodeByLine(lineIndex) {
+      return this.errorNodesList.find(n => n.logLineIndex === lineIndex)
+        || this.allNodesFlat.find(n => n.type !== 'ROOT' && n.logLineIndex === lineIndex)
+        || null;
+    }
+
+    /**
+     * Select and reveal the node created by a raw log line, then flash it so
+     * the eye lands on it.
+     * @param {number} lineIndex - Raw log line index (`logLineIndex`)
+     */
+    selectNodeByLineIndex(lineIndex) {
+      const node = this._findNodeByLine(lineIndex);
+      if (!node) {
+        logger.warn(`[CallGraphView] No node for line ${lineIndex}`);
+        return;
+      }
+
+      this._clearFocus();
+
+      const errorIndex = this.errorNodesList.indexOf(node);
+      if (errorIndex >= 0) {
+        this.currentErrorIndex = errorIndex;
+        const countEl = this.container.querySelector('.sf-graph-error-nav-count');
+        if (countEl) countEl.textContent = `${errorIndex + 1}/${this.errorNodesList.length}`;
+      }
+
+      this._selectAndReveal(node.id);
+      this._flashNode(node.id);
+    }
+
+    _gotoFocus(direction) {
+      const set = this.focusSet;
+      if (!set) return;
+
+      set.index = (set.index + direction + set.nodes.length) % set.nodes.length;
+      const node = set.nodes[set.index];
+      this._renderFocusBar();
+      this._selectAndReveal(node.id);
+      this._flashNode(node.id);
+    }
+
+    _clearFocus() {
+      this.focusSet = null;
+      this._renderFocusBar();
+    }
+
+    _renderFocusBar() {
+      if (!this.focusBarEl) return;
+      const set = this.focusSet;
+      if (!set) {
+        this.focusBarEl.hidden = true;
+        this.focusBarEl.innerHTML = '';
+        return;
+      }
+
+      const stepDisabled = set.nodes.length < 2 ? 'disabled' : '';
+      this.focusBarEl.hidden = false;
+      this.focusBarEl.innerHTML = `
+        <span class="sf-graph-focus-label" title="${escapeHtml(set.label)}">${window.FoxLog.icon(set.icon, { size: 13 })} <span class="sf-graph-focus-text">${escapeHtml(set.label)}</span></span>
+        <span class="sf-graph-error-nav">
+          <button class="sf-graph-error-nav-btn" data-action="focus-prev" title="${i18n.focusPrevious || 'Previous'}" aria-label="${i18n.focusPrevious || 'Previous'}" ${stepDisabled}>${window.FoxLog.icon('chevron-left', { size: 14 })}</button>
+          <span class="sf-graph-stat-value">${set.index + 1}/${set.nodes.length}</span>
+          <button class="sf-graph-error-nav-btn" data-action="focus-next" title="${i18n.focusNext || 'Next'}" aria-label="${i18n.focusNext || 'Next'}" ${stepDisabled}>${window.FoxLog.icon('chevron-right', { size: 14 })}</button>
+        </span>
+        <button class="sf-graph-error-nav-btn" data-action="focus-clear" title="${i18n.closeFocus || 'Close navigation'}" aria-label="${i18n.closeFocus || 'Close navigation'}">${window.FoxLog.icon('x', { size: 13 })}</button>
+      `;
+    }
+
+    _flashNode(nodeId) {
+      const el = this.nodesLayer && this.nodesLayer.querySelector(`.sf-graph-node[data-node-id="${nodeId}"]`);
+      if (!el) return;
+      el.classList.add('sf-graph-node--flash');
+      setTimeout(() => el.classList.remove('sf-graph-node--flash'), 1800);
     }
 
     /**

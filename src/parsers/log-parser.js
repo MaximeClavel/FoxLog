@@ -620,30 +620,49 @@
 
     _collectMethodEntry(line, stats) {
       const key = `${line.details.class || ''}.${line.details.method || ''}`;
-      const existingIndex = stats.methodMap.get(key);
+      let index = stats.methodMap.get(key);
 
-      if (existingIndex !== undefined) {
-        stats.methods[existingIndex].calls++;
-      } else {
-        const newEntry = {
+      if (index === undefined) {
+        index = stats.methods.length;
+        stats.methodMap.set(key, index);
+        stats.methods.push({
           class: line.details.class,
           method: line.details.method,
-          calls: 1,
-          firstCall: line.timestamp
-        };
-        stats.methodMap.set(key, stats.methods.length);
-        stats.methods.push(newEntry);
+          calls: 0,
+          firstCall: line.timestamp,
+          totalMs: 0,
+          activeCalls: 0
+        });
       }
+
+      stats.methods[index].calls++;
+      stats.methods[index].activeCalls++;
 
       stats.methodStack.push({
         class: line.details.class,
         method: line.details.method,
-        timestamp: line.timestamp
+        timestamp: line.timestamp,
+        index,
+        startNs: line.duration,
+        startMs: line.timestampMs
       });
     }
 
     _collectMethodExit(line, stats) {
-      stats.methodStack.pop();
+      const frame = stats.methodStack.pop();
+      if (!frame) return;
+
+      const entry = stats.methods[frame.index];
+      entry.activeCalls--;
+      // Only the outermost frame of a recursive method adds its time,
+      // otherwise the same interval would be counted once per level.
+      if (entry.activeCalls > 0) return;
+
+      if (Number.isFinite(frame.startNs) && Number.isFinite(line.duration)) {
+        entry.totalMs += Math.max(0, (line.duration - frame.startNs) / 1e6);
+      } else if (Number.isFinite(frame.startMs) && Number.isFinite(line.timestampMs)) {
+        entry.totalMs += Math.max(0, line.timestampMs - frame.startMs);
+      }
     }
 
     // Unlike the other structured error types, FLOW_ACTIONCALL_DETAIL
@@ -670,7 +689,8 @@
         message: line.details.message || line.content,
         timestamp: line.timestamp,
         method: currentMethod,
-        depth: line.depth
+        depth: line.depth,
+        lineIndex: line.index
       });
     }
 
