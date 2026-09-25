@@ -5,7 +5,11 @@
   window.FoxLog = window.FoxLog || {};
   const i18n = window.FoxLog.i18n || {};
   const logger = window.FoxLog.logger || console;
-  
+
+  // Share of a Salesforce limit where the Summary bars and the verdict banner turn amber / red
+  const LIMIT_WARNING_PCT = 75;
+  const LIMIT_DANGER_PCT = 90;
+
   class ModalManager {
     constructor() {
       this.currentModal = null;
@@ -20,7 +24,11 @@
       // Current analysis data for export
       this.currentParsedLog = null;
       this.currentAntiPatternResults = null;
-      
+
+      // Summary sections the user collapsed (persisted, shared by every log)
+      this._collapsedSections = new Set();
+      this._loadSectionPrefs();
+
       // Logo assets in base64 for PDF export
       this.logoIconBase64 = null;
       this.logoTextBase64 = null;
@@ -162,7 +170,7 @@
           
           <div class="sf-modal-body-tabs">
             <div id="tab-summary" class="sf-tab-content active">
-              ${this._renderSummaryTab(summary, parsedLog)}
+              ${this._renderSummaryTab(summary, parsedLog, antiPatternResults)}
             </div>
             
             <div id="tab-analysis" class="sf-tab-content">
@@ -256,7 +264,7 @@
       // Update Summary tab
       const summaryTab = modal.querySelector('#tab-summary');
       if (summaryTab) {
-        summaryTab.innerHTML = this._renderSummaryTab(summary, parsedLog);
+        summaryTab.innerHTML = this._renderSummaryTab(summary, parsedLog, antiPatternResults);
       }
       
       // Update Analysis tab
@@ -279,6 +287,7 @@
       // Reset Flow/Graph tab (will be rebuilt on click, or immediately if active)
       const graphTab = modal.querySelector('#tab-graph');
       if (graphTab) {
+        modal._foxlogPendingFlowJump = null;
         if (modal._foxlogGraphView) {
           modal._foxlogGraphView.destroy();
           modal._foxlogGraphView = null;
@@ -772,9 +781,162 @@
 
       // Setup anti-pattern line navigation
       this._setupAntiPatternLineButtons(modal);
-      
+
       // Setup analysis export buttons (PDF, MD, TXT)
       this._setupExportAnalysisButtons(modal);
+
+      this._setupSummaryInteractions(modal);
+    }
+
+    // One delegated listener on the persistent pane: _updateModalContent replaces its content on log navigation
+    _setupSummaryInteractions(modal) {
+      const summaryTab = modal.querySelector('#tab-summary');
+      if (!summaryTab) return;
+
+      summaryTab.addEventListener('click', (e) => {
+        const target = e.target;
+
+        const sectionToggle = target.closest('.sf-section-toggle');
+        if (sectionToggle) {
+          this._toggleSummarySection(sectionToggle.closest('.sf-summary-section'));
+          return;
+        }
+
+        const copyBtn = target.closest('.sf-error-copy-btn');
+        if (copyBtn) {
+          this._copyErrorMessage(copyBtn);
+          return;
+        }
+
+        const errorCard = target.closest('.sf-error-item[data-line-indexes]');
+        if (errorCard) {
+          // Drag-selecting the message also ends in a click on the card: keep the selection, don't navigate
+          const selection = window.getSelection();
+          if (!target.closest('.sf-error-jump-btn') && !selection.isCollapsed && errorCard.contains(selection.anchorNode)) return;
+
+          const lines = errorCard.dataset.lineIndexes.split(',').map(Number).filter(Number.isInteger);
+          this.showInFlow({ lines });
+          return;
+        }
+
+        const flowTarget = target.closest('[data-flow-group], [data-flow-method]');
+        if (flowTarget) {
+          this.showInFlow(flowTarget.dataset.flowGroup
+            ? { group: flowTarget.dataset.flowGroup }
+            : { method: flowTarget.dataset.flowMethod });
+          return;
+        }
+
+        const patternBtn = target.closest('[data-pattern-index]');
+        if (patternBtn) {
+          this.showPatternInAnalysis(parseInt(patternBtn.dataset.patternIndex, 10));
+          return;
+        }
+
+        const openTab = target.closest('[data-open-tab]');
+        if (openTab) {
+          const tabBtn = modal.querySelector(`[data-tab="${openTab.dataset.openTab}"]`);
+          if (tabBtn) tabBtn.click();
+        }
+      });
+    }
+
+    /**
+     * Switch to the Flow tab and show something from the Summary in it.
+     * @param {{lines?: number[], group?: string, method?: string}} spec - see CallGraphView.jumpTo
+     */
+    showInFlow(spec) {
+      const modal = this.currentModal;
+      const graphBtn = modal && modal.querySelector('[data-tab="graph"]');
+      if (!graphBtn) return;
+
+      // The graph is built lazily (and asynchronously) on the first tab click:
+      // remember the target so buildGraph can apply it once the view exists.
+      modal._foxlogPendingFlowJump = spec;
+      graphBtn.click();
+      this._flushPendingFlowJump(modal);
+    }
+
+    /**
+     * Apply a pending Summary -> Flow jump if the graph view is ready.
+     * @private
+     */
+    _flushPendingFlowJump(modal) {
+      const spec = modal._foxlogPendingFlowJump;
+      const view = modal._foxlogGraphView;
+      if (!spec || !view) return;
+
+      modal._foxlogPendingFlowJump = null;
+      // Called from buildGraph's try block: a failed jump must not be
+      // mistaken for a failed graph build.
+      try {
+        view.jumpTo(spec);
+      } catch (error) {
+        logger.warn('[ModalManager] Could not jump to the Flow tab target', spec, error);
+      }
+    }
+
+    /**
+     * Switch to the Analysis tab and flash the given pattern (index in results.patterns).
+     */
+    showPatternInAnalysis(patternIndex) {
+      const modal = this.currentModal;
+      const analysisBtn = modal && modal.querySelector('[data-tab="analysis"]');
+      if (!analysisBtn) return;
+
+      analysisBtn.click();
+      const item = modal.querySelector(`#tab-analysis .sf-anti-pattern-item[data-pattern-index="${patternIndex}"]`);
+      if (!item) return;
+
+      item.scrollIntoView({ behavior: 'instant', block: 'center' });
+      item.classList.add('sf-anti-pattern-item--flash');
+      setTimeout(() => item.classList.remove('sf-anti-pattern-item--flash'), 1800);
+    }
+
+    _toggleSummarySection(section) {
+      if (!section) return;
+      const key = section.dataset.section;
+      const collapsed = section.classList.toggle('sf-collapsed');
+      const toggle = section.querySelector('.sf-section-toggle');
+      if (toggle) toggle.setAttribute('aria-expanded', String(!collapsed));
+
+      if (collapsed) this._collapsedSections.add(key);
+      else this._collapsedSections.delete(key);
+      this._saveSectionPrefs();
+    }
+
+    _loadSectionPrefs() {
+      try {
+        chrome.storage.local.get('summaryCollapsedSections', (result) => {
+          const saved = result && result.summaryCollapsedSections;
+          if (Array.isArray(saved)) this._collapsedSections = new Set(saved);
+        });
+      } catch (error) {
+        logger.warn('[ModalManager] Could not load Summary section preferences', error);
+      }
+    }
+
+    _saveSectionPrefs() {
+      try {
+        chrome.storage.local.set({ summaryCollapsedSections: [...this._collapsedSections] });
+      } catch (error) {
+        logger.warn('[ModalManager] Could not save Summary section preferences', error);
+      }
+    }
+
+    async _copyErrorMessage(button) {
+      const messageEl = button.closest('.sf-error-item')?.querySelector('.sf-error-message');
+      if (!messageEl) return;
+
+      try {
+        await navigator.clipboard.writeText(messageEl.textContent.trim());
+        button.innerHTML = window.FoxLog.icon('check', { size: 13 });
+        setTimeout(() => { button.innerHTML = window.FoxLog.icon('copy', { size: 13 }); }, 1500);
+        this._showToast(i18n.copySuccess || 'Copied to clipboard!');
+      } catch (error) {
+        this.logger.error('Copy failed', error);
+        this._showToast(i18n.copyError || 'Copy error', 'error');
+      }
     }
 
     /**
@@ -1672,10 +1834,12 @@
             modal._foxlogGraphView.destroy();
           }
           modal._foxlogGraphView = graphView;
+          this._flushPendingFlowJump(modal);
 
           this.logger.success('CallGraphView initialized');
         } catch (error) {
           graphBuilt = false; // allow a retry on the next click/navigation
+          modal._foxlogPendingFlowJump = null;
           this.logger.error('Failed to build call graph', error);
           if (modal._foxlogGraphGeneration !== generation) return; // stale error, another build is in charge now
 
@@ -2018,35 +2182,261 @@
       });
     }
 
-    _renderSummaryTab(summary, parsedLog) {
-      const status = String(summary.metadata.status);
-      const statusClass = { success: 'sf-status-success', danger: 'sf-status-error' }[this._getStatusTone(status)] || '';
-      const extraCount = parsedLog.stats.methods.length > 10 ? parsedLog.stats.methods.length - 10 : 0;
-      const extraHint = extraCount > 0
-        ? (i18n.andOthers || '...and {count} more').replace('{count}', extraCount)
-        : '';
-      const errorsSection = parsedLog.stats.errors.length > 0
-        ? `
-          <div class="sf-summary-section sf-summary-errors">
-            <h4>${window.FoxLog.icon('alert-circle', { size: 14 })} ${(i18n.errors || 'Errors')} (${parsedLog.stats.errors.length})</h4>
-            <div class="sf-errors-list">
-              ${parsedLog.stats.errors.map(error => `
-                <div class="sf-error-item">
-                  <div class="sf-error-type">${error.type}</div>
-                  <div class="sf-error-details">
-                    <div class="sf-error-message">${error.exceptionType || 'Exception'}: ${error.message}</div>
-                    ${error.method ? `<div class="sf-error-location">${window.FoxLog.icon('map-pin', { size: 12 })} ${(i18n.location || 'Location')}: <code>${error.method}</code></div>` : ''}
-                    <div class="sf-error-time">${error.timestamp}</div>
-                  </div>
-                </div>
-              `).join('')}
+    /**
+     * One collapsible Summary section. The collapsed state is remembered by key.
+     * @private
+     */
+    _renderSummarySection(key, iconName, title, bodyHtml, extraClass = '') {
+      const collapsed = this._collapsedSections.has(key);
+      return `
+        <div class="sf-summary-section ${extraClass}${collapsed ? ' sf-collapsed' : ''}" data-section="${key}">
+          <h4>
+            <button type="button" class="sf-section-toggle" aria-expanded="${!collapsed}">
+              ${window.FoxLog.icon(iconName, { size: 14 })}
+              <span class="sf-section-title">${title}</span>
+              <span class="sf-section-chevron">${window.FoxLog.icon('chevron-down', { size: 14 })}</span>
+            </button>
+          </h4>
+          <div class="sf-section-body">${bodyHtml}</div>
+        </div>
+      `;
+    }
+
+    /**
+     * Identical errors (same type and message) collapse into one card with a count.
+     * @private
+     */
+    _groupErrors(errors) {
+      const groups = new Map();
+      errors.forEach(error => {
+        const key = `${error.type}|${error.exceptionType || ''}|${error.message}`;
+        let group = groups.get(key);
+        if (!group) {
+          group = { error, count: 0, lineIndexes: [] };
+          groups.set(key, group);
+        }
+        group.count++;
+        if (Number.isInteger(error.lineIndex)) group.lineIndexes.push(error.lineIndex);
+      });
+      return [...groups.values()];
+    }
+
+    _renderErrorsSection(errors) {
+      const viewInFlow = this._escapeHtml(i18n.viewInFlow || 'View in Flow');
+      const copyLabel = this._escapeHtml(i18n.copyMessage || 'Copy message');
+
+      const cards = this._groupErrors(errors).map(({ error, count, lineIndexes }) => {
+        const canJump = lineIndexes.length > 0;
+        return `
+          <div class="sf-error-item${canJump ? ' sf-error-item--jumpable' : ''}"${canJump ? ` data-line-indexes="${lineIndexes.join(',')}"` : ''}>
+            <div class="sf-error-item-head">
+              <div class="sf-error-type">${this._escapeHtml(error.type)}</div>
+              ${count > 1 ? `<span class="sf-error-count" title="${count}×">×${count}</span>` : ''}
+              <span class="sf-error-actions">
+                <button type="button" class="sf-error-action sf-error-copy-btn" title="${copyLabel}" aria-label="${copyLabel}">${window.FoxLog.icon('copy', { size: 13 })}</button>
+                ${canJump ? `<button type="button" class="sf-error-action sf-error-jump-btn">${viewInFlow} ${window.FoxLog.icon('arrow-right', { size: 12 })}</button>` : ''}
+              </span>
             </div>
+            <div class="sf-error-details">
+              <div class="sf-error-message">${this._escapeHtml(error.exceptionType || 'Exception')}: ${this._escapeHtml(error.message)}</div>
+              ${error.method ? `<div class="sf-error-location">${window.FoxLog.icon('map-pin', { size: 12 })} ${(i18n.location || 'Location')}: <code>${this._escapeHtml(error.method)}</code></div>` : ''}
+              <div class="sf-error-time">${this._escapeHtml(error.timestamp)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return this._renderSummarySection(
+        'errors',
+        'alert-circle',
+        `${i18n.errors || 'Errors'} (${errors.length})`,
+        `<div class="sf-errors-list">${cards}</div>`,
+        'sf-summary-errors'
+      );
+    }
+
+    /**
+     * Top anti-patterns (worst first) with a way into the Analysis tab.
+     * @private
+     */
+    _renderAntiPatternsSection(results) {
+      if (!results || !results.patterns || results.patterns.length === 0) return '';
+
+      const preview = ['critical', 'warning', 'info']
+        .flatMap(severity => results.patterns.filter(p => p.severity === severity))
+        .slice(0, 3);
+      const remaining = results.patterns.length - preview.length;
+      const viewInAnalysis = this._escapeHtml(i18n.viewInAnalysis || 'View in Analysis');
+
+      const items = preview.map(pattern => `
+        <button type="button" class="sf-ap-preview-item sf-ap-preview--${pattern.severity}" data-pattern-index="${results.patterns.indexOf(pattern)}" title="${viewInAnalysis}">
+          <span class="sf-ap-preview-dot">${window.FoxLog.dot(pattern.severity)}</span>
+          <span class="sf-ap-preview-title">${this._escapeHtml(pattern.title)}</span>
+          ${pattern.query || pattern.method ? `<span class="sf-ap-preview-detail">${this._escapeHtml(pattern.query || pattern.method)}</span>` : ''}
+          ${pattern.occurrences ? `<span class="sf-ap-preview-count">×${pattern.occurrences}</span>` : ''}
+          <span class="sf-ap-preview-arrow">${window.FoxLog.icon('arrow-right', { size: 13 })}</span>
+        </button>
+      `).join('');
+
+      const moreLink = remaining > 0
+        ? `<button type="button" class="sf-summary-more" data-open-tab="analysis">${this._escapeHtml((i18n.viewAllAntiPatterns || 'View all {count} anti-patterns').replace('{count}', results.patterns.length))} ${window.FoxLog.icon('arrow-right', { size: 12 })}</button>`
+        : '';
+
+      return this._renderSummarySection(
+        'antipatterns',
+        'activity',
+        `${i18n.antiPatterns || 'Detected Anti-patterns'} (${results.patterns.length})`,
+        `<div class="sf-ap-preview-list">${items}${moreLink}</div>`
+      );
+    }
+
+    _renderMethodsSection(methods, totalCount) {
+      const hasTiming = methods.some(m => m.totalMs > 0);
+      const ranked = [...methods].sort((a, b) => hasTiming
+        ? (b.totalMs - a.totalMs) || (b.calls - a.calls)
+        : b.calls - a.calls);
+      const top = ranked.slice(0, 10);
+      const maxMs = top.length > 0 ? top[0].totalMs : 0;
+      const extraCount = ranked.length - top.length;
+      const viewInFlow = this._escapeHtml(i18n.viewInFlow || 'View in Flow');
+      const timeTitle = this._escapeHtml(i18n.methodTimeTitle || 'Total time');
+
+      const rows = top.map(m => {
+        // Same naming as the Flow nodes, which is what the jump matches on
+        const name = m.class && m.method ? `${m.class}.${m.method}` : (m.method || 'Unknown Method');
+        const timeHtml = hasTiming
+          ? `<span class="sf-method-time" title="${timeTitle}">${m.totalMs >= 1 ? window.FoxLog.formatDuration(Math.round(m.totalMs)) : '<1 ms'}</span>`
+          : '';
+        const barHtml = hasTiming && maxMs > 0
+          ? `<span class="sf-method-bar"><span class="sf-method-bar-fill" style="width: ${Math.max(2, m.totalMs / maxMs * 100).toFixed(1)}%"></span></span>`
+          : '';
+        return `
+          <button type="button" class="sf-method-item" data-flow-method="${this._escapeHtml(name)}" title="${viewInFlow}">
+            <span class="sf-method-main">
+              <span class="sf-method-name">${this._escapeHtml(name)}</span>
+              ${barHtml}
+            </span>
+            ${timeHtml}
+            <span class="sf-method-calls">${m.calls} ${i18n.callsSuffix || 'call(s)'}</span>
+          </button>
+        `;
+      }).join('');
+
+      const extraHint = extraCount > 0
+        ? `<div class="sf-hint">${(i18n.andOthers || '...and {count} more').replace('{count}', extraCount)}</div>`
+        : '';
+
+      return this._renderSummarySection(
+        'methods',
+        'code',
+        `${i18n.methods || 'Methods'} (${totalCount})`,
+        `<div class="sf-methods-list">${rows}${extraHint}</div>`
+      );
+    }
+
+    // Verdict banner at the top of the Summary: errors, log status, anti-patterns and the hottest limit set the tone.
+    _renderVerdictBanner(summary, parsedLog, results) {
+      const { limits } = parsedLog.stats;
+      const pct = (used, max) => (max > 0 ? used / max * 100 : 0);
+      const limitPct = {
+        soql: pct(limits.soqlQueries, limits.maxSoqlQueries),
+        dml: pct(limits.dmlStatements, limits.maxDmlStatements),
+        cpu: pct(limits.cpuTime, limits.maxCpuTime),
+        heap: pct(limits.heapSize, limits.maxHeapSize)
+      };
+      const hottest = Math.max(...Object.values(limitPct));
+      const errorCount = parsedLog.stats.errors.length;
+      const criticalCount = results ? results.summary.critical : 0;
+      const warningCount = results ? results.summary.warnings : 0;
+      const plural = (count, one, many) => (count === 1 ? one : many).replace('{count}', count);
+
+      // A log can fail without any parsed error line (e.g. only FATAL_ERROR), the status still says so
+      const statusFailed = this._getStatusTone(String(summary.metadata.status)) === 'danger';
+
+      let tone = 'healthy';
+      if (errorCount > 0 || criticalCount > 0 || statusFailed || hottest >= LIMIT_DANGER_PCT) tone = 'critical';
+      else if (warningCount > 0 || hottest > LIMIT_WARNING_PCT) tone = 'warning';
+
+      // Without analysis results "healthy" would be a claim nobody checked
+      if (tone === 'healthy' && !results) return '';
+
+      let title;
+      if (tone === 'critical') {
+        const parts = [];
+        if (errorCount > 0) parts.push(plural(errorCount, i18n.verdictErrorOne || '{count} error', i18n.verdictErrorMany || '{count} errors'));
+        if (criticalCount > 0) parts.push(plural(criticalCount, i18n.verdictCriticalOne || '{count} critical anti-pattern', i18n.verdictCriticalMany || '{count} critical anti-patterns'));
+        if (parts.length > 0) title = parts.join(i18n.verdictAnd || ' and ');
+        else if (statusFailed) title = i18n.verdictStatusFailed || 'The log did not finish successfully';
+        else title = i18n.verdictLimitCritical || 'A Salesforce limit is almost reached';
+      } else if (tone === 'warning') {
+        title = warningCount > 0
+          ? `${i18n.verdictNoErrors || 'No errors'}, ${plural(warningCount, i18n.verdictAttentionOne || '{count} warning', i18n.verdictAttentionMany || '{count} warnings')}`
+          : (i18n.verdictLimitWarning || 'A Salesforce limit is above 75%');
+      } else {
+        title = i18n.verdictHealthy || 'Healthy log';
+      }
+
+      const worstTitles = results && tone !== 'healthy'
+        ? ['critical', 'warning'].flatMap(severity => results.patterns.filter(p => p.severity === severity).map(p => p.title))
+        : [];
+      const subline = [...new Set(worstTitles)].slice(0, 2).map(title => this._escapeHtml(title)).join(' · ');
+
+      const chips = [
+        { icon: 'search', text: `SOQL ${limits.soqlQueries}/${limits.maxSoqlQueries}`, hot: limitPct.soql > LIMIT_WARNING_PCT },
+        { icon: 'database', text: `DML ${limits.dmlStatements}/${limits.maxDmlStatements}`, hot: limitPct.dml > LIMIT_WARNING_PCT },
+        { icon: 'zap', text: `CPU ${Math.round(limitPct.cpu)} %`, hot: limitPct.cpu > LIMIT_WARNING_PCT }
+      ];
+      if (limitPct.heap > LIMIT_WARNING_PCT) chips.push({ icon: 'bar-chart', text: `Heap ${Math.round(limitPct.heap)} %`, hot: true });
+      chips.push({ icon: null, text: window.FoxLog.formatDuration(summary.duration), hot: false });
+
+      const chipsHtml = chips.map(chip => `
+        <span class="sf-verdict-chip${chip.hot ? ' sf-verdict-chip--hot' : ''}">${chip.icon ? window.FoxLog.icon(chip.icon, { size: 12 }) : ''}${this._escapeHtml(chip.text)}</span>
+      `).join('');
+
+      const score = results ? results.summary.score : null;
+      const scoreHtml = Number.isFinite(score)
+        ? `
+          <div class="sf-verdict-score" title="${this._escapeHtml(i18n.healthScore || 'Health Score')}: ${score}/100">
+            <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
+              <circle cx="23" cy="23" r="18" fill="none" style="stroke: var(--fl-track)" stroke-width="4"/>
+              <circle cx="23" cy="23" r="18" fill="none" style="stroke: var(--v-solid)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(Math.min(100, Math.max(0, score)) / 100 * 113.1).toFixed(1)} 113.1"/>
+            </svg>
+            <span class="sf-verdict-score-value">${Math.round(score)}</span>
           </div>
         `
         : '';
 
+      const ctaHtml = results && results.patterns.length > 0
+        ? `<button type="button" class="sf-verdict-cta" data-open-tab="analysis">${this._escapeHtml(i18n.viewAnalysis || 'View analysis')} ${window.FoxLog.icon('arrow-right', { size: 12 })}</button>`
+        : '';
+
+      const iconName = { critical: 'alert-circle', warning: 'alert-triangle', healthy: 'check-circle' }[tone];
+
+      return `
+        <div class="sf-verdict sf-verdict--${tone}">
+          <div class="sf-verdict-icon">${window.FoxLog.icon(iconName, { size: 22 })}</div>
+          <div class="sf-verdict-body">
+            <div class="sf-verdict-title">${this._escapeHtml(title)}</div>
+            ${subline ? `<div class="sf-verdict-sub">${subline}</div>` : ''}
+            <div class="sf-verdict-chips">${chipsHtml}</div>
+          </div>
+          ${scoreHtml}
+          ${ctaHtml}
+        </div>
+      `;
+    }
+
+    _renderSummaryTab(summary, parsedLog, antiPatternResults = null) {
+      const status = String(summary.metadata.status);
+      const statusClass = { success: 'sf-status-success', danger: 'sf-status-error' }[this._getStatusTone(status)] || '';
+      const errorsSection = parsedLog.stats.errors.length > 0
+        ? this._renderErrorsSection(parsedLog.stats.errors)
+        : '';
+
       return `
         <div class="sf-summary-container">
+          ${this._renderVerdictBanner(summary, parsedLog, antiPatternResults)}
+
           <div class="sf-summary-section sf-summary-overview">
             <h4>${window.FoxLog.icon('info', { size: 14 })} ${i18n.generalInfo || 'General Information'}</h4>
             <div class="sf-summary-grid">
@@ -2069,49 +2459,45 @@
             </div>
           </div>
 
-          <div class="sf-summary-section">
-            <h4>${window.FoxLog.icon('bar-chart', { size: 14 })} ${i18n.salesforceLimits || 'Salesforce Limits'}</h4>
+          ${this._renderSummarySection('limits', 'bar-chart', i18n.salesforceLimits || 'Salesforce Limits', `
             <div class="sf-limits-grid">
-              ${this._renderLimitBar(i18n.limitSoql || 'SOQL Queries', parsedLog.stats.limits.soqlQueries, parsedLog.stats.limits.maxSoqlQueries, summary.limits.soql)}
-              ${this._renderLimitBar(i18n.limitDml || 'DML Statements', parsedLog.stats.limits.dmlStatements, parsedLog.stats.limits.maxDmlStatements, summary.limits.dml)}
+              ${this._renderLimitBar(i18n.limitSoql || 'SOQL Queries', parsedLog.stats.limits.soqlQueries, parsedLog.stats.limits.maxSoqlQueries, summary.limits.soql, 'soql')}
+              ${this._renderLimitBar(i18n.limitDml || 'DML Statements', parsedLog.stats.limits.dmlStatements, parsedLog.stats.limits.maxDmlStatements, summary.limits.dml, 'dml')}
               ${this._renderLimitBar(i18n.limitCpu || 'CPU Time', parsedLog.stats.limits.cpuTime, parsedLog.stats.limits.maxCpuTime, summary.limits.cpu)}
               ${this._renderLimitBar(i18n.limitHeap || 'Heap Size', parsedLog.stats.limits.heapSize, parsedLog.stats.limits.maxHeapSize, summary.limits.heap)}
             </div>
-          </div>
+          `)}
 
           ${errorsSection}
 
-          <div class="sf-summary-section">
-            <h4>${window.FoxLog.icon('code', { size: 14 })} ${(i18n.methods || 'Methods')} (${summary.methods})</h4>
-            <div class="sf-methods-list">
-              ${parsedLog.stats.methods.slice(0, 10).map(m => `
-                <div class="sf-method-item">
-                  <span class="sf-method-name">${m.class}.${m.method}</span>
-                  <span class="sf-method-calls">${m.calls} ${i18n.callsSuffix || 'call(s)'}</span>
-                </div>
-              `).join('')}
-              ${extraHint ? `<div class="sf-hint">${extraHint}</div>` : ''}
-            </div>
-          </div>
+          ${this._renderAntiPatternsSection(antiPatternResults)}
+
+          ${this._renderMethodsSection(parsedLog.stats.methods, summary.methods)}
         </div>
       `;
     }
 
-    _renderLimitBar(label, used, max, displayValue) {
+    /**
+     * @param {string} [flowGroup] - 'soql' | 'dml' makes the bar a link to those nodes in the Flow tab
+     * @private
+     */
+    _renderLimitBar(label, used, max, displayValue, flowGroup = null) {
       const percentage = max > 0 ? (used / max * 100).toFixed(1) : 0;
-      const isWarning = percentage > 75;
-      const isDanger = percentage > 90;
+      const isWarning = percentage > LIMIT_WARNING_PCT;
+      const isDanger = percentage > LIMIT_DANGER_PCT;
       const statusClass = isDanger ? 'danger' : (isWarning ? 'warning' : 'success');
-
-      return `
-        <div class="sf-limit-item">
+      const inner = `
           <span class="sf-label">${label}</span>
-          <div class="sf-limit-bar">
-            <div class="sf-limit-fill sf-limit-${statusClass}" style="width: ${percentage}%"></div>
-          </div>
+          <span class="sf-limit-bar">
+            <span class="sf-limit-fill sf-limit-${statusClass}" style="width: ${percentage}%"></span>
+          </span>
           <span class="sf-limit-value">${displayValue}</span>
-        </div>
       `;
+
+      if (flowGroup && used > 0) {
+        return `<button type="button" class="sf-limit-item sf-limit-item--jumpable" data-flow-group="${flowGroup}" title="${this._escapeHtml(i18n.viewInFlow || 'View in Flow')}">${inner}</button>`;
+      }
+      return `<div class="sf-limit-item">${inner}</div>`;
     }
 
     /**
@@ -2221,21 +2607,21 @@
             ${criticalPatterns.length > 0 ? `
               <div class="sf-pattern-group sf-group-critical">
                 <h4 class="sf-group-title">${window.FoxLog.dot('critical')} ${i18n.critical || 'Critical'} (${criticalPatterns.length})</h4>
-                ${this._renderPatternGroup(criticalPatterns, 'critical')}
+                ${this._renderPatternGroup(criticalPatterns, 'critical', patterns)}
               </div>
             ` : ''}
 
             ${warningPatterns.length > 0 ? `
               <div class="sf-pattern-group sf-group-warning">
                 <h4 class="sf-group-title">${window.FoxLog.dot('warning')} ${i18n.warning || 'Warning'} (${warningPatterns.length})</h4>
-                ${this._renderPatternGroup(warningPatterns, 'warning')}
+                ${this._renderPatternGroup(warningPatterns, 'warning', patterns)}
               </div>
             ` : ''}
 
             ${infoPatterns.length > 0 ? `
               <div class="sf-pattern-group sf-group-info">
                 <h4 class="sf-group-title">${window.FoxLog.dot('info')} ${i18n.info || 'Info'} (${infoPatterns.length})</h4>
-                ${this._renderPatternGroup(infoPatterns, 'info')}
+                ${this._renderPatternGroup(infoPatterns, 'info', patterns)}
               </div>
             ` : ''}
           </div>
@@ -2247,17 +2633,18 @@
      * Render a group of patterns
      * @private
      */
-    _renderPatternGroup(patterns, severity) {
+    _renderPatternGroup(patterns, severity, allPatterns) {
       if (patterns.length === 0) return '';
-      
-      return patterns.map(pattern => this._renderPatternItem(pattern)).join('');
+
+      return patterns.map(pattern => this._renderPatternItem(pattern, allPatterns.indexOf(pattern))).join('');
     }
 
     /**
      * Render a single pattern item
+     * @param {number} patternIndex - Position in results.patterns (the Summary links to it)
      * @private
      */
-    _renderPatternItem(pattern) {
+    _renderPatternItem(pattern, patternIndex) {
       const severityTones = {
         critical: 'critical',
         warning: 'warning',
@@ -2323,7 +2710,7 @@
       }
 
       return `
-        <div class="sf-anti-pattern-item sf-ap-${pattern.severity}">
+        <div class="sf-anti-pattern-item sf-ap-${pattern.severity}" data-pattern-index="${patternIndex}">
           <div class="sf-ap-header">
             <span class="sf-ap-icon">${icon}</span>
             <span class="sf-ap-title">${pattern.title}</span>
