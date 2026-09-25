@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-09-25
+
+### Added
+
+- **Summary, verdict banner**: a banner at the top of the Summary gives the state of the log at a glance — critical (errors, a log status other than Success, critical anti-patterns or a limit at 90 % or more), warning, or healthy. It stays out when nothing was analysed and there is nothing to warn about. It shows the count of errors and anti-patterns, the worst anti-pattern titles, chips for SOQL / DML / CPU (and heap when above 75 %) / duration with the hot ones highlighted, the health score as a ring, and a "View analysis" link
+- **Summary, error cards jump to the Flow tab**: clicking an error card (or its "View in Flow" button) switches to the Flow tab, selects the matching error node (expanding its path and enabling the filter groups it needs), pans to it and flashes it. The `< i/N >` error counter follows the selected error. If the graph hasn't been built yet, the jump is applied as soon as it is ready
+- **Summary, identical errors are grouped**: errors with the same type and message become one card with a `×N` badge; clicking it opens a prev/next stepper in the Flow tab over all its occurrences. Each card also has a **copy message** button
+- **Summary, limit bars open the Flow**: clicking the SOQL or DML bar jumps to the first such node in the Flow tab, with a prev/next stepper (`< 1/24 >`) to walk through all of them. The stepper bar shows what is being browsed and closes with the cross
+- **Summary, methods ranked by time**: the methods list is sorted by cumulative time (recursive calls counted once) with a duration bar and the time next to the call count. Clicking a method jumps to its first call in the Flow tab, with the same stepper to cycle through every call — the Summary keeps one row per method
+- **Summary, anti-pattern preview**: the three worst anti-patterns are listed under the errors, each with its query or method and occurrence count. Clicking one opens the Analysis tab on that pattern and flashes it; a link opens the full list
+- **Summary, collapsible sections**: Limits, Errors, Anti-patterns and Methods can be collapsed; the choice is remembered (`chrome.storage.local`) across logs and sessions
+
+### Changed
+
+- Jumping to a node in the Flow tab now enables the filter group of every ancestor on its path, not just its own, so the target is never hidden by a disabled "Triggers & Flows" filter
+- Error messages, locations and types in the Summary are now HTML-escaped
+
+### Internal
+
+- `stats.errors` entries now carry the raw log `lineIndex` of the error line, the same key the Flow tree nodes use as `logLineIndex`; `stats.methods` entries carry `totalMs`
+- New `chevron-down` and `copy` icons
+- `tests/test-method-stats.js` (`node tests/test-method-stats.js`): covers the per-method call count and cumulative time (recursion, unmatched exit, truncated log) and the error `lineIndex`
+
 ## [1.10.0] - 2026-09-23
 
 ### Added
