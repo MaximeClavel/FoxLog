@@ -10,6 +10,9 @@
   const LIMIT_WARNING_PCT = 75;
   const LIMIT_DANGER_PCT = 90;
 
+  // Longest chain of logs analysed together: each one is downloaded and parsed when the popover opens
+  const CHAIN_ANALYSIS_MAX_LOGS = 30;
+
   class ModalManager {
     constructor() {
       this.currentModal = null;
@@ -20,7 +23,13 @@
       this.currentLogIndex = -1;
       this.isLoadingNavigation = false;
       this.onNavigate = null; // Callback for navigation
-      
+
+      // (logId) => chain of logs the log belongs to, or null: drives the Hierarchy button
+      this.hierarchyProvider = null;
+      this._hierarchyTree = null;
+      // Combined analysis of each chain of logs: { state: 'loading' | 'done' | 'error', value }
+      this._chainAnalyses = new Map();
+
       // Current analysis data for export
       this.currentParsedLog = null;
       this.currentAntiPatternResults = null;
@@ -115,6 +124,14 @@
     }
 
     /**
+     * Set where the Hierarchy button gets the chain of logs a log belongs to
+     * @param {Function|null} provider - (logId) => chain, or null when the log is not part of one
+     */
+    setHierarchyProvider(provider) {
+      this.hierarchyProvider = provider;
+    }
+
+    /**
      * Display a modal with the parsed log (tabs and filters)
      * @param {Object} parsedLog - The parsed log object
      * @param {Object} parser - The log parser instance
@@ -152,6 +169,7 @@
         <div class="sf-modal-content">
           <div class="sf-modal-header">
             <div class="sf-modal-title">${this._renderModalTitle(parsedLog.metadata)}</div>
+            <div class="sf-modal-hierarchy" hidden></div>
             ${this._renderNavigationButtons()}
             <button type="button" class="sf-modal-close-btn" aria-label="${i18n.close || 'Close'}">${window.FoxLog.icon('x')}</button>
           </div>
@@ -215,6 +233,7 @@
       `;
       
       this._attachModal(modal);
+      this._renderHierarchy(modal);
       this._setupTabs(modal);
       this._setupGraphTab(modal, parsedLog);
       this._setupCallsTab(modal, parsedLog);
@@ -251,6 +270,7 @@
       if (titleContainer) {
         titleContainer.innerHTML = this._renderModalTitle(parsedLog.metadata);
       }
+      this._renderHierarchy(modal);
 
       // Update navigation buttons
       const navContainer = modal.querySelector('.sf-modal-nav, .sf-nav-placeholder');
@@ -657,6 +677,327 @@
       }
     }
 
+    // ============================================
+    // HIERARCHY: the chain of logs behind one action
+    // ============================================
+
+    /**
+     * Show the Hierarchy button (and its chain of logs) when the shown log is part of a chain
+     * @private
+     */
+    _renderHierarchy(modal) {
+      const slot = modal.querySelector('.sf-modal-hierarchy');
+      if (!slot) return;
+
+      const logId = this.currentParsedLog?.metadata?.id;
+      const tree = (logId && this.hierarchyProvider?.(logId)) || null;
+      this._hierarchyTree = tree;
+      if (!tree) {
+        slot.hidden = true;
+        slot.classList.remove('is-open');
+        slot.innerHTML = '';
+        return;
+      }
+
+      const open = slot.classList.contains('is-open');
+      const hadFocus = slot.contains(document.activeElement);
+      const countLabel = tree.logCount === 1
+        ? (i18n.hierarchyLogOne || '1 log')
+        : (i18n.hierarchyLogs || '{count} logs').replace('{count}', tree.logCount);
+      const offset = tree.missingParentRequestId ? 1 : 0;
+
+      const placeholder = tree.missingParentRequestId ? `
+        <li class="sf-hierarchy-item" style="--sf-depth: 0">
+          <span class="sf-hierarchy-node sf-hierarchy-node--missing" title="${this._escapeHtml(i18n.hierarchyParentMissingHint || 'Its log is not in the list')}">
+            ${window.FoxLog.icon('alert-circle', { size: 13 })}
+            <span class="sf-hierarchy-op">${i18n.hierarchyParentMissing || 'Parent request not found'}</span>
+            <code class="sf-hierarchy-id" title="${this._escapeHtml(tree.missingParentRequestId)}">${this._escapeHtml(tree.missingParentRequestId.slice(0, 10))}…</code>
+          </span>
+        </li>
+      ` : '';
+
+      const items = tree.rows.map(row => `
+        <li class="sf-hierarchy-item" style="--sf-depth: ${row.depth + offset}">
+          ${this._renderHierarchyNode(row, row.log.Id === logId, row.depth + offset > 0)}
+        </li>
+      `).join('');
+
+      slot.hidden = false;
+      slot.innerHTML = `
+        <button type="button" class="sf-hierarchy-btn" aria-haspopup="dialog" aria-expanded="${open}" aria-controls="sf-hierarchy-popover" title="${i18n.hierarchyToggle || 'Show the chain of logs behind this action'}">
+          ${window.FoxLog.icon('share-2', { size: 14 })}
+          <span>${i18n.hierarchy || 'Hierarchy'}</span>
+          <span class="sf-hierarchy-count">${tree.logCount}</span>
+        </button>
+        <div class="sf-hierarchy-popover" id="sf-hierarchy-popover" role="dialog" aria-label="${i18n.hierarchyTitle || 'Log chain'}" ${open ? '' : 'hidden'}>
+          <div class="sf-hierarchy-head">
+            <span class="sf-hierarchy-title">${i18n.hierarchyTitle || 'Log chain'}</span>
+            <span class="sf-hierarchy-meta" title="${i18n.hierarchySpan || 'Total duration of the chain'}">${countLabel} · ${window.FoxLog.formatDuration(tree.spanMs)}</span>
+          </div>
+          ${tree.logCount > 1 ? `<div class="sf-hierarchy-verdict" data-chain-key="${this._escapeHtml(this._chainKey(tree))}"></div>` : ''}
+          <p class="sf-hierarchy-hint">${i18n.hierarchyHint || 'Click a log to open it'}</p>
+          <ul class="sf-hierarchy-list">${placeholder}${items}</ul>
+        </div>
+      `;
+
+      this._paintChainVerdict(modal);
+      if (open) this._ensureChainAnalysis(modal);
+
+      // The clicked log was just re-rendered: keep the keyboard on the log now shown
+      if (hadFocus) slot.querySelector('.sf-hierarchy-node.is-current')?.focus();
+    }
+
+    _chainKey(tree) {
+      return tree.logs.map(log => log.Id).join(',');
+    }
+
+    /**
+     * Combined analysis of the chain, started when the popover opens: every log of the chain is
+     * downloaded and analysed like the modal does for one log, then the results are added up.
+     * @private
+     */
+    _ensureChainAnalysis(modal) {
+      const tree = this._hierarchyTree;
+      if (!tree || tree.logCount < 2) return;
+
+      const key = this._chainKey(tree);
+      let analysis = this._chainAnalyses.get(key);
+      if (analysis?.state === 'error') {
+        this._chainAnalyses.delete(key);
+        analysis = null;
+      }
+
+      if (!analysis && tree.logCount > CHAIN_ANALYSIS_MAX_LOGS) {
+        analysis = { state: 'skipped', value: null };
+        this._chainAnalyses.set(key, analysis);
+      } else if (!analysis) {
+        analysis = { state: 'loading', value: null };
+        this._chainAnalyses.set(key, analysis);
+        this._analyzeChain(tree).then((value) => {
+          analysis.state = 'done';
+          analysis.value = value;
+        }, (error) => {
+          this.logger.error('Chain analysis failed', error);
+          analysis.state = 'error';
+        }).then(() => this.currentModal && this._paintChainVerdict(this.currentModal));
+      }
+      this._paintChainVerdict(modal);
+    }
+
+    async _analyzeChain(tree) {
+      const { salesforceAPI, logParser, antiPatternDetector, logHierarchy } = window.FoxLog;
+      const entries = [];
+
+      // Download a few logs at a time, and let the page breathe between the heavy parses
+      for (let start = 0; start < tree.logs.length; start += 3) {
+        const chunk = tree.logs.slice(start, start + 3);
+        const downloads = await Promise.allSettled(chunk.map(log => salesforceAPI.fetchLogBody(log.Id)));
+        chunk.forEach((log, i) => {
+          // A log that can no longer be read (deleted, expired) must not sink the verdict of the others
+          if (downloads[i].status === 'rejected') {
+            this.logger.error(`Chain analysis: could not read log ${log.Id}`, downloads[i].reason);
+            return;
+          }
+          const parsed = logParser.parse(downloads[i].value, log);
+          let results = null;
+          try {
+            results = antiPatternDetector ? antiPatternDetector.analyze(parsed) : null;
+          } catch (error) {
+            logger.error('Anti-pattern detection failed', error);
+          }
+          entries.push({ log, stats: parsed.stats, results });
+        });
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+
+      if (entries.length === 0) throw new Error('None of the logs of the chain could be read');
+      return logHierarchy.summarize(entries, { spanMs: tree.spanMs, unreadableLogs: tree.logCount - entries.length });
+    }
+
+    /** Draw the chain banner for the state its analysis is in (nothing until the popover was opened) */
+    _paintChainVerdict(modal) {
+      const host = modal.querySelector('.sf-hierarchy-verdict');
+      if (!host) return;
+
+      const analysis = this._chainAnalyses.get(host.dataset.chainKey);
+      if (!analysis) {
+        host.innerHTML = '';
+      } else if (analysis.state === 'loading') {
+        host.innerHTML = `
+          <div class="sf-hierarchy-verdict-note" role="status">
+            <span class="sf-spinner-small"></span>
+            ${(i18n.chainAnalyzing || 'Analyzing {count} logs…').replace('{count}', this._hierarchyTree?.logCount ?? '')}
+          </div>
+        `;
+      } else if (analysis.state === 'skipped') {
+        host.innerHTML = `<div class="sf-hierarchy-verdict-note">${(i18n.chainTooLarge || 'Chain too long to analyze automatically ({count} logs)').replace('{count}', this._hierarchyTree?.logCount ?? '')}</div>`;
+      } else if (analysis.state === 'error') {
+        host.innerHTML = `<div class="sf-hierarchy-verdict-note">${i18n.chainAnalysisFailed || 'Analysis unavailable'}</div>`;
+      } else {
+        host.innerHTML = this._renderChainVerdict(analysis.value);
+      }
+    }
+
+    /**
+     * The verdict of a whole chain, from the sum of its logs: same tone and chips as a log's
+     * Summary, where CPU, heap and the score are the worst log's and SOQL/DML are totals
+     * @private
+     */
+    _renderChainVerdict(chain) {
+      const hottest = Math.max(chain.peak.soql, chain.peak.dml, chain.peak.cpu, chain.peak.heap);
+      const headline = this._getVerdictHeadline({
+        errorCount: chain.errorCount,
+        criticalCount: chain.criticalCount,
+        warningCount: chain.warningCount,
+        statusFailed: chain.failedLogs > 0,
+        hottest,
+        hasResults: chain.hasResults,
+        healthyTitle: i18n.chainHealthy || 'Healthy chain',
+        statusFailedTitle: i18n.chainStatusFailed || 'A log in the chain did not finish successfully'
+      });
+      if (!headline) return '';
+      const { tone, title } = headline;
+
+      // Nothing to say about the logs when the tone comes from a limit alone
+      const affected = tone === 'healthy' || chain.affectedLogs === 0 ? '' : (chain.affectedLogs === 1
+        ? (i18n.chainAffectedOne || '1 of {total} logs affected')
+        : (i18n.chainAffectedMany || '{affected} of {total} logs affected'))
+        .replace('{affected}', chain.affectedLogs).replace('{total}', chain.logCount);
+      const unreadable = chain.unreadableLogs > 0
+        ? (i18n.chainUnreadable || '{count} unreadable log(s)').replace('{count}', chain.unreadableLogs)
+        : '';
+      const worst = tone === 'healthy' ? [] : chain.worstTitles;
+      const subline = [affected, unreadable, ...worst].filter(Boolean).map(text => this._escapeHtml(text)).join(' · ');
+
+      const totalHint = (peak) => (i18n.chainTotalHint || 'Total across the chain, highest in a single log: {peak}').replace('{peak}', peak);
+      const chips = [
+        { icon: 'search', text: `SOQL ${chain.totals.soql}`, hot: chain.peak.soql > LIMIT_WARNING_PCT, hint: totalHint(`${Math.round(chain.peak.soql)} %`) },
+        { icon: 'database', text: `DML ${chain.totals.dml}`, hot: chain.peak.dml > LIMIT_WARNING_PCT, hint: totalHint(`${Math.round(chain.peak.dml)} %`) },
+        { icon: 'zap', text: `CPU max ${Math.round(chain.peak.cpu)} %`, hot: chain.peak.cpu > LIMIT_WARNING_PCT, hint: i18n.chainPeakHint || 'Highest in a single log' }
+      ];
+      if (chain.totals.callouts > 0) chips.push({ icon: null, text: `${i18n.callouts || 'Callouts'} ${chain.totals.callouts}`, hot: false });
+      if (chain.peak.heap > LIMIT_WARNING_PCT) chips.push({ icon: 'bar-chart', text: `Heap max ${Math.round(chain.peak.heap)} %`, hot: true, hint: i18n.chainPeakHint || 'Highest in a single log' });
+      chips.push({ icon: null, text: window.FoxLog.formatDuration(chain.spanMs), hot: false, hint: i18n.hierarchySpan || 'Total duration of the chain' });
+
+      const iconName = { critical: 'alert-circle', warning: 'alert-triangle', healthy: 'check-circle' }[tone];
+
+      return `
+        <div class="sf-verdict sf-verdict--compact sf-verdict--${tone}">
+          <div class="sf-verdict-icon">${window.FoxLog.icon(iconName, { size: 20 })}</div>
+          <div class="sf-verdict-body">
+            <div class="sf-verdict-title">${this._escapeHtml(title)}</div>
+            ${subline ? `<div class="sf-verdict-sub">${subline}</div>` : ''}
+            <div class="sf-verdict-chips">${this._renderVerdictChips(chips)}</div>
+          </div>
+          ${this._renderVerdictScore(chain.score, i18n.chainScoreHint || 'Lowest health score in the chain')}
+        </div>
+      `;
+    }
+
+    /** One log of the chain, as a button that opens it */
+    _renderHierarchyNode(row, isCurrent, isChild) {
+      const { log, analysis } = row;
+      const status = String(log.Status || 'Unknown');
+      const errorCount = analysis?.errorCount || 0;
+      const time = new Date(log.StartTime).toLocaleTimeString(navigator.language);
+      const errorBadge = errorCount > 0
+        ? `<span class="sf-log-error-badge" title="${errorCount} ${errorCount === 1 ? (i18n.error || 'Error') : (i18n.errors || 'Errors')}">${window.FoxLog.icon('alert-circle', { size: 12 })} ${errorCount}</span>`
+        : '';
+
+      return `
+        <button type="button" class="sf-hierarchy-node ${isCurrent ? 'is-current' : ''}" data-log-id="${this._escapeHtml(log.Id)}" ${isCurrent ? 'aria-current="true"' : ''}>
+          ${isChild ? `<span class="sf-hierarchy-branch">${window.FoxLog.icon('corner-down-right', { size: 13 })}</span>` : ''}
+          <span class="sf-hierarchy-op" title="${this._escapeHtml(log.Operation || 'Unknown')}">${this._escapeHtml(log.Operation || 'Unknown')}</span>
+          <span class="sf-tone-chip sf-tone-chip--${this._getStatusTone(status)}" title="${this._escapeHtml(status)}">${this._escapeHtml(status.split(':')[0])}</span>
+          ${errorBadge}
+          <span class="sf-hierarchy-time">${time}</span>
+          <span class="sf-hierarchy-duration">${window.FoxLog.formatDuration(log.DurationMilliseconds || 0)}</span>
+        </button>
+      `;
+    }
+
+    /**
+     * Wire the Hierarchy button, the log buttons in its popover, and the ways to dismiss it
+     * @private
+     */
+    _setupHierarchy(modal) {
+      const slot = modal.querySelector('.sf-modal-hierarchy');
+      if (!slot) return;
+
+      slot.addEventListener('click', (e) => {
+        if (e.target.closest('.sf-hierarchy-btn')) {
+          this._setHierarchyOpen(modal, !slot.classList.contains('is-open'));
+          return;
+        }
+        const node = e.target.closest('.sf-hierarchy-node[data-log-id]');
+        if (node) this._openHierarchyLog(node.dataset.logId);
+      });
+
+      slot.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          const nodes = [...slot.querySelectorAll('.sf-hierarchy-node[data-log-id]')];
+          const at = nodes.indexOf(document.activeElement);
+          if (at < 0 && e.key === 'ArrowUp') return;
+          e.preventDefault();
+          nodes[Math.max(0, Math.min(nodes.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))]?.focus();
+        }
+      });
+
+      // Escape closes the popover first, and only then the modal
+      modal.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || !slot.classList.contains('is-open')) return;
+        e.stopPropagation();
+        this._setHierarchyOpen(modal, false);
+        slot.querySelector('.sf-hierarchy-btn')?.focus();
+      });
+
+      modal.addEventListener('click', (e) => {
+        if (!e.target.closest('.sf-modal-hierarchy')) this._setHierarchyOpen(modal, false);
+      });
+    }
+
+    _setHierarchyOpen(modal, open) {
+      const slot = modal.querySelector('.sf-modal-hierarchy');
+      const popover = slot?.querySelector('.sf-hierarchy-popover');
+      if (!popover) return;
+
+      slot.classList.toggle('is-open', open);
+      popover.hidden = !open;
+      slot.querySelector('.sf-hierarchy-btn')?.setAttribute('aria-expanded', String(open));
+      if (!open) return;
+
+      this._ensureChainAnalysis(modal);
+      (popover.querySelector('.sf-hierarchy-node.is-current') || popover.querySelector('.sf-hierarchy-node[data-log-id]'))?.focus();
+    }
+
+    /** Open a log of the chain in this same modal */
+    async _openHierarchyLog(logId) {
+      if (this.isLoadingNavigation || logId === this.currentParsedLog?.metadata?.id) return;
+
+      const index = this.logsList.findIndex(log => log.Id === logId);
+      if (index >= 0) {
+        await this._navigateToLog(index);
+        return;
+      }
+
+      // The panel refreshed since this modal opened and the chain gained a log: the opener still finds it
+      if (!this.onNavigate) {
+        this._showToast(i18n.hierarchyOpenFailed || 'Unable to open this log', 'error');
+        return;
+      }
+      this.isLoadingNavigation = true;
+      this._showNavigationLoading(true);
+      try {
+        await this.onNavigate(logId, -1);
+      } catch (error) {
+        this.logger.error('Navigation failed', error);
+        this._showToast(i18n.hierarchyOpenFailed || 'Unable to open this log', 'error');
+      } finally {
+        this.isLoadingNavigation = false;
+        this._showNavigationLoading(false);
+      }
+    }
+
     /**
      * Ferme la modal actuelle
      */
@@ -734,6 +1075,7 @@
 
       // Setup navigation buttons
       this._setupNavigation(modal);
+      this._setupHierarchy(modal);
 
       // Click outside to close
       modal.addEventListener('click', (e) => {
@@ -2334,6 +2676,56 @@
       );
     }
 
+    // Tone and title of a verdict banner (a log's Summary, or a whole chain of logs): the same thresholds for both.
+    _getVerdictHeadline({ errorCount, criticalCount, warningCount, statusFailed, hottest, hasResults, healthyTitle, statusFailedTitle }) {
+      const plural = (count, one, many) => (count === 1 ? one : many).replace('{count}', count);
+
+      let tone = 'healthy';
+      if (errorCount > 0 || criticalCount > 0 || statusFailed || hottest >= LIMIT_DANGER_PCT) tone = 'critical';
+      else if (warningCount > 0 || hottest > LIMIT_WARNING_PCT) tone = 'warning';
+
+      // Without analysis results "healthy" would be a claim nobody checked
+      if (tone === 'healthy' && !hasResults) return null;
+
+      let title;
+      if (tone === 'critical') {
+        const parts = [];
+        if (errorCount > 0) parts.push(plural(errorCount, i18n.verdictErrorOne || '{count} error', i18n.verdictErrorMany || '{count} errors'));
+        if (criticalCount > 0) parts.push(plural(criticalCount, i18n.verdictCriticalOne || '{count} critical anti-pattern', i18n.verdictCriticalMany || '{count} critical anti-patterns'));
+        if (parts.length > 0) title = parts.join(i18n.verdictAnd || ' and ');
+        else if (statusFailed) title = statusFailedTitle || i18n.verdictStatusFailed || 'The log did not finish successfully';
+        else title = i18n.verdictLimitCritical || 'A Salesforce limit is almost reached';
+      } else if (tone === 'warning') {
+        title = warningCount > 0
+          ? `${i18n.verdictNoErrors || 'No errors'}, ${plural(warningCount, i18n.verdictAttentionOne || '{count} warning', i18n.verdictAttentionMany || '{count} warnings')}`
+          : (i18n.verdictLimitWarning || 'A Salesforce limit is above 75%');
+      } else {
+        title = healthyTitle || i18n.verdictHealthy || 'Healthy log';
+      }
+
+      return { tone, title };
+    }
+
+    /** @param {Array<{icon: string|null, text: string, hot: boolean, hint?: string}>} chips */
+    _renderVerdictChips(chips) {
+      return chips.map(chip => `
+        <span class="sf-verdict-chip${chip.hot ? ' sf-verdict-chip--hot' : ''}"${chip.hint ? ` title="${this._escapeHtml(chip.hint)}"` : ''}>${chip.icon ? window.FoxLog.icon(chip.icon, { size: 12 }) : ''}${this._escapeHtml(chip.text)}</span>
+      `).join('');
+    }
+
+    _renderVerdictScore(score, label) {
+      if (!Number.isFinite(score)) return '';
+      return `
+          <div class="sf-verdict-score" title="${this._escapeHtml(label)}: ${score}/100">
+            <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
+              <circle cx="23" cy="23" r="18" fill="none" style="stroke: var(--fl-track)" stroke-width="4"/>
+              <circle cx="23" cy="23" r="18" fill="none" style="stroke: var(--v-solid)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(Math.min(100, Math.max(0, score)) / 100 * 113.1).toFixed(1)} 113.1"/>
+            </svg>
+            <span class="sf-verdict-score-value">${Math.round(score)}</span>
+          </div>
+        `;
+    }
+
     // Verdict banner at the top of the Summary: errors, log status, anti-patterns and the hottest limit set the tone.
     _renderVerdictBanner(summary, parsedLog, results) {
       const { limits } = parsedLog.stats;
@@ -2345,36 +2737,18 @@
         heap: pct(limits.heapSize, limits.maxHeapSize)
       };
       const hottest = Math.max(...Object.values(limitPct));
-      const errorCount = parsedLog.stats.errors.length;
-      const criticalCount = results ? results.summary.critical : 0;
-      const warningCount = results ? results.summary.warnings : 0;
-      const plural = (count, one, many) => (count === 1 ? one : many).replace('{count}', count);
 
       // A log can fail without any parsed error line (e.g. only FATAL_ERROR), the status still says so
-      const statusFailed = this._getStatusTone(String(summary.metadata.status)) === 'danger';
-
-      let tone = 'healthy';
-      if (errorCount > 0 || criticalCount > 0 || statusFailed || hottest >= LIMIT_DANGER_PCT) tone = 'critical';
-      else if (warningCount > 0 || hottest > LIMIT_WARNING_PCT) tone = 'warning';
-
-      // Without analysis results "healthy" would be a claim nobody checked
-      if (tone === 'healthy' && !results) return '';
-
-      let title;
-      if (tone === 'critical') {
-        const parts = [];
-        if (errorCount > 0) parts.push(plural(errorCount, i18n.verdictErrorOne || '{count} error', i18n.verdictErrorMany || '{count} errors'));
-        if (criticalCount > 0) parts.push(plural(criticalCount, i18n.verdictCriticalOne || '{count} critical anti-pattern', i18n.verdictCriticalMany || '{count} critical anti-patterns'));
-        if (parts.length > 0) title = parts.join(i18n.verdictAnd || ' and ');
-        else if (statusFailed) title = i18n.verdictStatusFailed || 'The log did not finish successfully';
-        else title = i18n.verdictLimitCritical || 'A Salesforce limit is almost reached';
-      } else if (tone === 'warning') {
-        title = warningCount > 0
-          ? `${i18n.verdictNoErrors || 'No errors'}, ${plural(warningCount, i18n.verdictAttentionOne || '{count} warning', i18n.verdictAttentionMany || '{count} warnings')}`
-          : (i18n.verdictLimitWarning || 'A Salesforce limit is above 75%');
-      } else {
-        title = i18n.verdictHealthy || 'Healthy log';
-      }
+      const headline = this._getVerdictHeadline({
+        errorCount: parsedLog.stats.errors.length,
+        criticalCount: results ? results.summary.critical : 0,
+        warningCount: results ? results.summary.warnings : 0,
+        statusFailed: this._getStatusTone(String(summary.metadata.status)) === 'danger',
+        hottest,
+        hasResults: Boolean(results)
+      });
+      if (!headline) return '';
+      const { tone, title } = headline;
 
       const worstTitles = results && tone !== 'healthy'
         ? ['critical', 'warning'].flatMap(severity => results.patterns.filter(p => p.severity === severity).map(p => p.title))
@@ -2389,22 +2763,8 @@
       if (limitPct.heap > LIMIT_WARNING_PCT) chips.push({ icon: 'bar-chart', text: `Heap ${Math.round(limitPct.heap)} %`, hot: true });
       chips.push({ icon: null, text: window.FoxLog.formatDuration(summary.duration), hot: false });
 
-      const chipsHtml = chips.map(chip => `
-        <span class="sf-verdict-chip${chip.hot ? ' sf-verdict-chip--hot' : ''}">${chip.icon ? window.FoxLog.icon(chip.icon, { size: 12 }) : ''}${this._escapeHtml(chip.text)}</span>
-      `).join('');
-
-      const score = results ? results.summary.score : null;
-      const scoreHtml = Number.isFinite(score)
-        ? `
-          <div class="sf-verdict-score" title="${this._escapeHtml(i18n.healthScore || 'Health Score')}: ${score}/100">
-            <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
-              <circle cx="23" cy="23" r="18" fill="none" style="stroke: var(--fl-track)" stroke-width="4"/>
-              <circle cx="23" cy="23" r="18" fill="none" style="stroke: var(--v-solid)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(Math.min(100, Math.max(0, score)) / 100 * 113.1).toFixed(1)} 113.1"/>
-            </svg>
-            <span class="sf-verdict-score-value">${Math.round(score)}</span>
-          </div>
-        `
-        : '';
+      const chipsHtml = this._renderVerdictChips(chips);
+      const scoreHtml = this._renderVerdictScore(results ? results.summary.score : null, i18n.healthScore || 'Health Score');
 
       const ctaHtml = results && results.patterns.length > 0
         ? `<button type="button" class="sf-verdict-cta" data-open-tab="analysis">${this._escapeHtml(i18n.viewAnalysis || 'View analysis')} ${window.FoxLog.icon('arrow-right', { size: 12 })}</button>`

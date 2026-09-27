@@ -579,6 +579,107 @@
 
 .sf-log-error-badge svg { width: 12px; height: 12px; }
 
+/* ---------- Chains of logs: one folder per action ---------- */
+.sf-log-folder {
+  position: relative;
+  flex: none;
+  background: var(--fl-card);
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-r-lg);
+  transition: border-color var(--fl-dur), box-shadow var(--fl-dur);
+}
+
+.sf-log-folder:hover { border-color: var(--fl-accent-line); }
+.sf-log-folder.is-open { box-shadow: var(--fl-shadow-1); }
+.sf-log-folder.sf-log-has-error { border-color: var(--fl-danger-line); }
+.sf-log-folder.sf-log-cleared { opacity: 0.6; }
+.sf-log-folder.sf-log-cleared:hover,
+.sf-log-folder.sf-log-cleared:focus-within { opacity: 1; }
+
+.sf-log-folder-header {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px 12px 18px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sf-log-folder-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--fl-accent);
+}
+
+.sf-log-folder.sf-log-has-error .sf-log-folder-header::before { background: var(--fl-danger); }
+.sf-log-folder-header:focus-visible { outline: 2px solid var(--fl-focus); outline-offset: -2px; }
+
+.sf-log-folder-header .sf-log-header { justify-content: flex-start; align-items: center; }
+.sf-log-folder-header .sf-log-time { margin-left: auto; }
+
+.sf-log-folder-chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--fl-text-3);
+  transition: transform var(--fl-dur) var(--fl-ease);
+}
+
+.sf-log-folder.is-open .sf-log-folder-chevron { transform: rotate(90deg); }
+
+.sf-log-chain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 2px 9px;
+  border-radius: var(--fl-r-pill);
+  background: var(--fl-accent-tint);
+  color: var(--fl-accent);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.sf-log-folder-children {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 10px 10px 14px;
+}
+
+.sf-log-folder-children[hidden] { display: none; }
+
+/* Each log is indented under the log that started it, with a guide line down the left edge */
+.sf-log-tree-row {
+  position: relative;
+  padding-left: calc(var(--sf-depth, 0) * 14px);
+}
+
+.sf-log-tree-row.is-child::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--sf-depth, 0) * 14px - 8px);
+  top: -6px;
+  bottom: 50%;
+  width: 8px;
+  border-left: 1.5px solid var(--fl-border-2);
+  border-bottom: 1.5px solid var(--fl-border-2);
+  border-bottom-left-radius: 6px;
+}
+
+
 /* ---------- Empty, error and loading states ---------- */
 .sf-empty-state {
   display: flex;

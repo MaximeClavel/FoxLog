@@ -3,7 +3,13 @@
   'use strict';
   
   window.FoxLog = window.FoxLog || {};
-  const { logger, salesforceAPI, logParser } = window.FoxLog;
+  const { logger, salesforceAPI, logParser, STRUCTURED_ERROR_TYPES } = window.FoxLog;
+
+  // The error lines the log parser collects into stats.errors besides EXCEPTION_THROWN (the count on
+  // a panel card must match the modal's): the structured error types, and a Flow action call whose
+  // 5th field after the type says it failed. Matched on the event-type field of a timestamped line only
+  // (like the parser), so the same words inside an exception message or a multi-line debug do not count.
+  const ERROR_LINE_SOURCE = `^\\d{2}:\\d{2}:\\d{2}\\.\\d+\\s+\\(\\d+\\)\\|(?:(${STRUCTURED_ERROR_TYPES.join('|')})(?=\\||$)|FLOW_ACTIONCALL_DETAIL\\|(?:[^|]*\\|){4}false(?=\\||$))`;
 
   /**
    * Service to quickly analyze logs and detect errors
@@ -15,9 +21,9 @@
     }
 
     /**
-     * Analyze a batch of logs to detect errors
+     * Analyze a batch of logs to detect errors and the request links used to chain logs
      * @param {Array} logs - List of log metadata
-     * @returns {Promise<Map>} Map of logId -> {hasError, errorCount, errorTypes}
+     * @returns {Promise<Map>} Map of logId -> {hasError, errorCount, errorTypes, parentRequestId, selfRequestId}
      */
     async analyzeBatch(logs) {
       logger.log(`Analyzing ${logs.length} logs for errors`);
@@ -73,8 +79,10 @@
     async _analyzeLog(logMetadata) {
       try {
         const logBody = await salesforceAPI.fetchLogBody(logMetadata.Id);
-        const analysis = this._quickErrorDetection(logBody);
-        return analysis;
+        return {
+          ...this._quickErrorDetection(logBody),
+          ...window.FoxLog.logHierarchy.extractLinks(logBody)
+        };
       } catch (error) {
         logger.error(`Error analyzing log ${logMetadata.Id}`, error);
         return { hasError: false, errorCount: 0, errorTypes: [] };
@@ -93,9 +101,11 @@
         // EVALUATION, pass or fail (confirmed against a real log, see
         // tests/flow-error-repro/) -- matching on them flagged fully
         // successful runs as errors just for having a Validation Rule
-        // anywhere in the transaction. VALIDATION_FAIL is the real signal,
-        // and is confirmed bare (no trailing pipe), unlike VF_PAGE_MESSAGE.
-        validation: /^.*\|(?:VALIDATION_FAIL(?=\||$)|VF_PAGE_MESSAGE\|)/gm
+        // anywhere in the transaction. VALIDATION_FAIL (in ERROR_LINE_SOURCE)
+        // is the real signal; VF_PAGE_MESSAGE is not a parser error, so it
+        // only counts when nothing else did.
+        errorLines: new RegExp(ERROR_LINE_SOURCE, 'gm'),
+        pageMessage: /^\d{2}:\d{2}:\d{2}\.\d+\s+\(\d+\)\|VF_PAGE_MESSAGE\|/m
       };
 
       let hasError = false;
@@ -120,12 +130,17 @@
         }
       }
 
-      // Detect validation events (line-level match to avoid matching inside EXCEPTION_THROWN text)
-      errorPatterns.validation.lastIndex = 0;
-      if (errorPatterns.validation.test(logContent)) {
+      // Flow faults, validation failures, failed Flow actions... one error per line, like the modal
+      while ((match = errorPatterns.errorLines.exec(logContent)) !== null) {
         hasError = true;
-        if (errorCount === 0) errorCount++;
-        errorTypes.add('VALIDATION_FAIL');
+        errorCount++;
+        errorTypes.add(match[1] || 'FLOW_ACTIONCALL_DETAIL');
+      }
+
+      if (errorCount === 0 && errorPatterns.pageMessage.test(logContent)) {
+        hasError = true;
+        errorCount++;
+        errorTypes.add('VF_PAGE_MESSAGE');
       }
 
       return {

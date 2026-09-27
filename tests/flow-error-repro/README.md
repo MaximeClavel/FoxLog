@@ -37,7 +37,12 @@ it from your sandbox whenever you're done with it (see Cleanup below).
   - `HTTP_CALLOUT` — a real GET callout to a public test endpoint, no error
     (point 2)
   - `SOSL_QUERY` — a SOSL search across Accounts, no error (point 3)
+  - `ASYNC_CHAIN` — starts a chain of async jobs, each writing its own debug
+    log, to test FoxLog's log hierarchy (see "Log hierarchy test" below)
   - anything else — no error, returns normally
+
+- **`FoxLogChain`, `FoxLogChainQueueable`, `FoxLogChainFuture`,
+  `FoxLogChainBatch`** — the async jobs behind `ASYNC_CHAIN`, see below.
 
 - **`FoxLog_Error_Demo` flow** (Screen Flow):
   - A screen lets you pick one of the scenarios above (plus `FLOW_DML_ERROR`
@@ -177,6 +182,57 @@ Send me those lines (or the full raw logs) and I'll correct the parser on
 this branch (`flow-element-error-repro`) against the real format, then you
 can pull and re-test in FoxLog directly.
 
+## Log hierarchy test (`ASYNC_CHAIN`)
+
+Checks FoxLog's grouping of the logs of one action into a folder in the panel
+and its **Hierarchy** button in the log modal.
+
+Run the flow once with `Error type` = **Async chain: Queueable, Future, Batch**.
+Wait about 30 seconds, then refresh FoxLog. The run starts this chain, and every
+job writes its own debug log:
+
+```
+Flow run + Apex action                    (root)
+└─ Queueable step 1
+   ├─ Future
+   └─ Queueable step 2
+      └─ Queueable step 3
+         └─ Batch: start, execute x2, finish
+```
+
+That is 9 logs. Expected in FoxLog:
+
+- The panel shows **one folder** (with a "9 logs" chip) instead of 9 cards.
+  The arrow unfolds it and the logs are indented under the one that started them.
+- Open any log of the chain: a **Hierarchy** button (with the log count) is in
+  the modal header. It lists the chain, and clicking a log opens it.
+
+How the chain is found: Salesforce gives every async job a new request id, so
+FoxLog cannot chain them from `ApexLog.RequestIdentifier` alone (it only groups
+the logs of one request). Each step therefore writes two debug lines, through
+`FoxLogChain.mark()`:
+
+```
+FOXLOG_REQUEST_ID=<its own request id>
+FOXLOG_PARENT_REQUEST_ID=<request id of the job that started it>
+```
+
+FoxLog reads them from the log body and matches them with `RequestIdentifier`
+(or with the log's own `FOXLOG_REQUEST_ID`, if Salesforce reports another value
+there). To get the same in your own code, pass `Request.getCurrent().getRequestId()`
+to the job you start (constructor for Queueable/Batch, parameter for `@future`)
+and write it with `System.debug('FOXLOG_PARENT_REQUEST_ID=' + parentRequestId)`.
+
+What to report back if the folder does not form:
+
+- In Setup > Debug Logs, do the 9 logs exist? A job whose user has no active
+  TraceFlag writes no log, and the chain then has a hole (the modal shows a
+  dashed "Parent request not found" line above the orphan).
+- In one child log, is there a `FOXLOG_PARENT_REQUEST_ID=` line? Does the value
+  equal the `RequestIdentifier` of the root log (`sf data query -q "SELECT Id,
+  Operation, RequestIdentifier FROM ApexLog ORDER BY StartTime DESC LIMIT 20"`)? Do the Batch `start`/`execute`/`finish` logs share one
+  `RequestIdentifier` or not?
+
 ## Cleanup
 
 The always-run loop creates 3 `Account` records on **every** run
@@ -196,6 +252,8 @@ sandbox:
 
 ```bash
 sf project delete source -m ApexClass:FoxLogErrorDemoController \
+  -m ApexClass:FoxLogChain -m ApexClass:FoxLogChainQueueable \
+  -m ApexClass:FoxLogChainFuture -m ApexClass:FoxLogChainBatch \
   -m Flow:FoxLog_Error_Demo -m Flow:FoxLog_Error_Demo_Subflow \
   -m ValidationRule:Account.FoxLog_Demo_Validation_Fail \
   -m RemoteSiteSetting:FoxLog_Demo_Callout \

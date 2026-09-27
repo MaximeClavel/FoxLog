@@ -65,6 +65,12 @@
 - **Auto-sync with Files tab**: imports from the Diff tab appear in the panel's Files history
 - **Web Worker powered**: diff computation runs off the main thread with a 10s timeout
 
+### 🔗 Log Hierarchy
+- **One folder per action**: the logs of one request (same `ApexLog.RequestIdentifier`) and the async jobs it started are grouped in the panel; the arrow unfolds them, indented under the log that started them
+- **Hierarchy button in the modal**: lists the chain with status, errors, time and duration; click a log to open it
+- **Combined analysis banner**: the popover opens with one verdict for the whole chain (errors, anti-patterns, SOQL/DML totals, peak CPU, total duration, lowest health score)
+- **Async jobs**: Salesforce gives Queueable, `@future` and Batch jobs a new request id, so each job must write `System.debug('FOXLOG_PARENT_REQUEST_ID=' + parentRequestId)` (parent id from `Request.getCurrent().getRequestId()`). See `tests/flow-error-repro` for a ready-made chain
+
 ### ⚡ Performance
 - **Smart caching** to avoid redundant requests
 - **Background analysis** to avoid blocking the UI

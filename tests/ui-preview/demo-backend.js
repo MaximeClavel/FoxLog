@@ -43,12 +43,37 @@
       Status: template.status,
       DurationMilliseconds: template.duration,
       StartTime: startedAt.toISOString(),
-      Location: 'SystemLog'
+      Location: 'SystemLog',
+      RequestIdentifier: template.request || `REQ-DEMO-${id}`
     };
   }
 
+  // One action that fans out into async jobs: each job is its own request and names its parent
+  // request in a debug line, exactly like tests/flow-error-repro writes it.
+  const CHAIN_TEMPLATES = [
+    { scenario: 'forecastController', operation: '/aura', status: 'Success', ago: 4, duration: 1340, request: 'REQ-CHAIN-ROOT-0001' },
+    { scenario: 'contactRestLookup', operation: 'Queueable', status: 'Success', ago: 3.8, duration: 420, request: 'REQ-CHAIN-QUEUE1-02', parent: 'REQ-CHAIN-ROOT-0001' },
+    { scenario: 'contactRestLookup', operation: 'Future', status: 'Success', ago: 3.7, duration: 96, request: 'REQ-CHAIN-FUTURE-03', parent: 'REQ-CHAIN-QUEUE1-02' },
+    { scenario: 'accountTriggerWithErrors', operation: 'Queueable', status: 'System.NullPointerException: Attempt to de-reference a null object', ago: 3.5, duration: 2210, request: 'REQ-CHAIN-QUEUE2-04', parent: 'REQ-CHAIN-QUEUE1-02' },
+    { scenario: 'contactRestLookup', operation: 'Batch Apex', status: 'Success', ago: 3.2, duration: 310, request: 'REQ-CHAIN-BATCH-0005', parent: 'REQ-CHAIN-QUEUE2-04' },
+    { scenario: 'contactRestLookup', operation: 'Batch Apex', status: 'Success', ago: 3.1, duration: 280, request: 'REQ-CHAIN-BATCH-0005', parent: 'REQ-CHAIN-QUEUE2-04' }
+  ];
+
+  function buildChainLogs(userId) {
+    return CHAIN_TEMPLATES.map((template, index) => {
+      const log = buildLog(template, 200 + index, userId);
+      if (template.parent) {
+        const marker = `00:00:00.0 (1)|USER_DEBUG|[1]|INFO|FOXLOG_PARENT_REQUEST_ID=${template.parent}`;
+        bodiesById.set(log.Id, [bodiesById.get(log.Id), marker].join('\n'));
+      }
+      return log;
+    });
+  }
+
   const logsByUser = {
-    [CURRENT_USER_ID]: LOG_TEMPLATES.map((template, index) => buildLog(template, index, CURRENT_USER_ID)),
+    [CURRENT_USER_ID]: LOG_TEMPLATES.map((template, index) => buildLog(template, index, CURRENT_USER_ID))
+      .concat(buildChainLogs(CURRENT_USER_ID))
+      .sort((a, b) => new Date(b.StartTime) - new Date(a.StartTime)),
     '005DEMO000000002AA': LOG_TEMPLATES.slice(0, 3).map((template, index) => buildLog(template, index, '005DEMO000000002AA')),
     '005DEMO000000003AA': []
   };

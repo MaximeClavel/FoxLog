@@ -320,8 +320,8 @@
       const safeLimit = Math.max(1, Math.min(Math.floor(Number(limit)) || 100, 200));
       const query = `
         SELECT Id, LogUserId, LogUser.Name, LogLength, Operation, Request, Status,
-               DurationMilliseconds, StartTime, Location 
-        FROM ApexLog 
+               DurationMilliseconds, StartTime, Location, RequestIdentifier
+        FROM ApexLog
         WHERE LogUserId='${userId}' 
         ORDER BY StartTime DESC 
         LIMIT ${safeLimit}

@@ -56,6 +56,14 @@ public with sharing class FoxLogErrorDemoController {
             List<List<SObject>> results = [FIND 'FoxLog' IN ALL FIELDS RETURNING Account(Id, Name)];
             res.outcome = 'SOSL query returned ' + results[0].size() + ' Account(s)';
 
+        } else if (errorType == 'ASYNC_CHAIN') {
+            // Root of a chain of debug logs: Queueable 1 -> (Future + Queueable 2 -> Queueable 3 -> Batch).
+            // FoxLogChain writes the request-id lines FoxLog uses to hang each job under its parent.
+            String requestId = FoxLogChain.currentRequestId();
+            FoxLogChain.mark('Root (Flow + Apex action)', null);
+            System.enqueueJob(new FoxLogChainQueueable(1, 3, requestId));
+            res.outcome = 'Async chain started from request ' + requestId;
+
         } else {
             res.outcome = 'No error raised (errorType=' + errorType + ')';
         }

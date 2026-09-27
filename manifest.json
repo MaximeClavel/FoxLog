@@ -44,6 +44,7 @@
         "src/services/session-manager.js",
         "src/services/salesforce-api.js",
         "src/services/debug-level-manager.js",
+        "src/services/log-hierarchy-service.js",
         "src/services/log-preview-service.js",
         "src/services/call-tree-builder.js",
         "src/services/anti-pattern-detector.js",

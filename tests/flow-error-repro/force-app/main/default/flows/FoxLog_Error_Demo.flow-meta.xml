@@ -42,6 +42,7 @@
             <choiceReferences>Choice_ValidationRule</choiceReferences>
             <choiceReferences>Choice_HttpCallout</choiceReferences>
             <choiceReferences>Choice_Sosl</choiceReferences>
+            <choiceReferences>Choice_AsyncChain</choiceReferences>
             <choiceReferences>Choice_None</choiceReferences>
             <dataType>String</dataType>
             <fieldText>Error type</fieldText>
@@ -441,6 +442,15 @@
         <dataType>String</dataType>
         <value>
             <stringValue>SOSL_QUERY</stringValue>
+        </value>
+    </choices>
+
+    <choices>
+        <name>Choice_AsyncChain</name>
+        <choiceText>Async chain: Queueable, Future, Batch (log hierarchy)</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>ASYNC_CHAIN</stringValue>
         </value>
     </choices>
 

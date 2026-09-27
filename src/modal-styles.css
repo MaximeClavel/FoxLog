@@ -193,6 +193,160 @@
 .sf-modal-close-btn svg { width: 18px; height: 18px; }
 .sf-modal-close-btn:hover { background: var(--fl-hover); color: var(--fl-text); }
 
+/* ---------- Hierarchy: the chain of logs behind one action ---------- */
+.sf-modal-hierarchy { position: relative; flex: none; }
+.sf-modal-hierarchy[hidden] { display: none; }
+
+.sf-hierarchy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--fl-border-2);
+  border-radius: var(--fl-r-md);
+  background: var(--fl-card);
+  color: var(--fl-text-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--fl-dur), border-color var(--fl-dur), color var(--fl-dur);
+}
+
+.sf-hierarchy-btn:hover,
+.sf-modal-hierarchy.is-open .sf-hierarchy-btn {
+  border-color: var(--fl-accent-line);
+  background: var(--fl-accent-tint);
+  color: var(--fl-accent);
+}
+
+.sf-hierarchy-btn:focus-visible { outline: 2px solid var(--fl-focus); outline-offset: 2px; }
+
+.sf-hierarchy-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--fl-r-pill);
+  background: var(--fl-hover);
+  color: var(--fl-text-2);
+  font-size: 11.5px;
+  line-height: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-hierarchy-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  width: min(500px, calc(100vw - 64px));
+  max-height: min(460px, 60vh);
+  overflow: hidden;
+  background: var(--fl-card);
+  border: 1px solid var(--fl-border);
+  border-radius: var(--fl-r-lg);
+  box-shadow: var(--fl-shadow-3);
+}
+
+.sf-hierarchy-popover[hidden] { display: none; }
+
+.sf-hierarchy-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 2px;
+}
+
+.sf-hierarchy-title { font-size: 13px; font-weight: 700; color: var(--fl-text); }
+.sf-hierarchy-meta { font-size: 11.5px; color: var(--fl-text-3); font-variant-numeric: tabular-nums; cursor: help; }
+.sf-hierarchy-hint { margin: 0; padding: 0 14px 8px; font-size: 11.5px; color: var(--fl-text-3); }
+
+/* Combined verdict of the chain: the Summary banner, compact */
+.sf-hierarchy-verdict { flex: none; padding: 8px 12px 10px; }
+.sf-hierarchy-verdict:empty { display: none; }
+
+.sf-verdict--compact { gap: 10px; padding: 10px 12px; }
+.sf-verdict--compact .sf-verdict-title { font-size: 13px; }
+.sf-verdict--compact .sf-verdict-chips { margin-top: 6px; }
+.sf-verdict--compact .sf-verdict-score { width: 40px; height: 40px; }
+.sf-verdict--compact .sf-verdict-score svg { width: 40px; height: 40px; }
+
+.sf-hierarchy-verdict-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px dashed var(--fl-border-2);
+  border-radius: var(--fl-r-md);
+  font-size: 12px;
+  color: var(--fl-text-3);
+}
+
+.sf-hierarchy-list {
+  margin: 0;
+  padding: 2px 8px 10px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.sf-hierarchy-item { padding-left: calc(var(--sf-depth, 0) * 18px); }
+
+.sf-hierarchy-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--fl-r-md);
+  background: transparent;
+  color: var(--fl-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sf-hierarchy-node:hover { background: var(--fl-hover); }
+.sf-hierarchy-node:focus-visible { outline: 2px solid var(--fl-focus); outline-offset: -2px; }
+.sf-hierarchy-node.is-current { border-color: var(--fl-accent-line); background: var(--fl-accent-tint); cursor: default; }
+.sf-hierarchy-node .sf-tone-chip { flex: 0 1 auto; max-width: 38%; }
+
+.sf-hierarchy-branch { display: inline-flex; flex: none; color: var(--fl-text-4); }
+
+.sf-hierarchy-op {
+  flex: 1 1 auto;
+  min-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.sf-hierarchy-time,
+.sf-hierarchy-duration {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--fl-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-hierarchy-duration { min-width: 44px; text-align: right; }
+
+.sf-hierarchy-node--missing {
+  border: 1px dashed var(--fl-border-2);
+  color: var(--fl-text-3);
+  cursor: help;
+}
+
+.sf-hierarchy-node--missing:hover { background: transparent; }
+.sf-hierarchy-node--missing .sf-hierarchy-op { font-weight: 500; }
+.sf-hierarchy-id { flex: none; font-family: var(--fl-mono); font-size: 11px; }
+
 /* ---------- Tabs ---------- */
 .sf-modal-tabs {
   display: flex;

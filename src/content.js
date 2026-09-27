@@ -686,8 +686,8 @@
     }
     
     async viewLogDetails(logId) {
-      const { logger, salesforceAPI, modalManager } = window.FoxLog;
-      
+      const { logger, salesforceAPI, modalManager, panelManager } = window.FoxLog;
+
       try {
         this.logger.log(`Fetching details for log ${logId}`);
         
@@ -710,7 +710,8 @@
               await this._loadAndDisplayLog(newLogId);
             }
           );
-          
+          modalManager.setHierarchyProvider((id) => panelManager.getHierarchy(id));
+
           const parsedLog = window.FoxLog.logParser.parse(logBody, logMetadata);
           this._decorateLogMetadata(parsedLog.metadata, logMetadata);
           modalManager.showParsedLog(parsedLog, window.FoxLog.logParser);
@@ -787,6 +788,7 @@
         if (logParser && modalManager) {
           const parsedLog = logParser.parse(importEntry.content, fakeMetadata);
           modalManager.setLogsList([], -1, null);
+          modalManager.setHierarchyProvider(null);
           modalManager.showParsedLog(parsedLog, logParser);
         } else if (modalManager) {
           modalManager.showRawLog(importEntry.content);
@@ -953,8 +955,7 @@
 
       // Cleared logs come last: jump to the page where they start instead of page 1
       if (this.showCleared) {
-        const { visibleCount } = panelManager.clearState;
-        panelManager.goToPage(Math.floor(visibleCount / panelManager.logsPerPage) + 1);
+        panelManager.goToFirstClearedPage();
       }
     }
 

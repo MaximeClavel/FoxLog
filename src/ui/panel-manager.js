@@ -14,6 +14,11 @@
       this.logsPerPage = 4;
       this.allLogs = [];
       this.logAnalysis = new Map();
+      // Logs chained by request id, and what the list shows: one entry per lone log or per chain (folder)
+      this.hierarchy = null;
+      this.entries = [];
+      this.clearedIds = new Set();
+      this.expandedFolders = new Set();
       this.usersCache = [];
       this.selectedUserId = null;
       this.locale = navigator.language || 'en-US';
@@ -339,7 +344,12 @@
 
       this.allLogs = logs;
       this.clearState = clearState || { visibleCount: logs.length, clearedCount: 0, clearedOn: null, showCleared: false };
-      
+
+      if (analysisResults) {
+        this.logAnalysis = analysisResults;
+      }
+      this._buildEntries();
+
       if (!preservePage) {
         const hasNewLogs = logs.length !== previousLogsCount;
         if (hasNewLogs) {
@@ -349,13 +359,9 @@
         }
       }
 
-      const totalPages = Math.ceil(logs.length / this.logsPerPage);
+      const totalPages = Math.ceil(this.entries.length / this.logsPerPage);
       if (this.currentPage > totalPages) {
         this.currentPage = Math.max(1, totalPages);
-      }
-
-      if (analysisResults) {
-        this.logAnalysis = analysisResults;
       }
 
       const container = this.panel.querySelector('#sf-logs-list');
@@ -370,22 +376,113 @@
       this.updateLastRefreshTime();
     }
 
+    /**
+     * Chain the logs that belong to one action, then list them: a chain of several logs becomes
+     * one folder entry, placed where its newest log is (cleared logs stay last)
+     * @private
+     */
+    _buildEntries() {
+      const visibleCount = this.clearState?.visibleCount ?? this.allLogs.length;
+      this.clearedIds = new Set(this.allLogs.slice(visibleCount).map(log => log.Id));
+      this.hierarchy = window.FoxLog.logHierarchy.build(this.allLogs, this.logAnalysis);
+
+      const seenChains = new Set();
+      this.entries = [];
+      this.allLogs.forEach((log, index) => {
+        const tree = this.hierarchy.getTree(log.Id);
+        const cleared = index >= visibleCount;
+        if (tree?.logCount > 1) {
+          if (seenChains.has(tree.id)) return;
+          seenChains.add(tree.id);
+          this.entries.push({ tree, cleared });
+        } else {
+          this.entries.push({ log, cleared });
+        }
+      });
+    }
+
+    /**
+     * The chain of logs a log belongs to, for the modal's Hierarchy button
+     * @returns {Object|null} null when the log is not part of a chain
+     */
+    getHierarchy(logId) {
+      return this.hierarchy?.getTree(logId) || null;
+    }
+
     _renderPaginatedLogs() {
       const container = this.panel.querySelector('#sf-logs-list');
       const start = (this.currentPage - 1) * this.logsPerPage;
-      const end = start + this.logsPerPage;
-      const logsToDisplay = this.allLogs.slice(start, end);
-      const visibleCount = this.clearState?.visibleCount ?? this.allLogs.length;
+      const entriesToDisplay = this.entries.slice(start, start + this.logsPerPage);
+      const firstClearedEntry = this.entries.findIndex(entry => entry.cleared);
 
-      container.innerHTML = logsToDisplay.map((log, i) => {
-        const isCleared = start + i >= visibleCount;
+      container.innerHTML = entriesToDisplay.map((entry, i) => {
         // Label the cleared block where it starts, and again at the top of later pages
-        const separator = isCleared && (start + i === visibleCount || i === 0)
+        const separator = entry.cleared && (start + i === firstClearedEntry || i === 0)
           ? this._createClearedSeparator()
           : '';
-        return separator + this._createLogItem(log, isCleared);
+        const item = entry.tree ? this._createFolder(entry) : this._createLogItem(entry.log, entry.cleared);
+        return separator + item;
       }).join('');
       this._renderPagination();
+    }
+
+    /** Jump to the page where the cleared logs start (they are listed after the others) */
+    goToFirstClearedPage() {
+      const first = this.entries.findIndex(entry => entry.cleared);
+      if (first >= 0) this.goToPage(Math.floor(first / this.logsPerPage) + 1);
+    }
+
+    /**
+     * A chain of logs as a folder: its header sums the chain up, its content lists the logs
+     * in the order they ran, indented under the log that started them
+     * @private
+     */
+    _createFolder({ tree, cleared }) {
+      const escapeHtml = window.FoxLog.escapeHtml || ((value) => value);
+      const expanded = this.expandedFolders.has(tree.id);
+      const root = tree.rows[0].log;
+      const title = escapeHtml(root.Operation || 'Unknown');
+      const count = (i18n.hierarchyLogs || '{count} logs').replace('{count}', tree.logCount);
+
+      const errorLabel = tree.errorCount === 1 ? (i18n.error || 'Error') : (i18n.errors || 'Errors');
+      const errorBadge = tree.errorCount > 0
+        ? `<span class="sf-log-error-badge" title="${tree.errorCount} ${errorLabel}">${window.FoxLog.icon('alert-circle', { size: 12 })} ${tree.errorCount}</span>`
+        : '';
+
+      const rows = tree.rows.map(row => `
+        <div class="sf-log-tree-row ${row.depth > 0 ? 'is-child' : ''}" style="--sf-depth: ${row.depth}">
+          ${this._createLogItem(row.log, this.clearedIds.has(row.log.Id))}
+        </div>
+      `).join('');
+
+      return `
+        <div class="sf-log-folder ${expanded ? 'is-open' : ''} ${tree.errorCount > 0 ? 'sf-log-has-error' : ''} ${cleared ? 'sf-log-cleared' : ''}" data-folder-id="${escapeHtml(tree.id)}">
+          <button type="button" class="sf-log-folder-header" aria-expanded="${expanded}" title="${i18n.folderToggle || 'Expand or collapse the chain'}">
+            <span class="sf-log-header">
+              <span class="sf-log-folder-chevron">${window.FoxLog.icon('chevron-right', { size: 14 })}</span>
+              <span class="sf-log-operation" title="${title}">${title}</span>
+              <span class="sf-log-time">${this._formatTime(tree.startTime)}</span>
+            </span>
+            <span class="sf-log-body">
+              <span class="sf-log-chain-chip">${window.FoxLog.icon('share-2', { size: 11 })} ${count}</span>
+              ${errorBadge}
+              <span class="sf-log-meta" title="${i18n.hierarchySpan || 'Total duration of the chain'}">${window.FoxLog.formatDuration(tree.spanMs)}</span>
+            </span>
+          </button>
+          <div class="sf-log-folder-children" role="group" ${expanded ? '' : 'hidden'}>${rows}</div>
+        </div>
+      `;
+    }
+
+    _toggleFolder(folder) {
+      const id = folder.dataset.folderId;
+      const open = !this.expandedFolders.has(id);
+      if (open) this.expandedFolders.add(id);
+      else this.expandedFolders.delete(id);
+
+      folder.classList.toggle('is-open', open);
+      folder.querySelector('.sf-log-folder-header').setAttribute('aria-expanded', String(open));
+      folder.querySelector('.sf-log-folder-children').hidden = !open;
     }
 
     _createClearedSeparator() {
@@ -437,7 +534,7 @@
     }
 
     _renderPagination() {
-      const totalPages = Math.ceil(this.allLogs.length / this.logsPerPage);
+      const totalPages = Math.ceil(this.entries.length / this.logsPerPage);
       
       if (totalPages <= 1) {
         const paginationContainer = this.panel.querySelector('.sf-pagination');
@@ -485,7 +582,7 @@
     }
 
     goToPage(page) {
-      const totalPages = Math.ceil(this.allLogs.length / this.logsPerPage);
+      const totalPages = Math.ceil(this.entries.length / this.logsPerPage);
       
       if (page < 1 || page > totalPages) return;
       
@@ -673,6 +770,12 @@
       });
       
       this.panel.querySelector('#sf-logs-list')?.addEventListener('click', (e) => {
+        const folderHeader = e.target.closest('.sf-log-folder-header');
+        if (folderHeader) {
+          this._toggleFolder(folderHeader.closest('.sf-log-folder'));
+          return;
+        }
+
         const logItem = e.target.closest('.sf-log-item');
         if (logItem) {
           const logId = logItem.dataset.logId;
