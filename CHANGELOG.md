@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-09-25
+
+### Added
+
+- **Log hierarchy, folders in the panel**: the logs of one action are grouped into a folder. The header shows the first log's operation, how many logs the chain has, the errors found in it and its total duration; the arrow unfolds the logs, indented under the log that started them and listed in the order they ran. A lone log stays a normal card, and pagination counts a folder as one entry
+- **Log hierarchy, Hierarchy button in the modal**: when the log is part of a chain, a **Hierarchy** button (with the log count) in the modal header opens the chain. Clicking a log opens it in the same modal, Prev/Next follow, the popover stays open, and Escape closes it before it closes the modal. A log whose parent request is not in the list gets a dashed "Parent request not found" line above it
+- **Log hierarchy, combined analysis banner**: the popover opens with a verdict for the whole chain, the same banner as a log's Summary. It downloads and analyses every log of the chain when the popover opens (a few at a time, once per chain), then adds them up: errors and critical anti-patterns with how many logs they touch and the worst titles, SOQL / DML / callout totals, the highest CPU (and heap when hot) reached in a single log, the chain's total duration and the lowest health score. The tone uses the same 75 % / 90 % limit thresholds as the Summary. A log that can no longer be read is skipped (and counted in the banner) instead of failing the whole verdict, and a chain of more than 30 logs is not analysed automatically
+- **How logs are chained**: logs of one request share `ApexLog.RequestIdentifier`. Salesforce gives every async job (Queueable, `@future`, Batch) a new request id, so to hang a job under the request that started it FoxLog reads two debug lines from the log body, `FOXLOG_REQUEST_ID=<id>` and `FOXLOG_PARENT_REQUEST_ID=<id>`, and matches them with `RequestIdentifier`. The panel's error scan already downloads every log body, so this adds no request
+- **Test kit, `ASYNC_CHAIN` scenario** (`tests/flow-error-repro`): a new choice in the FoxLog Error Demo flow starts a chain of Queueable, `@future` and Batch jobs (9 logs) that write those two lines through the new `FoxLogChain` class, to try the hierarchy on a real org. See the README for what to check
+
+### Fixed
+
+- **Panel error badges now match the modal**: the panel's quick scan only looked for `EXCEPTION_THROWN`, `FATAL_ERROR` and `VALIDATION_FAIL`, while the modal's parser also counts every structured error type (Flow faults such as `FLOW_ELEMENT_FAULT`, `FLOW_ELEMENT_ERROR`, invocable action errors, `VALIDATION_ERROR`...) and Flow action calls that failed. A log with a Flow fault path taken had its error in the modal but a clean card in the panel. The scan now counts the same lines, one error per line, so the badge, the count and the red bar agree with the modal (and a chain folder's error total is right)
+
+### Internal
+
+- `fetchLogs()` also selects `RequestIdentifier`
+- New `src/services/log-hierarchy-service.js` (`window.FoxLog.logHierarchy`), registered in both manifests: groups logs by request, links a request to its parent (guarded against loops and self-references) and computes each chain's rows, span and error count; `summarize()` adds up the per-log analysis into the chain verdict
+- `logPreviewService` analysis entries now carry `parentRequestId` and `selfRequestId`; the panel keeps `entries` (lone logs and folders) next to `allLogs` and paginates on them; new `panelManager.getHierarchy(logId)`, `goToFirstClearedPage()` and `modalManager.setHierarchyProvider()`
+- The Summary verdict's tone/title, chips and score ring moved out of `_renderVerdictBanner` into `_getVerdictHeadline`, `_renderVerdictChips` and `_renderVerdictScore`, shared with the chain banner (no change to the Summary)
+- New `share-2` and `corner-down-right` icons
+- `tests/test-log-preview-errors.js` (`node tests/test-log-preview-errors.js`): loads the real parser and the panel's quick scan and checks they count the same errors on every structured error type, a failed and a successful Flow action call, and an error type named inside an exception message
+- `tests/test-log-hierarchy.js` (`node tests/test-log-hierarchy.js`): covers the marker parsing, grouping by request, nesting by parent, the own-id fallback, a missing parent, loops and the chain summary. The UI preview backend now serves a chain of six logs
+
 ## [1.11.0] - 2026-09-25
 
 ### Added
