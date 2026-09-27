@@ -123,7 +123,7 @@
         errorTypes.add(match[1]);
       }
 
-      // Detect fatal errors only if no EXCEPTION_THROWN found (avoids double-counting)
+      // Detect fatal errors only if no EXCEPTION_THROWN found (avoids double-counting; the parser applies the same rule)
       if (errorCount === 0) {
         errorPatterns.fatal.lastIndex = 0;
         while ((match = errorPatterns.fatal.exec(logContent)) !== null) {

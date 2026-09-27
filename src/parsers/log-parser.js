@@ -94,6 +94,7 @@
         }
       }
 
+      this._dropRedundantFatalErrors(stats);
       this._parseCumulativeLimits(allLines, stats);
 
       return {
@@ -559,6 +560,7 @@
         'METHOD_ENTRY': this._collectMethodEntry,
         'METHOD_EXIT': this._collectMethodExit,
         'EXCEPTION_THROWN': this._pushError,
+        'FATAL_ERROR': this._pushError,
         'FLOW_ACTIONCALL_DETAIL': this._collectFlowActionCallDetail
       };
       STRUCTURED_ERROR_TYPES.forEach(errorType => {
@@ -681,6 +683,17 @@
     // count.
     _collectFlowActionCallDetail(line, stats) {
       if (line.details.success === false) this._pushError(line, stats);
+    }
+
+    /**
+     * A FATAL_ERROR follows the EXCEPTION_THROWN of the same failure, so it only counts as an error
+     * of its own when the log has no exception at all (the panel's quick scan applies the same rule)
+     * @private
+     */
+    _dropRedundantFatalErrors(stats) {
+      if (stats.errors.some(error => error.type === 'EXCEPTION_THROWN')) {
+        stats.errors = stats.errors.filter(error => error.type !== 'FATAL_ERROR');
+      }
     }
 
     /**

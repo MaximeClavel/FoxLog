@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
-- **Panel error badges now match the modal**: the panel's quick scan only looked for `EXCEPTION_THROWN`, `FATAL_ERROR` and `VALIDATION_FAIL`, while the modal's parser also counts every structured error type (Flow faults such as `FLOW_ELEMENT_FAULT`, `FLOW_ELEMENT_ERROR`, invocable action errors, `VALIDATION_ERROR`...) and Flow action calls that failed. A log with a Flow fault path taken had its error in the modal but a clean card in the panel. The scan now counts the same lines, one error per line, so the badge, the count and the red bar agree with the modal (and a chain folder's error total is right)
+- **Panel error badges now match the modal**: the panel's quick scan only looked for `EXCEPTION_THROWN`, `FATAL_ERROR` and `VALIDATION_FAIL`, while the modal's parser also counts every structured error type (Flow faults such as `FLOW_ELEMENT_FAULT`, `FLOW_ELEMENT_ERROR`, invocable action errors, `VALIDATION_ERROR`...) and Flow action calls that failed. A log with a Flow fault path taken had its error in the modal but a clean card in the panel. The scan now counts the same lines, one error per line, so the badge, the count and the red bar agree with the modal (and a chain folder's error total is right). A `FATAL_ERROR` in a log with no exception now counts as an error in the modal too (it used to count only on the panel card); when the log has an exception the `FATAL_ERROR` that follows it is the same failure and is not counted twice
 
 ### Internal
 

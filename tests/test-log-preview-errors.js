@@ -59,6 +59,21 @@ const bodies = {
     'payload|FLOW_ELEMENT_FAULT|x|y',
     'more|VALIDATION_FAIL'
   ],
+  'a FATAL_ERROR with no exception before it': [
+    line('FATAL_ERROR', 'System.LimitException: Too many SOQL queries: 101')
+  ],
+  'a FATAL_ERROR after the exception it reports': [
+    line('EXCEPTION_THROWN', '[42]|System.NullPointerException|Attempt to de-reference a null object'),
+    line('FATAL_ERROR', 'System.NullPointerException: Attempt to de-reference a null object')
+  ],
+  'two FATAL_ERRORs and no exception': [
+    line('FATAL_ERROR', 'System.LimitException: first'),
+    line('FATAL_ERROR', 'System.LimitException: second')
+  ],
+  'a FATAL_ERROR next to a Flow fault': [
+    line('FLOW_ELEMENT_FAULT', 'Fault path taken.|FlowActionCall|Call_With_Fault_Path'),
+    line('FATAL_ERROR', 'System.LimitException: boom')
+  ],
   'a clean log': [
     line('EXECUTION_STARTED'),
     line('USER_DEBUG', '[3]|DEBUG|all good'),

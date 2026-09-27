@@ -2747,7 +2747,7 @@
       };
       const hottest = Math.max(...Object.values(limitPct));
 
-      // A log can fail without any parsed error line (e.g. only FATAL_ERROR), the status still says so
+      // A log can fail without any parsed error line, the status still says so
       const headline = this._getVerdictHeadline({
         errorCount: parsedLog.stats.errors.length,
         criticalCount: results ? results.summary.critical : 0,
