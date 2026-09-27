@@ -6,10 +6,12 @@
   const { logger, salesforceAPI, logParser, STRUCTURED_ERROR_TYPES } = window.FoxLog;
 
   // The error lines the log parser collects into stats.errors besides EXCEPTION_THROWN (the count on
-  // a panel card must match the modal's): the structured error types, and a Flow action call whose
-  // 5th field after the type says it failed. Matched on the event-type field of a timestamped line only
-  // (like the parser), so the same words inside an exception message or a multi-line debug do not count.
-  const ERROR_LINE_SOURCE = `^\\d{2}:\\d{2}:\\d{2}\\.\\d+\\s+\\(\\d+\\)\\|(?:(${STRUCTURED_ERROR_TYPES.join('|')})(?=\\||$)|FLOW_ACTIONCALL_DETAIL\\|(?:[^|]*\\|){4}false(?=\\||$))`;
+  // a panel card must match the modal's): the structured error types, and a Flow action call the parser
+  // says failed (isFailedActionCall). Matched on the event-type field of a timestamped line only (like
+  // the parser), so the same words inside an exception message or a multi-line debug do not count.
+  const TIMESTAMP = '^\\d{2}:\\d{2}:\\d{2}\\.\\d+\\s+\\(\\d+\\)\\|';
+  const ERROR_LINE_SOURCE = `${TIMESTAMP}(${STRUCTURED_ERROR_TYPES.join('|')})(?=\\||$)`;
+  const ACTION_CALL_SOURCE = `${TIMESTAMP}FLOW_ACTIONCALL_DETAIL\\|(.*)$`;
 
   /**
    * Service to quickly analyze logs and detect errors
@@ -105,6 +107,7 @@
         // is the real signal; VF_PAGE_MESSAGE is not a parser error, so it
         // only counts when nothing else did.
         errorLines: new RegExp(ERROR_LINE_SOURCE, 'gm'),
+        actionCalls: new RegExp(ACTION_CALL_SOURCE, 'gm'),
         pageMessage: /^\d{2}:\d{2}:\d{2}\.\d+\s+\(\d+\)\|VF_PAGE_MESSAGE\|/m
       };
 
@@ -134,7 +137,14 @@
       while ((match = errorPatterns.errorLines.exec(logContent)) !== null) {
         hasError = true;
         errorCount++;
-        errorTypes.add(match[1] || 'FLOW_ACTIONCALL_DETAIL');
+        errorTypes.add(match[1]);
+      }
+
+      while ((match = errorPatterns.actionCalls.exec(logContent)) !== null) {
+        if (!window.FoxLog.logParser.isFailedActionCall(match[1])) continue;
+        hasError = true;
+        errorCount++;
+        errorTypes.add('FLOW_ACTIONCALL_DETAIL');
       }
 
       if (errorCount === 0 && errorPatterns.pageMessage.test(logContent)) {

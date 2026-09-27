@@ -437,6 +437,14 @@
       return details;
     }
 
+    /**
+     * Whether the content of a FLOW_ACTIONCALL_DETAIL line reports a failed action call: the one rule
+     * that turns such a line into an error, shared with the panel's quick scan so the two agree
+     */
+    isFailedActionCall(content) {
+      return this._parseFlowActionCallDetail(content).success === false;
+    }
+
     _parseValidationRule(content) {
       // Confirmed: "<rule Id>|<rule name>", e.g.
       // "03dDJ000000umFt|FoxLog_Demo_Validation_Fail".

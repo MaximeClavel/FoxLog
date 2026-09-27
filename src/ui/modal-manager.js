@@ -788,9 +788,18 @@
       const { salesforceAPI, logParser, antiPatternDetector, logHierarchy } = window.FoxLog;
       const entries = [];
 
+      // The log on screen is already parsed and analysed: do not download it again
+      const shown = this.currentParsedLog;
+      const shownResults = this.currentAntiPatternResults;
+      const toRead = [];
+      tree.logs.forEach((log) => {
+        if (shown?.metadata?.id === log.Id) entries.push({ log, stats: shown.stats, results: shownResults });
+        else toRead.push(log);
+      });
+
       // Download a few logs at a time, and let the page breathe between the heavy parses
-      for (let start = 0; start < tree.logs.length; start += 3) {
-        const chunk = tree.logs.slice(start, start + 3);
+      for (let start = 0; start < toRead.length; start += 3) {
+        const chunk = toRead.slice(start, start + 3);
         const downloads = await Promise.allSettled(chunk.map(log => salesforceAPI.fetchLogBody(log.Id)));
         chunk.forEach((log, i) => {
           // A log that can no longer be read (deleted, expired) must not sink the verdict of the others
