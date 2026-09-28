@@ -882,17 +882,16 @@
 
       const iconName = { critical: 'alert-circle', warning: 'alert-triangle', healthy: 'check-circle' }[tone];
       // Anti-patterns are already visible per log below the chips: the tone icon carries the verdict,
-      // with the full title (and worst anti-patterns) as a tooltip instead of its own line -- only the
-      // error count gets its own badge, same look as a log row's, since it's the one number worth a glance
+      // with the full title (and worst anti-patterns) as a tooltip instead of its own line. With errors,
+      // the error badge (same look as a log row's, icon included) takes the icon's place: never both
       const hint = [title, ...(tone === 'healthy' ? [] : chain.worstTitles)].join(' · ');
-      const errorBadge = chain.errorCount > 0
+      const lead = chain.errorCount > 0
         ? `<span class="sf-log-error-badge" title="${chain.errorCount} ${chain.errorCount === 1 ? (i18n.error || 'Error') : (i18n.errors || 'Errors')}">${window.FoxLog.icon('alert-circle', { size: 12 })} ${chain.errorCount}</span>`
-        : '';
+        : window.FoxLog.icon(iconName, { size: 14 });
 
       return `
         <div class="sf-chain-verdict sf-chain-verdict--${tone}" title="${this._escapeHtml(hint)}">
-          ${window.FoxLog.icon(iconName, { size: 14 })}
-          ${errorBadge}
+          ${lead}
           <div class="sf-verdict-chips">${this._renderVerdictChips(chips)}</div>
         </div>
       `;
