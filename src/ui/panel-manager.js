@@ -616,11 +616,14 @@
     hideLoading() {
       const container = this.panel.querySelector('#sf-logs-list');
       if (!container) return;
-      
+
       const loadingOverlay = container.querySelector('.sf-loading-overlay');
       if (loadingOverlay) {
         loadingOverlay.remove();
       }
+      // showLoading() reserves room for the skeleton cards; drop it once real content is in,
+      // otherwise it lingers as blank space under a short page (e.g. after a chain folds into 1 card)
+      container.style.minHeight = '';
     }
 
     showError(message) {

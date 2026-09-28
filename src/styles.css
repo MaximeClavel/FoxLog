@@ -127,7 +127,12 @@
   right: 16px !important;
   width: 380px !important;
   max-width: calc(100vw - 32px) !important;
-  height: min(720px, calc(100vh - 32px)) !important;
+  /* Height fits the content (as few as 4 log cards, or fewer on a short last page) instead of
+     always claiming the full 720px -- which used to leave blank space below a short page.
+     The cap keeps the same ceiling as before; only the scrollable log list shrinks past it
+     (every other child is flex: none), so expanding a folder past the cap scrolls, nothing else moves. */
+  height: auto !important;
+  max-height: min(720px, calc(100vh - 32px)) !important;
   display: flex !important;
   flex-direction: column !important;
   background: var(--fl-page) !important;
