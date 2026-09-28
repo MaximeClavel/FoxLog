@@ -867,17 +867,6 @@
       if (!headline) return '';
       const { tone, title } = headline;
 
-      // Nothing to say about the logs when the tone comes from a limit alone
-      const affected = tone === 'healthy' || chain.affectedLogs === 0 ? '' : (chain.affectedLogs === 1
-        ? (i18n.chainAffectedOne || '1 of {total} logs affected')
-        : (i18n.chainAffectedMany || '{affected} of {total} logs affected'))
-        .replace('{affected}', chain.affectedLogs).replace('{total}', chain.logCount);
-      const unreadable = chain.unreadableLogs > 0
-        ? (i18n.chainUnreadable || '{count} unreadable log(s)').replace('{count}', chain.unreadableLogs)
-        : '';
-      const worst = tone === 'healthy' ? [] : chain.worstTitles;
-      const subline = [affected, unreadable, ...worst].filter(Boolean).map(text => this._escapeHtml(text)).join(' · ');
-
       const totalHint = (peak) => (i18n.chainTotalHint || 'Total across the chain, highest in a single log: {peak}').replace('{peak}', peak);
       const chips = [
         { icon: 'search', text: `SOQL ${chain.totals.soql}`, hot: chain.peak.soql > LIMIT_WARNING_PCT, hint: totalHint(`${Math.round(chain.peak.soql)} %`) },
@@ -886,19 +875,20 @@
       ];
       if (chain.totals.callouts > 0) chips.push({ icon: null, text: `${i18n.callouts || 'Callouts'} ${chain.totals.callouts}`, hot: false });
       if (chain.peak.heap > LIMIT_WARNING_PCT) chips.push({ icon: 'bar-chart', text: `Heap max ${Math.round(chain.peak.heap)} %`, hot: true, hint: i18n.chainPeakHint || 'Highest in a single log' });
+      if (chain.unreadableLogs > 0) {
+        chips.push({ icon: 'alert-circle', text: (i18n.chainUnreadable || '{count} unreadable log(s)').replace('{count}', chain.unreadableLogs), hot: true });
+      }
       chips.push({ icon: null, text: window.FoxLog.formatDuration(chain.spanMs), hot: false, hint: i18n.hierarchySpan || 'Total duration of the chain' });
 
       const iconName = { critical: 'alert-circle', warning: 'alert-triangle', healthy: 'check-circle' }[tone];
+      // Errors/anti-patterns are already visible per log below the chips: the tone icon carries the
+      // verdict, with the full title (and worst anti-patterns) as a tooltip instead of its own line
+      const hint = [title, ...(tone === 'healthy' ? [] : chain.worstTitles)].join(' · ');
 
       return `
-        <div class="sf-verdict sf-verdict--compact sf-verdict--${tone}">
-          <div class="sf-verdict-icon">${window.FoxLog.icon(iconName, { size: 20 })}</div>
-          <div class="sf-verdict-body">
-            <div class="sf-verdict-title">${this._escapeHtml(title)}</div>
-            ${subline ? `<div class="sf-verdict-sub">${subline}</div>` : ''}
-            <div class="sf-verdict-chips">${this._renderVerdictChips(chips)}</div>
-          </div>
-          ${this._renderVerdictScore(chain.score, i18n.chainScoreHint || 'Lowest health score in the chain')}
+        <div class="sf-chain-verdict sf-chain-verdict--${tone}" title="${this._escapeHtml(hint)}">
+          ${window.FoxLog.icon(iconName, { size: 14 })}
+          <div class="sf-verdict-chips">${this._renderVerdictChips(chips)}</div>
         </div>
       `;
     }

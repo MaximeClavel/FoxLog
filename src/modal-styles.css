@@ -265,15 +265,36 @@
 .sf-hierarchy-meta { font-size: 11.5px; color: var(--fl-text-3); font-variant-numeric: tabular-nums; cursor: help; }
 .sf-hierarchy-hint { margin: 0; padding: 0 14px 8px; font-size: 11.5px; color: var(--fl-text-3); }
 
-/* Combined verdict of the chain: the Summary banner, compact */
-.sf-hierarchy-verdict { flex: none; padding: 8px 12px 10px; }
+/* Combined verdict of the chain: a slim icon + the same limit/duration chips as the Summary
+   banner, no card/background -- the per-log rows below already carry the status and error count */
+.sf-hierarchy-verdict { flex: none; padding: 6px 12px 8px; }
 .sf-hierarchy-verdict:empty { display: none; }
 
-.sf-verdict--compact { gap: 10px; padding: 10px 12px; }
-.sf-verdict--compact .sf-verdict-title { font-size: 13px; }
-.sf-verdict--compact .sf-verdict-chips { margin-top: 6px; }
-.sf-verdict--compact .sf-verdict-score { width: 40px; height: 40px; }
-.sf-verdict--compact .sf-verdict-score svg { width: 40px; height: 40px; }
+/* Sets --v-fg/--v-tint/--v-line so a "hot" chip (.sf-verdict-chip--hot) still tints by tone,
+   same variables as .sf-verdict, without the full card that comes with that class */
+.sf-chain-verdict {
+  --v-fg: var(--fl-success-fg);
+  --v-tint: var(--fl-success-tint);
+  --v-line: var(--fl-success-line);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: help;
+}
+.sf-chain-verdict .sf-verdict-chips { margin-top: 0; }
+.sf-chain-verdict svg { flex: none; color: var(--v-fg); }
+
+.sf-chain-verdict--critical {
+  --v-fg: var(--fl-danger-fg);
+  --v-tint: var(--fl-danger-tint);
+  --v-line: var(--fl-danger-line);
+}
+
+.sf-chain-verdict--warning {
+  --v-fg: var(--fl-warning-fg);
+  --v-tint: var(--fl-warning-tint);
+  --v-line: var(--fl-warning-line);
+}
 
 .sf-hierarchy-verdict-note {
   display: flex;
