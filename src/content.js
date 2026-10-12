@@ -15,6 +15,7 @@
       this.logger = null;
       this.preloadedLogs = false;  // Flag to track if logs have been preloaded
       this.preloadPromise = null;  // Promise to track preloading status
+      this._newTabPending = new Set(); // Logs being loaded for "Open in a new tab" (double-click guard)
     }
 
     async init() {
@@ -448,6 +449,13 @@
         await this._viewImportedLog(e.detail.importId);
       });
 
+      // "Open in a new tab" on a panel card (Salesforce log or imported file)
+      document.addEventListener('foxlog:openInNewTab', (e) => {
+        const { logId, importId } = e.detail || {};
+        if (logId) this.openLogInNewTab(logId);
+        else if (importId) this.openImportedLogInNewTab(importId);
+      });
+
       // Listen for messages from popup
       chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === 'toggleButton') {
@@ -773,17 +781,9 @@
         }
         
         this.logger.log(`Viewing imported log: ${importEntry.filename}`);
-        
-        // Create fake metadata for the parser
-        const fakeMetadata = {
-          Id: importEntry.id,
-          Operation: importEntry.filename,
-          StartTime: importEntry.date,
-          Status: 'Import',
-          DurationMilliseconds: 0,
-          LogLength: importEntry.size
-        };
-        
+
+        const fakeMetadata = this._importedLogMetadata(importEntry);
+
         if (logParser && modalManager) {
           const parsedLog = logParser.parse(importEntry.content, fakeMetadata);
           modalManager.setLogsList([], -1, null);
@@ -795,6 +795,85 @@
         this.logger.success('Imported log displayed');
       } catch (error) {
         this.logger.error('Failed to display imported log', error);
+      }
+    }
+
+    /**
+     * Stand-in ApexLog metadata for an imported file, for the parser
+     * @private
+     */
+    _importedLogMetadata(importEntry) {
+      return {
+        Id: importEntry.id,
+        Operation: importEntry.filename,
+        StartTime: importEntry.date,
+        Status: 'Import',
+        DurationMilliseconds: 0,
+        LogLength: importEntry.size
+      };
+    }
+
+    // ============================================
+    // OPEN IN A NEW TAB from a panel card (the modal's button calls newTabOpener directly)
+    // ============================================
+
+    /**
+     * Open a Salesforce log full page in a new tab, without opening the modal.
+     * The body is fetched here: the viewer page has no Salesforce session.
+     * @param {string} logId
+     */
+    async openLogInNewTab(logId) {
+      const log = this.currentLogs.find(item => item.Id === logId);
+      if (!log) {
+        this.logger.error('Log metadata not found', logId);
+        return;
+      }
+
+      await this._openInNewTab(logId, async () => {
+        const rawContent = await window.FoxLog.salesforceAPI.fetchLogBody(logId);
+        // Same header chips as the modal: whose log it is, hidden by Clear
+        const display = {};
+        this._decorateLogMetadata(display, log);
+        return { rawContent, metadata: log, userName: display.userName, cleared: display.cleared };
+      });
+    }
+
+    /**
+     * Open an imported file full page in a new tab.
+     * @param {string} importId
+     */
+    async openImportedLogInNewTab(importId) {
+      await this._openInNewTab(importId, async () => {
+        const importEntry = await window.FoxLog.panelManager.getImportedLog(importId);
+        if (!importEntry) throw new Error(`Imported log not found: ${importId}`);
+        return { rawContent: importEntry.content, metadata: this._importedLogMetadata(importEntry) };
+      });
+    }
+
+    /**
+     * Load the log, then hand it to newTabOpener. Progress shows in the panel status
+     * line, a failure as a toast (newTabOpener toasts its own failures).
+     * @private
+     * @param {string} id - Guards against a double click while the body is loading
+     * @param {Function} loadLog - async () => newTabOpener.open() argument
+     */
+    async _openInNewTab(id, loadLog) {
+      const { panelManager, newTabOpener, i18n } = window.FoxLog;
+      if (!newTabOpener || this._newTabPending.has(id)) return;
+      this._newTabPending.add(id);
+
+      panelManager.showStatusMessage(i18n.openingInNewTab || 'Opening in a new tab...', 'info');
+      try {
+        const log = await loadLog();
+        await newTabOpener.open({ ...log, initialTab: 'summary' });
+      } catch (error) {
+        this.logger.error('Failed to load the log to open in a new tab', error);
+        document.dispatchEvent(new CustomEvent('foxlog:showToast', {
+          detail: { message: i18n.openInNewTabError || 'Couldn\'t open the log in a new tab', type: 'error' }
+        }));
+      } finally {
+        panelManager.resetStatusMessage();
+        this._newTabPending.delete(id);
       }
     }
 

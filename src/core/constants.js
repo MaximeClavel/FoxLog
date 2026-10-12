@@ -32,7 +32,29 @@
   window.FoxLog.formatDuration = function(milliseconds) {
     return milliseconds >= 1000 ? `${(milliseconds / 1000).toFixed(2)} s` : `${milliseconds} ms`;
   };
-  
+
+  /**
+   * Start one of the extension's Web Workers (src/workers/*).
+   * A content script runs on the Salesforce origin, where a chrome-extension://
+   * worker URL is cross-origin, so the code is fetched and started from a blob:
+   * URL. An extension page (src/viewer/viewer.html) is on the extension origin:
+   * it loads the worker by URL, which its CSP (script-src 'self') always allows,
+   * whereas blob: workers there depend on the browser.
+   * @param {string} path - Worker path inside the extension, e.g. 'src/workers/call-tree-worker.js'
+   * @returns {Promise<{worker: Worker, release: Function}>} `release` frees the blob URL, if any
+   */
+  window.FoxLog.createWorker = async function(path) {
+    const workerUrl = chrome.runtime.getURL(path);
+    if (new URL(workerUrl, window.location.href).origin === window.location.origin) {
+      return { worker: new Worker(workerUrl), release: () => {} };
+    }
+
+    const response = await fetch(workerUrl);
+    const blob = new Blob([await response.text()], { type: 'application/javascript' });
+    const blobUrl = URL.createObjectURL(blob);
+    return { worker: new Worker(blobUrl), release: () => URL.revokeObjectURL(blobUrl) };
+  };
+
   // ============================================
   // VERSION (read from manifest.json)
   // ============================================
@@ -336,6 +358,15 @@
     loadingLog: isFrench ? 'Chargement du log...' : 'Loading log...',
     logPosition: isFrench ? 'Log {current} sur {total}' : 'Log {current} of {total}',
     noMoreLogs: isFrench ? 'Pas d\'autre log' : 'No more logs',
+
+    // Open in a new tab (modal header, panel cards, src/viewer/)
+    openInNewTab: isFrench ? 'Ouvrir dans un nouvel onglet' : 'Open in a new tab',
+    openingInNewTab: isFrench ? 'Ouverture dans un nouvel onglet...' : 'Opening in a new tab...',
+    openInNewTabError: isFrench ? 'Impossible d\'ouvrir le log dans un nouvel onglet' : 'Couldn\'t open the log in a new tab',
+    openInNewTabTooLarge: isFrench ? 'Log trop volumineux pour le stockage du navigateur : impossible de l\'ouvrir dans un nouvel onglet' : 'This log is too large for the browser storage: it can\'t be opened in a new tab',
+    viewerMissingTitle: isFrench ? 'Ce log n\'est plus disponible' : 'This log is no longer available',
+    viewerMissingHint: isFrench ? 'Il n\'est conservé que tant que son onglet est ouvert. Rouvrez-le depuis FoxLog dans Salesforce.' : 'It is only kept while its tab is open. Open it again from FoxLog in Salesforce.',
+    viewerError: isFrench ? 'Impossible d\'afficher ce log' : 'Couldn\'t display this log',
     
     // Anti-patterns
     antiPatterns: isFrench ? 'Anti-patterns détectés' : 'Detected Anti-patterns',

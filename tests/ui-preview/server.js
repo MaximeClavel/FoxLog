@@ -23,10 +23,12 @@ function isServable(urlPath, file) {
 }
 
 http.createServer((req, res) => {
-  const urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+  const url = new URL(req.url, 'http://localhost');
+  const urlPath = decodeURIComponent(url.pathname);
 
   if (urlPath === '/') {
-    res.writeHead(302, { Location: '/tests/ui-preview/index.html' });
+    // Keep the query: it selects the scene (?open=modal&log=0...)
+    res.writeHead(302, { Location: `/tests/ui-preview/index.html${url.search}` });
     res.end();
     return;
   }

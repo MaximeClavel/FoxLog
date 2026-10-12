@@ -29,18 +29,10 @@
       }
 
       try {
-        // Load worker code
-        const workerUrl = chrome.runtime.getURL('src/workers/call-tree-worker.js');
-        const response = await fetch(workerUrl);
-        const workerCode = await response.text();
-        
-        // Create blob with code
-        const blob = new Blob([workerCode], { type: 'application/javascript' });
-        const blobUrl = URL.createObjectURL(blob);
-        
-        // Create worker from blob
-        this.worker = new Worker(blobUrl);
-        
+        // From a blob: URL in the content script, by URL on an extension page (see createWorker)
+        const { worker } = await window.FoxLog.createWorker('src/workers/call-tree-worker.js');
+        this.worker = worker;
+
         this.worker.addEventListener('message', (event) => {
           this._handleWorkerMessage(event.data);
         });
@@ -50,7 +42,7 @@
         });
         
         this.workerReady = true;
-        logger.success('CallTreeBuilder initialized with Worker (blob)');
+        logger.success('CallTreeBuilder initialized with Worker');
       } catch (error) {
         logger.error('Failed to initialize Worker', error);
         this.workerReady = false;

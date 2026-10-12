@@ -193,6 +193,28 @@
 .sf-modal-close-btn svg { width: 18px; height: 18px; }
 .sf-modal-close-btn:hover { background: var(--fl-hover); color: var(--fl-text); }
 
+/* Open the analysis full page in a new tab (src/services/new-tab-opener.js) */
+.sf-modal-newtab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--fl-r-md);
+  background: transparent;
+  color: var(--fl-text-3);
+  cursor: pointer;
+  transition: background var(--fl-dur), color var(--fl-dur);
+}
+
+.sf-modal-newtab-btn:hover { background: var(--fl-hover); color: var(--fl-text); }
+
+/* Sits right next to the close button, as one group, instead of a full header gap away */
+.sf-modal-newtab-btn + .sf-modal-close-btn { margin-left: -12px; }
+
 /* ---------- Tabs ---------- */
 .sf-modal-tabs {
   display: flex;

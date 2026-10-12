@@ -673,6 +673,16 @@
       });
       
       this.panel.querySelector('#sf-logs-list')?.addEventListener('click', (e) => {
+        // "Open in a new tab": straight to the full-page analysis, without the modal (handled in content.js)
+        const newTabBtn = e.target.closest('.sf-card-newtab-btn');
+        if (newTabBtn) {
+          const logId = newTabBtn.closest('.sf-log-item')?.dataset.logId;
+          if (logId) {
+            document.dispatchEvent(new CustomEvent('foxlog:openInNewTab', { detail: { logId } }));
+          }
+          return;
+        }
+
         const logItem = e.target.closest('.sf-log-item');
         if (logItem) {
           const logId = logItem.dataset.logId;
@@ -712,7 +722,7 @@
       ['#sf-logs-list', '#sf-import-list'].forEach(selector => {
         this.panel.querySelector(selector)?.addEventListener('keydown', (e) => {
           const isActivationKey = e.key === 'Enter' || e.key === ' ';
-          if (isActivationKey && e.target.matches('.sf-log-item, .sf-import-item-info')) {
+          if (isActivationKey && e.target.matches('.sf-log-main, .sf-import-item-info')) {
             e.preventDefault();
             e.target.click();
           }
@@ -773,6 +783,15 @@
           e.stopPropagation();
           const importId = deleteBtn.dataset.importId;
           if (importId) this._deleteImport(importId);
+          return;
+        }
+        // "Open in a new tab" button (handled in content.js)
+        const newTabBtn = e.target.closest('.sf-card-newtab-btn');
+        if (newTabBtn) {
+          const importId = newTabBtn.closest('.sf-import-item')?.dataset.importId;
+          if (importId) {
+            document.dispatchEvent(new CustomEvent('foxlog:openInNewTab', { detail: { importId } }));
+          }
           return;
         }
         // Click on item -> open modal
@@ -858,18 +877,23 @@
         ? `<span class="sf-log-error-badge" title="${errorCount} ${errorLabel}">${window.FoxLog.icon('alert-circle', { size: 12 })} ${errorCount}</span>`
         : '';
       const operation = escapeHtml(log.Operation || 'Unknown');
+      const openLabel = escapeHtml(i18n.openInNewTab || 'Open in a new tab');
 
+      // The card's button area and the "open in a new tab" button are siblings: a role="button" must not contain another control
       return `
-        <div class="sf-log-entry sf-log-item sf-log-tone-${tone} ${hasError ? 'sf-log-has-error' : ''} ${isCleared ? 'sf-log-cleared' : ''}" data-log-id="${escapeHtml(log.Id)}" role="button" tabindex="0">
-          <div class="sf-log-header">
-            <span class="sf-log-operation" title="${operation}">${operation}</span>
-            <span class="sf-log-time">${time}</span>
+        <div class="sf-log-entry sf-log-item sf-log-tone-${tone} ${hasError ? 'sf-log-has-error' : ''} ${isCleared ? 'sf-log-cleared' : ''}" data-log-id="${escapeHtml(log.Id)}">
+          <div class="sf-log-main" role="button" tabindex="0">
+            <div class="sf-log-header">
+              <span class="sf-log-operation" title="${operation}">${operation}</span>
+              <span class="sf-log-time">${time}</span>
+            </div>
+            <div class="sf-log-body">
+              <span class="sf-log-level sf-log-level--${tone}" title="${escapeHtml(status)}">${escapeHtml(this._getStatusLabel(status))}</span>
+              ${errorBadge}
+              <span class="sf-log-meta">${window.FoxLog.formatDuration(log.DurationMilliseconds || 0)} · ${this._formatSize(log.LogLength || 0)}</span>
+            </div>
           </div>
-          <div class="sf-log-body">
-            <span class="sf-log-level sf-log-level--${tone}" title="${escapeHtml(status)}">${escapeHtml(this._getStatusLabel(status))}</span>
-            ${errorBadge}
-            <span class="sf-log-meta">${window.FoxLog.formatDuration(log.DurationMilliseconds || 0)} · ${this._formatSize(log.LogLength || 0)}</span>
-          </div>
+          <button type="button" class="sf-card-newtab-btn" title="${openLabel}" aria-label="${openLabel}: ${operation} (${time})">${window.FoxLog.icon('external-link', { size: 15 })}</button>
         </div>
       `;
     }
@@ -1045,7 +1069,8 @@
       
       if (deleteAllBtn) deleteAllBtn.style.display = 'inline-flex';
       const escapeHtml = window.FoxLog.escapeHtml || ((s) => s);
-      
+      const openLabel = escapeHtml(i18n.openInNewTab || 'Open in a new tab');
+
       listContainer.innerHTML = imports.map(imp => {
         const date = new Date(imp.date);
         const dateStr = date.toLocaleDateString(this.locale, { day: '2-digit', month: '2-digit', year: '2-digit' });
@@ -1057,6 +1082,7 @@
               <div class="sf-import-item-name">${window.FoxLog.icon('file', { className: 'foxlog-icon--muted' })} ${escapeHtml(imp.filename)}</div>
               <div class="sf-import-item-meta">${dateStr} ${timeStr} · ${this._formatSize(imp.size)}</div>
             </div>
+            <button type="button" class="sf-card-newtab-btn" title="${openLabel}" aria-label="${openLabel}: ${escapeHtml(imp.filename)}">${window.FoxLog.icon('external-link', { size: 15 })}</button>
             <button type="button" class="sf-import-item-delete" data-import-id="${escapeHtml(imp.id)}" title="${i18n.importDelete || 'Delete'}" aria-label="${i18n.importDelete || 'Delete'}">${window.FoxLog.icon('x')}</button>
           </div>
         `;

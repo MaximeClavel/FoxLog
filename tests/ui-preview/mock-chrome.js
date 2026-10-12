@@ -43,6 +43,10 @@
   const manifest = readManifest();
   localStorage.removeItem(STORAGE_PREFIX + 'buttonPosition');
 
+  // No background here: messages are recorded (inspect chrome.runtime.sentMessages)
+  // and answered as a successful background would.
+  const sentMessages = [];
+
   window.chrome = {
     runtime: {
       getManifest: () => manifest,
@@ -50,7 +54,12 @@
         ? '/tests/ui-preview/injected-stub.js'
         : `/${assetPath}`),
       onMessage: { addListener() {} },
-      sendMessage() {}
+      sentMessages,
+      lastError: undefined,
+      sendMessage(message, callback) {
+        sentMessages.push(message);
+        if (callback) setTimeout(() => callback({ ok: true }), 0);
+      }
     },
     storage: { local: storageArea }
   };

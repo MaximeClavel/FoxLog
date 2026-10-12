@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Open in a new tab**: a button in the log modal header opens the same analysis full page in a new browser tab, on the tab selected in the modal (Summary, Analysis, Flow, Calls, Raw Log or Diff). The same button sits on every log card of the side panel and on every file of the Files tab, to go straight to the full-page view without opening the modal. The tab opens right after the Salesforce tab; reloading it keeps the log and the selected tab. The log is handed over through the background (`chrome.storage.session`, or `chrome.storage.local` when it is too large for the session quota) and released when its tab is closed. No new permission. See `docs/tech-solution/open-in-new-tab.md`
+
+### Changed
+
+- **Panel log cards**: the clickable part of a card is now an inner `role="button"` element with the new-tab button next to it, since a `role="button"` must not contain another control. Clicking anywhere else on the card still opens the modal, and the focus ring still surrounds the whole card
+
+### Fixed
+
+- **UI preview**: opening a scene from the root URL (`http://foxlog.lightning.force.com.localhost:8123/?open=modal…`) lost the query string in the redirect to `index.html`, so the scene never opened
+
+### Internal
+
+- `window.FoxLog.createWorker(path)` (`constants.js`) starts an extension worker from a `blob:` URL in the content script and by URL on an extension page, whose CSP always allows its own scripts; the call tree builder uses it
+- `ModalManager.pageMode`, set by the viewer page: Esc and clicks on the backdrop don't close the analysis, and Tab isn't trapped
+- New `external-link` icon. The UI preview's `chrome.runtime.sendMessage` stand-in records messages in `chrome.runtime.sentMessages` and answers `{ ok: true }`
+
 ## [1.11.0] - 2026-09-25
 
 ### Added
