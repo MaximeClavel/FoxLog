@@ -15,6 +15,9 @@
       this.logger = null;
       this.preloadedLogs = false;  // Flag to track if logs have been preloaded
       this.preloadPromise = null;  // Promise to track preloading status
+      this.errorAlertInterval = null; // Error-alert poll, only while the panel is closed and the tab visible
+      this.alertPollInFlight = false;
+      this.lastAlertPollAt = 0;
     }
 
     async init() {
@@ -52,6 +55,7 @@
       
       this._createUI();
       this._attachEventListeners();
+      await this._initErrorAlerts();
       
       chrome.storage.local.get(['buttonVisible'], (result) => {
         const isVisible = result.buttonVisible !== false; // Default: true
@@ -71,6 +75,7 @@
       }
       
       this._startAutoRefresh();
+      this._startErrorAlertPolling();
       
       this.logger.success('Setup complete');
     }
@@ -167,21 +172,40 @@
           return; // Ignore click if dragging
         }
         
-        panelManager.toggle();
-        
         if (panelManager.isOpen) {
-          await panelManager.loadUsers(this.currentUserId);
-          const userId = panelManager.getSelectedUserId();
-          if (userId) {
-            this.selectedUserId = userId;
-            // Use preloaded logs on first open (only if same user)
-            const usePreloaded = this.preloadedLogs && userId === this.currentUserId;
-            await this.refreshLogs(false, usePreloaded);
-          }
+          panelManager.toggle();
+        } else {
+          await this.openPanel();
         }
       });
       
       document.body.appendChild(button);
+    }
+
+    /**
+     * Open the side panel on a user's logs (launcher, or the grouped error alert)
+     * @param {string|null} [userId] - User to list, the logged-in user by default
+     */
+    async openPanel(userId = null) {
+      const { panelManager, modalManager, errorAlertService } = window.FoxLog;
+
+      // The log list is about to be on screen: pending error alerts are seen
+      errorAlertService.markAllSeen();
+      modalManager?.close();
+      if (panelManager.isOpen) {
+        panelManager.showLogList();
+        return;
+      }
+
+      panelManager.toggle();
+      await panelManager.loadUsers(this.currentUserId, userId || this.currentUserId);
+      const selectedUserId = panelManager.getSelectedUserId();
+      if (selectedUserId) {
+        this.selectedUserId = selectedUserId;
+        // Use preloaded logs on first open (only if same user)
+        const usePreloaded = this.preloadedLogs && selectedUserId === this.currentUserId;
+        await this.refreshLogs(false, usePreloaded);
+      }
     }
 
     /**
@@ -431,7 +455,10 @@
       document.addEventListener('foxlog:toggleCleared', () => this.toggleClearedLogs());
       document.addEventListener('foxlog:restoreCleared', () => this.restoreClearedLogs());
       document.addEventListener('foxlog:viewLog', (e) => {
-        this.viewLogDetails(e.detail.logId);
+        this.viewLogDetails(e.detail.logId, e.detail.log);
+      });
+      document.addEventListener('foxlog:openPanel', (e) => {
+        this.openPanel(e.detail?.userId);
       });
       
       // User selection change
@@ -526,6 +553,9 @@
           this.fetchedLogs = logs;
           
           this.logger.success(`Preloaded ${logs.length} logs for user ${userId}`);
+
+          // This page's first look at the user's logs: the error alerts' baseline
+          await this._checkErrorAlerts(userId, logs);
           
           // Analyze errors in background
           if (logs.length > 0) {
@@ -654,6 +684,11 @@
           this.logger.log('Logs unchanged, skipping analysis');
         }
 
+        // While the panel is open its refresh feeds the error alerts (the background poll pauses):
+        // new logs are just marked seen while the list is on screen, alerted when it is not
+        // (e.g. behind the analysis modal). Not awaited, the bodies it may scan are cached by now.
+        this._checkErrorAlerts(userId, logs);
+
         // Always hide the spinner at the end
         if (!isAutoRefresh) {
             panelManager.hideLoading();
@@ -685,14 +720,25 @@
       return false;
     }
     
-    async viewLogDetails(logId) {
-      const { logger, salesforceAPI, modalManager } = window.FoxLog;
+    /**
+     * Open a log in the analysis modal
+     * @param {string} logId
+     * @param {Object|null} [alertedLog] - The log's metadata when it comes from an error alert:
+     *   the panel may not list it yet (closed panel, list not refreshed since)
+     */
+    async viewLogDetails(logId, alertedLog = null) {
+      const { logger, salesforceAPI, modalManager, errorAlertService } = window.FoxLog;
       
       try {
         this.logger.log(`Fetching details for log ${logId}`);
-        
-        const logMetadata = this.currentLogs.find(log => log.Id === logId);
-        const currentIndex = this.currentLogs.findIndex(log => log.Id === logId);
+        errorAlertService.markSeen(logId);
+
+        // An alerted log missing from the list is newer than what it shows: put it first
+        const logsList = alertedLog && !this.currentLogs.some(log => log.Id === logId)
+          ? [alertedLog, ...this.currentLogs]
+          : this.currentLogs;
+        const logMetadata = logsList.find(log => log.Id === logId);
+        const currentIndex = logsList.findIndex(log => log.Id === logId);
         
         if (!logMetadata) {
           this.logger.error('Log metadata not found');
@@ -704,10 +750,10 @@
         if (window.FoxLog.logParser && modalManager) {
           // Setup navigation before showing the modal
           modalManager.setLogsList(
-            this.currentLogs,
+            logsList,
             currentIndex,
             async (newLogId, newIndex) => {
-              await this._loadAndDisplayLog(newLogId);
+              await this._loadAndDisplayLog(newLogId, logsList);
             }
           );
           
@@ -734,14 +780,16 @@
      * Load and display a log (used for navigation)
      * @private
      * @param {string} logId - The ID of the log to load
+     * @param {Array} [logs] - The list the modal navigates (the panel's list, plus an alerted log)
      */
-    async _loadAndDisplayLog(logId) {
-      const { salesforceAPI, modalManager } = window.FoxLog;
+    async _loadAndDisplayLog(logId, logs = this.currentLogs) {
+      const { salesforceAPI, modalManager, errorAlertService } = window.FoxLog;
       
-      const logMetadata = this.currentLogs.find(log => log.Id === logId);
+      const logMetadata = logs.find(log => log.Id === logId);
       if (!logMetadata) {
         throw new Error('Log metadata not found');
       }
+      errorAlertService.markSeen(logId);
       
       const logBody = await salesforceAPI.fetchLogBody(logId);
       
@@ -1002,12 +1050,118 @@
       this.logger.log(`Auto-refresh started (interval: ${CONFIG.REFRESH_INTERVAL}ms)`);
     }
 
+    // ============================================
+    // ERROR ALERTS: badge + toast for new error logs (see errorAlertService)
+    // ============================================
+
+    /**
+     * Follow the "Error alerts" setting and the tab's visibility: the alert poll only runs
+     * while alerts are on and the tab is visible
+     * @private
+     */
+    async _initErrorAlerts() {
+      const { errorAlertService } = window.FoxLog;
+      await errorAlertService.init((enabled) => {
+        if (enabled) {
+          this._startErrorAlertPolling();
+        } else {
+          this._stopErrorAlertPolling();
+        }
+      });
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          this._startErrorAlertPolling();
+        } else {
+          this._stopErrorAlertPolling();
+        }
+      });
+    }
+
+    /**
+     * Poll for new error logs every CONFIG.ERROR_ALERT_INTERVAL, catching up at once
+     * when the tab comes back into view
+     * @private
+     */
+    _startErrorAlertPolling() {
+      const { CONFIG, errorAlertService } = window.FoxLog;
+      this._stopErrorAlertPolling();
+      if (!errorAlertService.enabled || document.visibilityState !== 'visible') return;
+
+      this.errorAlertInterval = setInterval(() => this._pollErrorAlerts(), CONFIG.ERROR_ALERT_INTERVAL);
+      // Not again if a poll just ran (quick back-and-forth between tabs)
+      if (Date.now() - this.lastAlertPollAt >= CONFIG.REFRESH_INTERVAL) {
+        this._pollErrorAlerts();
+      }
+    }
+
+    /** @private */
+    _stopErrorAlertPolling() {
+      clearInterval(this.errorAlertInterval);
+      this.errorAlertInterval = null;
+    }
+
+    /**
+     * Look for new error logs of the selected user while the panel is closed. Light by design:
+     * only the logs since the alert watermark are fetched, and only the new ones get their body scanned.
+     * @private
+     */
+    async _pollErrorAlerts() {
+      const { CONFIG, salesforceAPI, panelManager, errorAlertService } = window.FoxLog;
+      const userId = this.selectedUserId || this.currentUserId;
+
+      // While the panel is open its own refresh feeds the alerts; at page load the preload sets the baseline
+      if (!userId || panelManager.isOpen || this.preloadPromise || this.alertPollInFlight) return;
+
+      this.alertPollInFlight = true;
+      this.lastAlertPollAt = Date.now();
+      try {
+        const since = await errorAlertService.getFetchSince(userId);
+        const logs = await salesforceAPI.fetchLogs(userId, CONFIG.ERROR_ALERT_FETCH_LIMIT, since);
+        await this._checkErrorAlerts(userId, logs);
+      } catch (error) {
+        this.logger.warn('Error alert poll failed', error);
+      } finally {
+        this.alertPollInFlight = false;
+      }
+    }
+
+    /**
+     * Hand freshly fetched logs to the error alerts
+     * @private
+     */
+    async _checkErrorAlerts(userId, logs) {
+      const { errorAlertService } = window.FoxLog;
+      try {
+        await errorAlertService.process(userId, logs, {
+          clearMark: await this._getClearMark(userId),
+          isInView: () => this._isLogListInView(),
+          // Same guard as refreshLogs(): drop the result if the picklist moved to another user meanwhile
+          isStale: () => userId !== (this.selectedUserId || this.currentUserId)
+        });
+      } catch (error) {
+        this.logger.warn('Error alert check failed', error);
+      }
+    }
+
+    /**
+     * Whether the user can see the log list right now (new logs then need no alert)
+     * @private
+     */
+    _isLogListInView() {
+      const { panelManager, modalManager } = window.FoxLog;
+      return document.visibilityState === 'visible'
+        && panelManager.isShowingLogList()
+        && !modalManager?.currentModal;
+    }
+
     destroy() {
       const { cache, logger } = window.FoxLog;
       
       if (this.refreshInterval) {
         clearInterval(this.refreshInterval);
       }
+      this._stopErrorAlertPolling();
       cache.clear();
       this.currentLogs = [];
       this.fetchedLogs = [];

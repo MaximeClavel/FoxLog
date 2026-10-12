@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Error alerts, toolbar badge**: when a new Apex log with an error arrives for the watched user (the user selected in the panel, or you when the panel was never opened), the FoxLog icon in the browser toolbar shows how many such logs you haven't seen yet, on the Salesforce tab only. The count resets when you open the panel or open the log concerned, and when you reload the page
+- **Error alerts, toast**: the same logs pop a toast in the bottom-left corner of the Salesforce page, even with the panel closed — "New log with an error: `<operation>` — `<first error>`" with an **Open** button that opens the log in the analysis modal. Several logs at once give one grouped toast ("3 new logs with errors") whose **Open** opens the panel. It closes itself after 8 s (the countdown pauses while it is hovered, focused or the tab is hidden), closes with its × or Esc, is announced to screen readers, follows the light/dark theme and reduced motion, and moves above or beside the launcher when that is docked in the same corner
+- **What counts as an error** is what makes a log card red in the panel: a status other than Success (an unhandled exception), or the error badge of the quick body scan (handled exceptions, `FATAL_ERROR`, failed Validation Rules), so the alert and the card always agree
+- **When it checks**: while the panel is open, its 5 s refresh feeds the alerts — and new logs are simply marked as seen while the log list is on screen (no toast, no badge), since you are looking at them; behind the analysis modal or on the Files tab they are alerted. While the panel is closed, a lighter check runs every 20 s: it only fetches the logs since the last one seen and only scans the bodies of the new ones. It stops while the tab is hidden and catches up when you come back
+- **Never twice, never old logs**: the logs already there when the page loads (or when you pick another user) are the baseline and are never alerted; logs hidden by Clear are never alerted. What was seen is kept per org and user in `chrome.storage.local`, shared by the tabs of the org, so a log alerted in one tab isn't alerted again in another. A log of a long transaction that only shows up after newer ones is still caught (up to 10 minutes late)
+- **Settings popup, "Error alerts" switch** (on by default, `chrome.storage.local`): off stops the checks and clears the badge and the toast in every Salesforce tab; back on starts from a fresh baseline
+
+### Internal
+
+- **Toasts moved to `src/ui/toast-manager.js`** (`window.FoxLog.toastManager`): they are page-level, not modal-scoped. The plain confirmation toast is unchanged (`ModalManager._showToast` and the `foxlog:showToast` event delegate to it) except that it no longer removes the alert toast; `showAlert()` adds the bottom-left actionable variant
+- `src/services/error-alert-service.js`: the pure "which logs are new and erroneous since the watermark" logic (`window.FoxLog.errorAlerts`) and the service that keeps the watermark, the badge and the toast. The background script sets the badge on the sender's tab (`setErrorBadge` message, callback-style `chrome.action` calls for Firefox); no new permission
+- `salesforceAPI.fetchLogs()` takes an optional `since` date (`StartTime >=` filter); the quick error scan also returns the first error message (`firstError`); `panelManager.loadUsers()` can select a given user
+- `tests/test-error-alerts.js` (`node tests/test-error-alerts.js`): baseline on the first check, no double alert, late logs, soft-clear mark, user switch, and the error signals shared with the log cards
+- UI preview: `?simulateErrorLog=N` adds N error logs after load (`window.FoxLogPreview.addLog()` from a test), `?alertInterval=ms` shortens the check; runtime messages now reach the real `src/background.js`, and the badge it sets is recorded in `window.FoxLogPreviewChrome`
+
 ## [1.11.0] - 2026-09-25
 
 ### Added

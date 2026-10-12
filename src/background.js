@@ -159,6 +159,34 @@ class CookieService {
 }
 
 // ============================================
+// ERROR ALERT BADGE
+// ============================================
+// The danger red of the design tokens (--fl-red-600): the badge can't read CSS variables
+const ERROR_BADGE_COLOR = '#dc2626';
+const ERROR_BADGE_TEXT_COLOR = '#ffffff';
+
+/**
+ * Show the count of unseen error logs on the toolbar icon, for one tab only
+ * @param {number} tabId - The Salesforce tab the count belongs to
+ * @param {number} count - 0 clears the badge
+ */
+function setErrorBadge(tabId, count) {
+  const text = count > 0 ? (count > 99 ? '99+' : String(count)) : '';
+  // Callbacks, not promises: Firefox's chrome.* shim doesn't return promises for every API.
+  // Reading lastError silences the error of a tab closed in the meantime.
+  const ignoreError = () => void chrome.runtime.lastError;
+
+  chrome.action.setBadgeText({ tabId, text }, ignoreError);
+  if (count > 0) {
+    chrome.action.setBadgeBackgroundColor({ tabId, color: ERROR_BADGE_COLOR }, ignoreError);
+    if (chrome.action.setBadgeTextColor) {
+      chrome.action.setBadgeTextColor({ tabId, color: ERROR_BADGE_TEXT_COLOR }, ignoreError);
+    }
+  }
+  logger.log(`Error badge for tab ${tabId}: "${text}"`);
+}
+
+// ============================================
 // INITIALIZATION
 // ============================================
 const cookieService = new CookieService();
@@ -188,6 +216,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
     // IMPORTANT: return true to keep channel open (async)
     return true;
+  }
+  
+  // Content scripts can't call chrome.action: they ask here, for their own tab
+  if (request.action === 'setErrorBadge') {
+    const tabId = sender.tab?.id;
+    if (tabId !== undefined) {
+      setErrorBadge(tabId, Math.max(0, Number(request.count) || 0));
+    }
+    sendResponse({ success: tabId !== undefined });
+    return;
   }
   
   // Other message types

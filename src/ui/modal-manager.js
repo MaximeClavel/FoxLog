@@ -33,11 +33,6 @@
       this.logoIconBase64 = null;
       this.logoTextBase64 = null;
       this._loadLogoAssets();
-      
-      // Listen for toast events from other components
-      document.addEventListener('foxlog:showToast', (e) => {
-        this._showToast(e.detail.message, e.detail.type || 'success');
-      });
     }
 
     /**
@@ -433,34 +428,7 @@
     }
 
     _showToast(message, type = 'success') {
-      // Supprimer les anciens toasts
-      const existingToast = document.querySelector('.sf-toast');
-      if (existingToast) {
-        existingToast.remove();
-      }
-
-      const toastIcons = {
-        success: 'check-circle',
-        error: 'alert-circle',
-        warning: 'alert-triangle',
-        info: 'info'
-      };
-
-      const toast = document.createElement('div');
-      toast.className = `sf-toast sf-toast-${type}`;
-      toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
-      toast.innerHTML = `${window.FoxLog.icon(toastIcons[type] || 'info', { size: 16, className: 'sf-toast-icon' })}<span class="sf-toast-message"></span>`;
-      toast.querySelector('.sf-toast-message').textContent = message;
-      document.body.appendChild(toast);
-
-      // Animation d'apparition
-      setTimeout(() => toast.classList.add('sf-toast-show'), 10);
-
-      // Disparition automatique
-      setTimeout(() => {
-        toast.classList.remove('sf-toast-show');
-        setTimeout(() => toast.remove(), 300);
-      }, 3000);
+      window.FoxLog.toastManager.show(message, type);
     }
 
     _getStatusTone(status) {

@@ -50,6 +50,20 @@
     }
 
     /**
+     * Format a date as a SOQL dateTime literal, throws if it isn't a valid date
+     * @param {string|number|Date} value
+     * @returns {string} e.g. 2026-10-12T08:30:00Z (rounded down to the second)
+     * @private
+     */
+    _toSoqlDateTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        throw new Error(`Invalid date: ${value}`);
+      }
+      return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    }
+
+    /**
      * Generic method to make Tooling API requests
      * @private
      */
@@ -313,16 +327,21 @@
     // ============================================
 
     /**
-     * Fetch ApexLogs for a user
+     * Fetch ApexLogs for a user, newest first
+     * @param {string} userId
+     * @param {number} [limit=100]
+     * @param {string|null} [since] - Only logs that started at or after this date (ISO string)
+     * @returns {Promise<Array>}
      */
-    async fetchLogs(userId, limit = 100) {
+    async fetchLogs(userId, limit = 100, since = null) {
       this._validateId(userId, 'userId');
       const safeLimit = Math.max(1, Math.min(Math.floor(Number(limit)) || 100, 200));
+      const sinceFilter = since ? `AND StartTime >= ${this._toSoqlDateTime(since)}` : '';
       const query = `
         SELECT Id, LogUserId, LogUser.Name, LogLength, Operation, Request, Status,
                DurationMilliseconds, StartTime, Location 
         FROM ApexLog 
-        WHERE LogUserId='${userId}' 
+        WHERE LogUserId='${userId}' ${sinceFilter}
         ORDER BY StartTime DESC 
         LIMIT ${safeLimit}
       `;

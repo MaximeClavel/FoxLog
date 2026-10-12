@@ -209,11 +209,12 @@
 
 #sf-debug-panel :is(button, input, select, textarea),
 .sf-log-modal :is(button, input, select, textarea),
+.sf-toast button,
 .fl-theme :is(button, input, select, textarea) {
   font-family: inherit;
 }
 
-:is(#sf-debug-panel, .sf-log-modal, .fl-theme) :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible,
+:is(#sf-debug-panel, .sf-log-modal, .sf-toast, .fl-theme) :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible,
 #sf-foxlog-toggle:focus-visible {
   outline: 2px solid var(--fl-focus) !important;
   outline-offset: 2px !important;

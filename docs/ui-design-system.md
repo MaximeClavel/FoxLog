@@ -57,6 +57,7 @@ Tints become translucent hue overlays in dark mode (for example `--fl-red-50` is
 - **Log card** (`.sf-log-entry`): status rail (`sf-log-tone-success|danger`), operation as title, status chip, tabular meta.
 - **KPI card** (`.sf-summary-overview .sf-summary-item`) and **meter** (`.sf-limit-fill.sf-limit-success|warning|danger`, thresholds at 75% and 90%; `--score` drives the health-score meter).
 - **Switch** (`.sf-debug-toggle-*`, popup `.toggle-switch`): uses `--fl-switch-off`, which meets 3:1 against the surface.
+- **Toast** (`.sf-toast`, `src/ui/toast-manager.js`): plain confirmations are solid tone fills in the top-right corner. The alert variant (`.sf-toast-alert`, used by the error alerts) is a card in the bottom-left corner with a tone rail, a `role="status"` text block, an action button and a close button; it pauses while hovered or focused, closes on Esc, and moves clear of the launcher when that is docked near the corner.
 - **Tabs**: panel tabs are a segmented control; modal tabs are underlined. Both use roving tabindex and arrow keys.
 
 ## Accessibility checklist

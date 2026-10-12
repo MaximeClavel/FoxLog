@@ -32,6 +32,13 @@
 - **Log counter** per user
 - **One-click TraceFlag toggle** to enable/disable debug logs
 
+### 🔔 Error Alerts
+- **Toolbar badge**: the FoxLog icon counts the new logs with an error you haven't seen yet, on the Salesforce tab
+- **Toast in the bottom-left corner**, even with the panel closed: "New log with an error: operation — first error", with **Open** to jump straight into its analysis; several errors at once are grouped
+- **Same errors as the log cards**: a failed status, or the handled exceptions / failed Validation Rules found by the quick scan
+- **Light on the org**: with the panel closed, a check every 20 s fetches only the logs since the last one seen and scans only the new ones; it pauses while the tab is hidden. Logs already there when the page loads, or hidden by Clear, are never alerted
+- **On/off** in the settings popup ("Error alerts", on by default)
+
 ### 📂 Local Log Import
 - **Import raw log files** (.txt, .log) directly via drag & drop or file picker
 - **Tabbed panel interface**: switch between Salesforce (cloud logs) and Files (local imports)
@@ -132,7 +139,7 @@ Execute them in Salesforce Developer Console (Execute Anonymous) and open the lo
 node tests/ui-preview/server.js
 ```
 
-Then open `http://foxlog.lightning.force.com.localhost:8123` (the `*.localhost` host name lets the extension's Salesforce-page check pass). Scenes can be opened directly, e.g. `?open=panel`, `?open=panel&panelTab=import` or `?open=modal&log=0&tab=analysis`. Switch your OS between light and dark to check both themes.
+Then open `http://foxlog.lightning.force.com.localhost:8123` (the `*.localhost` host name lets the extension's Salesforce-page check pass). Scenes can be opened directly, e.g. `?open=panel`, `?open=panel&panelTab=import` or `?open=modal&log=0&tab=analysis`. `?simulateErrorLog=1` adds a log with an error a moment after load to show the error alert toast (`=3` for the grouped one). Switch your OS between light and dark to check both themes.
 
 ## 🤝 Contributing
 
