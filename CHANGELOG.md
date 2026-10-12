@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Internal
+
+- **Release workflow**: pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`, which checks the tag against the `version` of both `manifest.json` and `manifest.firefox.json`, runs the Node tests and `web-ext lint` on the Firefox build, then publishes a GitHub Release with `foxlog-chrome-X.Y.Z.zip` and `foxlog-firefox-X.Y.Z.xpi` attached and that version's `CHANGELOG.md` section as notes. A tag with a `-` suffix (`v1.12.0-beta.1`) makes a pre-release; a manual run only builds the two packages as workflow artifacts. Store submission stays manual (see "Releasing" in the README)
+- **Chrome package script**: `scripts/build-chrome-zip.sh` builds the Chrome Web Store `.zip` the same way `scripts/build-firefox-xpi.sh` builds the `.xpi`: only `manifest.json`, `popup.html`, `popup.js` and `src/`, with `manifest.json` at the root of the archive (checked by the script)
+
 ## [1.11.0] - 2026-09-25
 
 ### Added

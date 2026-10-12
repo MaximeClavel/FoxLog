@@ -134,6 +134,28 @@ node tests/ui-preview/server.js
 
 Then open `http://foxlog.lightning.force.com.localhost:8123` (the `*.localhost` host name lets the extension's Salesforce-page check pass). Scenes can be opened directly, e.g. `?open=panel`, `?open=panel&panelTab=import` or `?open=modal&log=0&tab=analysis`. Switch your OS between light and dark to check both themes.
 
+## 🏷️ Releasing
+
+Pushing a version tag runs the [release workflow](.github/workflows/release.yml):
+
+1. Set the same `version` in both `manifest.json` and `manifest.firefox.json`
+2. In `CHANGELOG.md`, move the `## [Unreleased]` entries to a new `## [X.Y.Z] - YYYY-MM-DD` section
+3. Commit, then tag that commit and push the tag:
+
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+
+The workflow fails if the tag doesn't match the version of both manifests. It runs the Node tests (`test-call-tree-worker.js`, `test-diff-engine.js`, `test-method-stats.js`) and `web-ext lint` on the Firefox build (errors fail the run, warnings don't), then builds:
+
+- `foxlog-chrome-X.Y.Z.zip` with `./scripts/build-chrome-zip.sh`: the Chrome Web Store package, holding only `manifest.json`, `popup.html`, `popup.js` and `src/`
+- `foxlog-firefox-X.Y.Z.xpi` with `./scripts/build-firefox-xpi.sh`: the unsigned Firefox package
+
+Both are attached to a GitHub Release for the tag, with that version's `CHANGELOG.md` section as release notes (GitHub's generated notes if there is none). A tag with a suffix, such as `v1.12.0-beta.1`, makes a pre-release; its manifests still say `1.12.0`, since browsers only accept dot-separated numbers there. Running the workflow by hand (**Actions → Release → Run workflow**) only builds the two packages and keeps them as workflow artifacts, without a release.
+
+Submitting to the Chrome Web Store and to addons.mozilla.org (which signs the `.xpi`) is still done by hand, with the files from the release.
+
 ## 🤝 Contributing
 
 Contributions are welcome!
