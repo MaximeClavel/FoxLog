@@ -1,0 +1,169 @@
+# Builds the Chrome .zip and Firefox .xpi for a version tag and publishes them
+# on a GitHub Release. A manual run (workflow_dispatch) only builds the two
+# packages and uploads them as workflow artifacts, without creating a release.
+# Submitting to the Chrome Web Store and addons.mozilla.org is still manual.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # A tag vX.Y.Z (or vX.Y.Z-suffix) must match the version of both
+      # manifests. Browsers only accept dot-separated numbers there, so a
+      # pre-release suffix such as -beta.1 is not compared.
+      - name: Check tag and manifest versions
+        id: version
+        run: |
+          chrome_version=$(node -p "require('./manifest.json').version")
+          firefox_version=$(node -p "require('./manifest.firefox.json').version")
+
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version_tag_pattern='^v[0-9]+(\.[0-9]+){1,3}(-[0-9A-Za-z.-]+)?$'
+            if ! [[ "$GITHUB_REF_NAME" =~ $version_tag_pattern ]]; then
+              echo "::error::Tag '$GITHUB_REF_NAME' is not a version tag (expected vX.Y.Z or vX.Y.Z-suffix)"
+              exit 1
+            fi
+            tag_version=${GITHUB_REF_NAME#v}
+            expected=${tag_version%%-*}
+            reference="tag $GITHUB_REF_NAME"
+          else
+            # No tag to compare against: the two manifests must still agree
+            expected=$chrome_version
+            reference="manifest.json"
+          fi
+
+          mismatch=0
+          if [ "$chrome_version" != "$expected" ]; then
+            echo "::error file=manifest.json::manifest.json version is $chrome_version but $reference expects $expected"
+            mismatch=1
+          fi
+          if [ "$firefox_version" != "$expected" ]; then
+            echo "::error file=manifest.firefox.json::manifest.firefox.json version is $firefox_version but $reference expects $expected"
+            mismatch=1
+          fi
+          if [ "$mismatch" -ne 0 ]; then
+            echo "Set 'version' to $expected in both manifest.json and manifest.firefox.json, or fix the tag."
+            exit 1
+          fi
+
+          echo "manifest.json and manifest.firefox.json are both at version $expected"
+          echo "version=$expected" >> "$GITHUB_OUTPUT"
+
+      # test-parser.js and test-antipatterns.js are browser-console scripts
+      # and do not run under plain Node
+      - name: Run unit tests
+        run: |
+          node tests/test-call-tree-worker.js
+          node tests/test-diff-engine.js
+          node tests/test-method-stats.js
+
+      - name: Build Chrome package
+        run: ./scripts/build-chrome-zip.sh dist
+
+      - name: Build Firefox package
+        run: ./scripts/build-firefox-xpi.sh dist
+
+      # Lints the exact files that ship in the .xpi. Fails on errors only;
+      # warnings (innerHTML assignments today) are reported but not blocking.
+      - name: Lint Firefox package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          unzip -q "dist/foxlog-firefox-$VERSION.xpi" -d "$RUNNER_TEMP/firefox"
+          npx --yes web-ext@10.7.0 lint --source-dir "$RUNNER_TEMP/firefox"
+
+      - name: List package contents
+        run: |
+          for package in dist/*.zip dist/*.xpi; do
+            unzip -l "$package"
+          done
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: foxlog-${{ steps.version.outputs.version }}
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: foxlog-${{ needs.build.outputs.version }}
+          path: dist
+
+      # Takes the "## [X.Y.Z] - date" section of CHANGELOG.md (exact tag
+      # version first, then without the pre-release suffix), without its
+      # heading and surrounding blank lines
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          notes_file="$RUNNER_TEMP/release-notes.md"
+          for candidate in "${GITHUB_REF_NAME#v}" "$VERSION"; do
+            awk -v version="$candidate" '
+              index($0, "## [" version "]") == 1 { found = 1; next }
+              found && /^## / { exit }
+              found && NF == 0 { if (printed) blanks++; next }
+              found { while (blanks > 0) { print ""; blanks-- } print; printed = 1 }
+            ' CHANGELOG.md > "$notes_file"
+            if [ -s "$notes_file" ]; then
+              echo "Release notes taken from the [$candidate] section of CHANGELOG.md"
+              echo "file=$notes_file" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "::warning file=CHANGELOG.md::No CHANGELOG.md section for $GITHUB_REF_NAME, falling back to generated release notes"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NOTES_FILE: ${{ steps.notes.outputs.file }}
+        run: |
+          args=(--verify-tag --title "FoxLog $GITHUB_REF_NAME")
+          if [ -n "$NOTES_FILE" ]; then
+            args+=(--notes-file "$NOTES_FILE")
+          else
+            args+=(--generate-notes)
+          fi
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" "${args[@]}" dist/*.zip dist/*.xpi
