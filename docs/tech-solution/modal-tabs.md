@@ -14,10 +14,10 @@ Adding a tab (for example "Database" or "Query") means writing one file and list
 ```text
                           window.FoxLog.modalManager  (src/ui/modal-manager.js, the shell)
  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
- │ header: title, status chips, prev/next navigation, close button                          │
+ │ header: title, status chips, prev/next, open in new tab, close; pageMode (viewer)        │
  │ tab bar: one button per registered tab (icon, label, optional badge)                     │
  │ tab switching + arrow/Home/End keys, focus trap, Escape, click outside, ←/→ log nav      │
- │ toasts (_showToast), cross-tab helpers: showInFlow, showPatternInAnalysis, scrollToLogLine│
+ │ toasts (_showToast → toastManager), cross-tab: showInFlow, showPatternInAnalysis, …      │
  │ one ctx per tab: calls render / setup / onActivate / onLogChange / destroy               │
  └───────────────▲──────────────────────────────────────────────────────────────────────────┘
                  │ modalTabs.list()  (read when a parsed log is opened)
@@ -37,7 +37,7 @@ Adding a tab (for example "Database" or "Query") means writing one file and list
 
 | File | Role |
 |------|------|
-| `src/ui/modal-manager.js` | Shell: modal creation, identity header, tab bar markup, tab switching and keyboard, focus trap, prev/next log navigation, toasts, cross-tab helpers, tab contexts. Public API unchanged (`showParsedLog`, `showRawLog`, `setLogsList`, `close`, `scrollToLogLine`, `showInFlow`, `showPatternInAnalysis`, `currentModal`, `currentParsedLog`, `currentAntiPatternResults`) |
+| `src/ui/modal-manager.js` | Shell: modal creation, identity header, tab bar markup, tab switching and keyboard, focus trap, prev/next log navigation, toasts (`_showToast` hands them to `window.FoxLog.toastManager`, `src/ui/toast-manager.js`), cross-tab helpers, tab contexts. Public API unchanged (`showParsedLog`, `showRawLog`, `setLogsList`, `close`, `scrollToLogLine`, `showInFlow`, `showPatternInAnalysis`, `currentModal`, `currentParsedLog`, `currentAntiPatternResults`) |
 | `src/ui/modal-tabs/tab-registry.js` | `window.FoxLog.modalTabs`: `register(definition)`, `get(id)`, `list()` (sorted by `order`) |
 | `src/ui/modal-tabs/tab-utils.js` | `window.FoxLog.modalTabUtils`: helpers shared by the shell and the tabs |
 | `src/ui/modal-tabs/summary-tab.js` | Summary: verdict banner, limits, errors, anti-pattern preview, methods; remembers collapsed sections |
@@ -112,7 +112,7 @@ The shell creates one context per tab when the modal opens. The same object is p
 | `state` | Empty object, private to the tab, kept across log navigation, dropped on close. Views, generation tokens, pending requests go here, never on the DOM elements |
 | `isActive()` | `true` if this tab is the selected one |
 | `openTab(id)` | Selects another tab by clicking its button |
-| `showToast(message, type)` | Toast at the bottom of the page; `type` is `'success'` (default), `'error'`, `'warning'` or `'info'` |
+| `showToast(message, type)` | Plain toast in the top-right corner (`toastManager.show`); `type` is `'success'` (default), `'error'`, `'warning'` or `'info'` |
 | `showInFlow(spec)` | Opens the Flow tab on a node: `{ lines: [lineIndex, ...] }`, `{ group: 'soql' \| 'dml' }` or `{ method: 'Class.method' }` |
 | `showPatternInAnalysis(index)` | Opens the Analysis tab and flashes `antiPatternResults.patterns[index]` |
 | `scrollToLogLine(lineIndex)` | Opens the Raw Log tab and highlights a raw line (`line.index` of a parsed line) |

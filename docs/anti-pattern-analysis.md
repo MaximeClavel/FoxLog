@@ -719,7 +719,8 @@ if (!results.isEmpty()) {
 | Fichier | Rôle |
 |---------|------|
 | `src/services/anti-pattern-detector.js` | Service de détection |
-| `src/ui/modal-manager.js` | Intégration UI (onglet Analyse) |
+| `src/ui/modal-tabs/analysis-tab.js` | Intégration UI (onglet Analyse, voir [tech-solution/modal-tabs.md](tech-solution/modal-tabs.md)) |
+| `src/ui/modal-tabs/analysis-export.js` | Exports PDF / Markdown / texte du rapport |
 | `src/modal-styles.css` | Styles CSS |
 | `src/core/constants.js` | Traductions i18n |
 

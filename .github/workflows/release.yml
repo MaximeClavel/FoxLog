@@ -78,6 +78,7 @@ jobs:
           node tests/test-call-tree-worker.js
           node tests/test-diff-engine.js
           node tests/test-method-stats.js
+          node tests/test-error-alerts.js
 
       - name: Build Chrome package
         run: ./scripts/build-chrome-zip.sh dist

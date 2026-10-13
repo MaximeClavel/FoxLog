@@ -38,6 +38,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `ModalManager.pageMode`, set by the viewer page: Esc and clicks on the backdrop don't close the analysis, and Tab isn't trapped
 - New `external-link` icon. In the UI preview, "Open in a new tab" goes through the real background handler; the tab it would open is recorded in `window.FoxLogPreviewChrome.openedTabs` and every runtime message in `chrome.runtime.sentMessages`
 - The Diff tab starts its worker with `window.FoxLog.createWorker()` too, so it also runs on the viewer page
+- The release workflow also runs `tests/test-error-alerts.js`; the README lists the Node unit tests
+- Docs: [docs/tech-solution/error-alerts.md](docs/tech-solution/error-alerts.md) (detection, watermark, badge and toast) and [docs/tech-solution/open-in-new-tab.md](docs/tech-solution/open-in-new-tab.md) (handover to the full-page viewer); `docs/anti-pattern-analysis.md` points to the Analysis tab module
 
 ## [1.11.0] - 2026-09-25
 

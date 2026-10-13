@@ -131,5 +131,5 @@ Aucune nouvelle permission. `storage` et `unlimitedStorage` existaient déjà ; 
 
 ## Vérification
 
-- `tests/ui-preview` : `chrome.runtime.sendMessage` y est simulé ; les messages envoyés sont consultables dans `chrome.runtime.sentMessages` (charge utile du bouton de la modale et des cartes).
+- `tests/ui-preview` : les messages runtime y passent par le vrai `background.js`, dont le `chrome.*` simulé a des `tabs`, un `storage.session` en mémoire et `runtime.onStartup`. Les messages envoyés sont consultables dans `chrome.runtime.sentMessages` (charge utile du bouton de la modale et des cartes), et l'onglet que le background aurait ouvert dans `window.FoxLogPreviewChrome.openedTabs`.
 - Extension réelle chargée dans Chromium (Playwright) : une page HTTPS servie pour `foxlog.lightning.force.com` (résolue vers localhost) reçoit les vrais content scripts ; l'API Salesforce y est remplacée par le backend de démo de `tests/ui-preview`. Parcours vérifiés : carte → onglet, modale (onglet Flux) → onglet sur le Flux, fichier importé → onglet, placement et `openerTabId` de l'onglet, rechargement, fermeture → entrée supprimée, log de 11 Mo → repli sur `storage.local`, échec de stockage → toast, clé inconnue, thèmes clair et sombre, libellés français.

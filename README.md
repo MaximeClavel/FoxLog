@@ -39,6 +39,8 @@
 - **Light on the org**: with the panel closed, a check every 20 s fetches only the logs since the last one seen and scans only the new ones; it pauses while the tab is hidden. Logs already there when the page loads, or hidden by Clear, are never alerted
 - **On/off** in the settings popup ("Error alerts", on by default)
 
+See [docs/tech-solution/error-alerts.md](docs/tech-solution/error-alerts.md) for how new logs are detected and why an alert never fires twice.
+
 ### 📂 Local Log Import
 - **Import raw log files** (.txt, .log) directly via drag & drop or file picker
 - **Tabbed panel interface**: switch between Salesforce (cloud logs) and Files (local imports)
@@ -81,7 +83,7 @@
 ### 🎨 User Interface [NEW]
 - **Side panel** with a draggable floating button that docks to the window edges
 - **Modern modal** with an identity header (operation, status, duration), underlined tabs and prev/next log navigation
-- **Open in a new tab**: a button in the modal header, on every log card and on every imported file opens the analysis full page in its own browser tab, on the tab you were looking at. Keep several logs side by side or move one to a second screen; reloading the tab keeps the log, and closing it frees the stored copy
+- **Open in a new tab**: a button in the modal header, on every log card and on every imported file opens the analysis full page in its own browser tab, on the tab you were looking at. Keep several logs side by side or move one to a second screen; reloading the tab keeps the log, and closing it frees the stored copy (see [docs/tech-solution/open-in-new-tab.md](docs/tech-solution/open-in-new-tab.md))
 - **Design system**: one set of tokens (`src/theme.css`) drives colors, type, radius and elevation for the panel, modal, toasts and settings popup
 - **Light and dark themes** that follow your OS setting, with WCAG AA contrast in both
 - **Accessible by default**: keyboard-operable panel, tabs and log cards, visible focus rings, dialog focus trap, `prefers-reduced-motion` support
@@ -119,7 +121,7 @@ See [docs/ui-design-system.md](docs/ui-design-system.md) for the tokens and comp
 5. If you have no active TraceFlag, use the toggle to enable debug logs
 6. Switch to the **Files** tab to import and analyze local .txt/.log files
 7. Click a log card to analyze it in depth, or its ↗ button to open the analysis full page in a new tab
-8. Explore the different tabs: Summary, Calls, Flow, Analysis, Raw Log (the ↗ button in the modal header opens the current one in a new tab)
+8. Explore the different tabs: Summary, Analysis, Flow, Calls, Raw Log, Diff (the ↗ button in the modal header opens the current one in a new tab)
 9. Use the **Analysis tab** to detect anti-patterns and export reports (PDF/MD/TXT)
 10. Use the **Diff tab** to compare execution with an imported log from another environment
 11. Use the export button in the Calls tab to generate a performance report
@@ -131,6 +133,19 @@ Test scripts are available in the `tests/` folder:
 - **test-calltree.apex**: Generates a rich call tree with nested operations
 
 Execute them in Salesforce Developer Console (Execute Anonymous) and open the log in FoxLog.
+
+### Node unit tests
+
+These run with plain Node, no install needed (the release workflow runs them too):
+
+```bash
+node tests/test-call-tree-worker.js   # call tree built by the worker
+node tests/test-diff-engine.js        # log diff engine (and its worker copy)
+node tests/test-method-stats.js       # per-method call count and cumulative time
+node tests/test-error-alerts.js       # error alerts: baseline, no double alert, late logs, Clear
+```
+
+`tests/test-parser.js` and `tests/test-antipatterns.js` are browser-console scripts: paste them into the console of a page where FoxLog is loaded.
 
 ### Previewing the UI without a Salesforce org
 
@@ -155,7 +170,7 @@ Pushing a version tag runs the [release workflow](.github/workflows/release.yml)
    git push origin vX.Y.Z
    ```
 
-The workflow fails if the tag doesn't match the version of both manifests. It runs the Node tests (`test-call-tree-worker.js`, `test-diff-engine.js`, `test-method-stats.js`) and `web-ext lint` on the Firefox build (errors fail the run, warnings don't), then builds:
+The workflow fails if the tag doesn't match the version of both manifests. It runs the Node tests (`test-call-tree-worker.js`, `test-diff-engine.js`, `test-method-stats.js`, `test-error-alerts.js`) and `web-ext lint` on the Firefox build (errors fail the run, warnings don't), then builds:
 
 - `foxlog-chrome-X.Y.Z.zip` with `./scripts/build-chrome-zip.sh`: the Chrome Web Store package, holding only `manifest.json`, `popup.html`, `popup.js` and `src/`
 - `foxlog-firefox-X.Y.Z.xpi` with `./scripts/build-firefox-xpi.sh`: the unsigned Firefox package
