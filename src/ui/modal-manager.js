@@ -6,9 +6,9 @@
   const i18n = window.FoxLog.i18n || {};
   const logger = window.FoxLog.logger || console;
 
-  // Share of a Salesforce limit where the Summary bars and the verdict banner turn amber / red
-  const LIMIT_WARNING_PCT = 75;
-  const LIMIT_DANGER_PCT = 90;
+  // The modal is a shell (header, tab bar, focus trap, navigation); each tab
+  // lives in its own module under src/ui/modal-tabs/ and registers itself in
+  // window.FoxLog.modalTabs. See docs/tech-solution/modal-tabs.md.
 
   class ModalManager {
     constructor() {
@@ -25,59 +25,12 @@
       this.currentParsedLog = null;
       this.currentAntiPatternResults = null;
 
-      // Summary sections the user collapsed (persisted, shared by every log)
-      this._collapsedSections = new Set();
-      this._loadSectionPrefs();
-
-      // Logo assets in base64 for PDF export
-      this.logoIconBase64 = null;
-      this.logoTextBase64 = null;
-      this._loadLogoAssets();
+      // Contexts of the tabs of the open parsed-log modal, by tab id (see _createTabContexts)
+      this._tabContexts = new Map();
       
       // Listen for toast events from other components
       document.addEventListener('foxlog:showToast', (e) => {
         this._showToast(e.detail.message, e.detail.type || 'success');
-      });
-    }
-
-    /**
-     * Load logo assets as base64 for PDF export
-     * @private
-     */
-    async _loadLogoAssets() {
-      try {
-        const iconUrl = chrome.runtime.getURL('src/assets/icon128.png');
-        const logoTextUrl = chrome.runtime.getURL('src/assets/FoxLog.png');
-        
-        const [iconResponse, logoResponse] = await Promise.all([
-          fetch(iconUrl),
-          fetch(logoTextUrl)
-        ]);
-        
-        const [iconBlob, logoBlob] = await Promise.all([
-          iconResponse.blob(),
-          logoResponse.blob()
-        ]);
-        
-        this.logoIconBase64 = await this._blobToBase64(iconBlob);
-        this.logoTextBase64 = await this._blobToBase64(logoBlob);
-        
-        logger.log('[ModalManager] Logo assets loaded for PDF export');
-      } catch (error) {
-        logger.warn('[ModalManager] Failed to load logo assets', error);
-      }
-    }
-
-    /**
-     * Convert blob to base64 string
-     * @private
-     */
-    _blobToBase64(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
       });
     }
 
@@ -121,7 +74,6 @@
      * @param {boolean} updateOnly - If true, update existing modal content without closing
      */
     showParsedLog(parsedLog, parser, updateOnly = false) {
-      const filterManager = window.FoxLog.filterManager;
       const summary = parser.getSummary(parsedLog);
       
       // Run anti-pattern detection early for badge
@@ -148,6 +100,7 @@
       this.close();
       
       const modal = this._createModal();
+      const tabContexts = this._createTabContexts(modal, { parsedLog, summary, antiPatternResults });
       modal.innerHTML = `
         <div class="sf-modal-content">
           <div class="sf-modal-header">
@@ -157,70 +110,24 @@
           </div>
 
           <div class="sf-modal-tabs" role="tablist" aria-label="${i18n.logAnalysis || 'Log Analysis'}">
-            <button type="button" class="sf-tab-btn active" role="tab" aria-selected="true" data-tab="summary">${window.FoxLog.icon('layout', { size: 14 })} ${i18n.summary || 'Summary'}</button>
-            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="analysis">
-              ${window.FoxLog.icon('activity', { size: 14 })} ${i18n.analysis || 'Analysis'}
-              ${this._renderAnalysisBadge(antiPatternResults)}
-            </button>
-            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="graph">${window.FoxLog.icon('git-branch', { size: 14 })} ${i18n.flow || 'Flow'}</button>
-            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="calls">${window.FoxLog.icon('list', { size: 14 })} ${i18n.calls || 'Calls'}</button>
-            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="raw">${window.FoxLog.icon('file-text', { size: 14 })} ${i18n.rawLog || 'Raw Log'}</button>
-            <button type="button" class="sf-tab-btn" role="tab" aria-selected="false" tabindex="-1" data-tab="diff">${window.FoxLog.icon('shuffle', { size: 14 })} ${i18n.diffTab || 'Diff'}</button>
+            ${tabContexts.map((ctx, index) => this._renderTabButton(ctx, index === 0)).join('')}
           </div>
           
           <div class="sf-modal-body-tabs">
-            <div id="tab-summary" class="sf-tab-content active">
-              ${this._renderSummaryTab(summary, parsedLog, antiPatternResults)}
-            </div>
-            
-            <div id="tab-analysis" class="sf-tab-content">
-              ${this._renderAnalysisTab(antiPatternResults)}
-            </div>
-            
-            <div id="tab-graph" class="sf-tab-content sf-tab-content--flush">
-              <div class="sf-calls-loading">
-                <div class="sf-spinner"></div>
-                <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
-              </div>
-            </div>
-
-            <div id="tab-calls" class="sf-tab-content sf-tab-content--flush">
-              <div class="sf-calls-loading">
-                <div class="sf-spinner"></div>
-                <div class="sf-loading-text">${i18n.buildingCallTree || 'Building call tree...'}</div>
-              </div>
-            </div>
-
-            <div id="tab-raw" class="sf-tab-content">
-              ${this._renderRawTab(parsedLog)}
-            </div>
-
-            <div id="tab-diff" class="sf-tab-content">
-              <div class="sf-diff-select-container">
-                <div class="sf-diff-top-bar">
-                  <select class="sf-diff-log-select" aria-label="${i18n.diffSelectLog || 'Select an imported log to compare'}">
-                    <option value="">-- ${i18n.diffSelectLog || 'Select an imported log'} --</option>
-                  </select>
-                  <span class="sf-diff-or">${i18n.diffOr || 'or'}</span>
-                  <label class="sf-diff-import-btn" tabindex="0" role="button" aria-label="${i18n.diffImportFile || 'Import a file'}">
-                    ${window.FoxLog.icon('folder', { size: 13 })} ${i18n.diffImportFile || 'Import a file'}
-                    <input type="file" class="sf-diff-file-input" accept=".txt,.log" hidden />
-                  </label>
-                </div>
-                <div class="sf-diff-content-area"></div>
-              </div>
-            </div>
+            ${tabContexts.map((ctx, index) => this._renderTabPane(ctx, index === 0)).join('')}
           </div>
         </div>
       `;
+
+      tabContexts.forEach(ctx => {
+        ctx.pane = modal.querySelector(`#tab-${ctx.tab.id}`);
+        ctx.button = modal.querySelector(`.sf-tab-btn[data-tab="${ctx.tab.id}"]`);
+      });
+      this._tabContexts = new Map(tabContexts.map(ctx => [ctx.tab.id, ctx]));
       
       this._attachModal(modal);
       this._setupTabs(modal);
-      this._setupGraphTab(modal, parsedLog);
-      this._setupCallsTab(modal, parsedLog);
-      this._setupDiffTab(modal, parsedLog);
-
-      this._setupExportButtons(modal, parsedLog);
+      this._tabContexts.forEach(ctx => this._invokeTab(ctx, 'setup'));
       
       this.logger.success('Parsed log modal with filters displayed');
     }
@@ -232,8 +139,6 @@
     _updateModalContent(parsedLog, parser, summary, antiPatternResults = null) {
       const modal = this.currentModal;
       if (!modal) return;
-      
-      const filterManager = window.FoxLog.filterManager;
       
       // Re-analyze if not provided
       if (!antiPatternResults) {
@@ -261,175 +166,19 @@
         this._setupNavigation(modal);
       }
       
-      // Update Summary tab
-      const summaryTab = modal.querySelector('#tab-summary');
-      if (summaryTab) {
-        summaryTab.innerHTML = this._renderSummaryTab(summary, parsedLog, antiPatternResults);
-      }
-      
-      // Update Analysis tab
-      const analysisTab = modal.querySelector('#tab-analysis');
-      if (analysisTab) {
-        analysisTab.innerHTML = this._renderAnalysisTab(antiPatternResults);
-        this._setupAntiPatternLineButtons(modal);
-        this._setupExportAnalysisButtons(modal);
-      }
-      
-      // Update Analysis tab badge
-      const analysisBtn = modal.querySelector('[data-tab="analysis"]');
-      if (analysisBtn) {
-        analysisBtn.innerHTML = `
-          ${window.FoxLog.icon('activity', { size: 14 })} ${i18n.analysis || 'Analysis'}
-          ${this._renderAnalysisBadge(antiPatternResults)}
-        `;
-      }
-      
-      // Reset Flow/Graph tab (will be rebuilt on click, or immediately if active)
-      const graphTab = modal.querySelector('#tab-graph');
-      if (graphTab) {
-        modal._foxlogPendingFlowJump = null;
-        if (modal._foxlogGraphView) {
-          modal._foxlogGraphView.destroy();
-          modal._foxlogGraphView = null;
+      // Hand the new log to every tab: the shell re-renders its pane (and its
+      // label badge), then the tab re-wires the new content. Lazy tabs (Flow,
+      // Calls, Diff) rebuild right away if active, otherwise on their next click.
+      this._tabContexts.forEach(ctx => {
+        Object.assign(ctx, { parsedLog, summary, antiPatternResults });
+        ctx.pane.innerHTML = ctx.tab.render(ctx);
+        if (ctx.tab.badge) {
+          ctx.button.innerHTML = this._renderTabButtonContent(ctx);
         }
-        graphTab.innerHTML = `
-          <div class="sf-calls-loading">
-            <div class="sf-spinner"></div>
-            <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
-          </div>
-        `;
-        this._setupGraphTab(modal, parsedLog);
-      }
-
-      // Reset Calls tab (will be rebuilt on click, or immediately if active)
-      const callsTab = modal.querySelector('#tab-calls');
-      if (callsTab) {
-        if (modal._foxlogCallsView) {
-          modal._foxlogCallsView.destroy();
-          modal._foxlogCallsView = null;
-        }
-        callsTab.innerHTML = `
-          <div class="sf-calls-loading">
-            <div class="sf-spinner"></div>
-            <div class="sf-loading-text">${i18n.buildingCallTree || 'Building call tree...'}</div>
-          </div>
-        `;
-        // Re-setup calls tab for the new log
-        this._setupCallsTab(modal, parsedLog);
-      }
-
-      // Update Raw tab
-      const rawTab = modal.querySelector('#tab-raw');
-      if (rawTab) {
-        rawTab.innerHTML = this._renderRawTab(parsedLog);
-      }
-      
-      // Reset Diff tab
-      const diffTab = modal.querySelector('#tab-diff');
-      if (diffTab) {
-        if (modal._foxlogDiffView) {
-          modal._foxlogDiffView.destroy();
-          modal._foxlogDiffView = null;
-        }
-        diffTab.innerHTML = `
-          <div class="sf-diff-select-container">
-            <div class="sf-diff-top-bar">
-              <select class="sf-diff-log-select" aria-label="${i18n.diffSelectLog || 'Select an imported log to compare'}">
-                <option value="">-- ${i18n.diffSelectLog || 'Select an imported log'} --</option>
-              </select>
-              <span class="sf-diff-or">${i18n.diffOr || 'or'}</span>
-              <label class="sf-diff-import-btn" tabindex="0" role="button" aria-label="${i18n.diffImportFile || 'Import a file'}">
-                ${window.FoxLog.icon('folder', { size: 13 })} ${i18n.diffImportFile || 'Import a file'}
-                <input type="file" class="sf-diff-file-input" accept=".txt,.log" hidden />
-              </label>
-            </div>
-            <div class="sf-diff-content-area"></div>
-          </div>
-        `;
-        this._setupDiffTab(modal, parsedLog);
-      }
-      
-      // Re-setup export buttons
-      this._setupExportButtons(modal, parsedLog);
+        this._invokeTab(ctx, 'onLogChange');
+      });
       
       this.logger.success('Modal content updated for navigation');
-    }
-
-    _setupExportButtons(modal, parsedLog) {
-      // Export log brut (texte)
-      const exportRawBtn = modal.querySelector('#export-raw-btn');
-      if (exportRawBtn) {
-        exportRawBtn.addEventListener('click', () => {
-          this._exportRawLog(parsedLog);
-        });
-      }
-
-      // Copier dans le presse-papier
-      const copyBtn = modal.querySelector('#copy-raw-btn');
-      if (copyBtn) {
-        copyBtn.addEventListener('click', () => {
-          this._copyToClipboard(parsedLog.rawContent, copyBtn);
-        });
-      }
-    }
-
-    _exportRawLog(parsedLog) {
-      try {
-        const filename = this._generateFilename(parsedLog, 'txt');
-        const blob = new Blob([parsedLog.rawContent], { type: 'text/plain' });
-        this._downloadFile(blob, filename);
-        this.logger.success('Raw log exported');
-        this._showToast(i18n.toastExportSuccess || 'Exported successfully!');
-      } catch (error) {
-        this.logger.error('Export failed', error);
-        this._showToast(i18n.toastExportError || 'Export error', 'error');
-      }
-    }
-
-    async _copyToClipboard(text, button) {
-      try {
-        await navigator.clipboard.writeText(text);
-        
-        // Feedback visuel
-        const originalText = button.innerHTML;
-        button.innerHTML = `
-          <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px;">
-            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-          </svg>
-          ${i18n.copied || 'Copied!'}
-        `;
-        button.classList.add('sf-export-btn-success');
-        
-        setTimeout(() => {
-          button.innerHTML = originalText;
-          button.classList.remove('sf-export-btn-success');
-        }, 2000);
-
-        this.logger.success('Copied to clipboard');
-        this._showToast(i18n.copySuccess || 'Copied to clipboard!');
-      } catch (error) {
-        this.logger.error('Copy failed', error);
-        this._showToast(i18n.copyError || 'Copy error', 'error');
-      }
-    }
-
-    _generateFilename(parsedLog, extension) {
-      const date = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
-      const operation = (parsedLog.metadata.operation || 'log')
-        .replace(/[^a-zA-Z0-9]/g, '_')
-        .substring(0, 30);
-      return `foxlog_${operation}_${date}.${extension}`;
-    }
-
-    _downloadFile(blob, filename) {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
     }
 
     _showToast(message, type = 'success') {
@@ -464,8 +213,7 @@
     }
 
     _getStatusTone(status) {
-      if (status === 'Success') return 'success';
-      return status === 'Unknown' ? 'neutral' : 'danger';
+      return window.FoxLog.modalTabUtils.getStatusTone(status);
     }
 
     /**
@@ -662,26 +410,14 @@
      */
     close() {
       if (this.currentModal) {
-        // Bump the generation tokens so a Flow/Calls build or a Diff run still
-        // in flight (awaiting buildTree()/init()/the worker) sees itself as
-        // stale once it resumes, instead of attaching a freshly built view --
-        // with its own window listeners -- to this now-detached modal.
-        this.currentModal._foxlogGraphGeneration = (this.currentModal._foxlogGraphGeneration || 0) + 1;
-        this.currentModal._foxlogCallsGeneration = (this.currentModal._foxlogCallsGeneration || 0) + 1;
-        this.currentModal._foxlogDiffRun = (this.currentModal._foxlogDiffRun || 0) + 1;
+        // Every tab destroys its views and bumps its generation token, so a
+        // Flow/Calls build or a Diff run still in flight (awaiting
+        // buildTree()/init()/the worker) sees itself as stale once it resumes,
+        // instead of attaching a freshly built view -- with its own window
+        // listeners -- to this now-detached modal.
+        this._tabContexts.forEach(ctx => this._invokeTab(ctx, 'destroy'));
+        this._tabContexts = new Map();
 
-        if (this.currentModal._foxlogGraphView) {
-          this.currentModal._foxlogGraphView.destroy();
-          this.currentModal._foxlogGraphView = null;
-        }
-        if (this.currentModal._foxlogCallsView) {
-          this.currentModal._foxlogCallsView.destroy();
-          this.currentModal._foxlogCallsView = null;
-        }
-        if (this.currentModal._foxlogDiffView) {
-          this.currentModal._foxlogDiffView.destroy();
-          this.currentModal._foxlogDiffView = null;
-        }
         this.currentModal.remove();
         this.currentModal = null;
         this.returnFocusTo?.focus?.();
@@ -778,67 +514,6 @@
           this.scrollToLogLine(e.detail.lineIndex);
         }
       });
-
-      // Setup anti-pattern line navigation
-      this._setupAntiPatternLineButtons(modal);
-
-      // Setup analysis export buttons (PDF, MD, TXT)
-      this._setupExportAnalysisButtons(modal);
-
-      this._setupSummaryInteractions(modal);
-    }
-
-    // One delegated listener on the persistent pane: _updateModalContent replaces its content on log navigation
-    _setupSummaryInteractions(modal) {
-      const summaryTab = modal.querySelector('#tab-summary');
-      if (!summaryTab) return;
-
-      summaryTab.addEventListener('click', (e) => {
-        const target = e.target;
-
-        const sectionToggle = target.closest('.sf-section-toggle');
-        if (sectionToggle) {
-          this._toggleSummarySection(sectionToggle.closest('.sf-summary-section'));
-          return;
-        }
-
-        const copyBtn = target.closest('.sf-error-copy-btn');
-        if (copyBtn) {
-          this._copyErrorMessage(copyBtn);
-          return;
-        }
-
-        const errorCard = target.closest('.sf-error-item[data-line-indexes]');
-        if (errorCard) {
-          // Drag-selecting the message also ends in a click on the card: keep the selection, don't navigate
-          const selection = window.getSelection();
-          if (!target.closest('.sf-error-jump-btn') && !selection.isCollapsed && errorCard.contains(selection.anchorNode)) return;
-
-          const lines = errorCard.dataset.lineIndexes.split(',').map(Number).filter(Number.isInteger);
-          this.showInFlow({ lines });
-          return;
-        }
-
-        const flowTarget = target.closest('[data-flow-group], [data-flow-method]');
-        if (flowTarget) {
-          this.showInFlow(flowTarget.dataset.flowGroup
-            ? { group: flowTarget.dataset.flowGroup }
-            : { method: flowTarget.dataset.flowMethod });
-          return;
-        }
-
-        const patternBtn = target.closest('[data-pattern-index]');
-        if (patternBtn) {
-          this.showPatternInAnalysis(parseInt(patternBtn.dataset.patternIndex, 10));
-          return;
-        }
-
-        const openTab = target.closest('[data-open-tab]');
-        if (openTab) {
-          const tabBtn = modal.querySelector(`[data-tab="${openTab.dataset.openTab}"]`);
-          if (tabBtn) tabBtn.click();
-        }
-      });
     }
 
     /**
@@ -851,29 +526,10 @@
       if (!graphBtn) return;
 
       // The graph is built lazily (and asynchronously) on the first tab click:
-      // remember the target so buildGraph can apply it once the view exists.
-      modal._foxlogPendingFlowJump = spec;
+      // the Flow tab keeps the target and applies it once the view exists.
+      this._callTab('graph', 'queueJump', spec);
       graphBtn.click();
-      this._flushPendingFlowJump(modal);
-    }
-
-    /**
-     * Apply a pending Summary -> Flow jump if the graph view is ready.
-     * @private
-     */
-    _flushPendingFlowJump(modal) {
-      const spec = modal._foxlogPendingFlowJump;
-      const view = modal._foxlogGraphView;
-      if (!spec || !view) return;
-
-      modal._foxlogPendingFlowJump = null;
-      // Called from buildGraph's try block: a failed jump must not be
-      // mistaken for a failed graph build.
-      try {
-        view.jumpTo(spec);
-      } catch (error) {
-        logger.warn('[ModalManager] Could not jump to the Flow tab target', spec, error);
-      }
+      this._callTab('graph', 'flushPendingJump');
     }
 
     /**
@@ -885,764 +541,96 @@
       if (!analysisBtn) return;
 
       analysisBtn.click();
-      const item = modal.querySelector(`#tab-analysis .sf-anti-pattern-item[data-pattern-index="${patternIndex}"]`);
-      if (!item) return;
-
-      item.scrollIntoView({ behavior: 'instant', block: 'center' });
-      item.classList.add('sf-anti-pattern-item--flash');
-      setTimeout(() => item.classList.remove('sf-anti-pattern-item--flash'), 1800);
-    }
-
-    _toggleSummarySection(section) {
-      if (!section) return;
-      const key = section.dataset.section;
-      const collapsed = section.classList.toggle('sf-collapsed');
-      const toggle = section.querySelector('.sf-section-toggle');
-      if (toggle) toggle.setAttribute('aria-expanded', String(!collapsed));
-
-      if (collapsed) this._collapsedSections.add(key);
-      else this._collapsedSections.delete(key);
-      this._saveSectionPrefs();
-    }
-
-    _loadSectionPrefs() {
-      try {
-        chrome.storage.local.get('summaryCollapsedSections', (result) => {
-          const saved = result && result.summaryCollapsedSections;
-          if (Array.isArray(saved)) this._collapsedSections = new Set(saved);
-        });
-      } catch (error) {
-        logger.warn('[ModalManager] Could not load Summary section preferences', error);
-      }
-    }
-
-    _saveSectionPrefs() {
-      try {
-        chrome.storage.local.set({ summaryCollapsedSections: [...this._collapsedSections] });
-      } catch (error) {
-        logger.warn('[ModalManager] Could not save Summary section preferences', error);
-      }
-    }
-
-    async _copyErrorMessage(button) {
-      const messageEl = button.closest('.sf-error-item')?.querySelector('.sf-error-message');
-      if (!messageEl) return;
-
-      try {
-        await navigator.clipboard.writeText(messageEl.textContent.trim());
-        button.innerHTML = window.FoxLog.icon('check', { size: 13 });
-        setTimeout(() => { button.innerHTML = window.FoxLog.icon('copy', { size: 13 }); }, 1500);
-        this._showToast(i18n.copySuccess || 'Copied to clipboard!');
-      } catch (error) {
-        this.logger.error('Copy failed', error);
-        this._showToast(i18n.copyError || 'Copy error', 'error');
-      }
+      this._callTab('analysis', 'flashPattern', patternIndex);
     }
 
     /**
-     * Setup click handlers for anti-pattern line buttons
+     * Create one context per registered tab for a modal being opened. A context
+     * lives until the modal closes; its log fields are refreshed on prev/next
+     * navigation. `pane` and `button` are set once the modal markup exists.
      * @private
+     * @param {HTMLElement} modal - The modal being opened
+     * @param {{parsedLog: Object, summary: Object, antiPatternResults: ?Object}} logData - Log shown first
+     * @returns {Object[]} Tab contexts, in tab bar order
      */
-    _setupAntiPatternLineButtons(modal) {
-      // Line navigation buttons
-      const lineButtons = modal.querySelectorAll('.sf-ap-line-btn');
-      lineButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-          const lineIndex = parseInt(btn.dataset.line, 10);
-          this.scrollToLogLine(lineIndex);
-        });
-      });
+    _createTabContexts(modal, logData) {
+      const tabs = window.FoxLog.modalTabs ? window.FoxLog.modalTabs.list() : [];
 
-      // "Show more" buttons (+XX)
-      const showMoreBtns = modal.querySelectorAll('.sf-ap-show-more-btn');
-      showMoreBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const targetId = btn.dataset.target;
-          const container = modal.querySelector(`[data-lines-id="${targetId}"]`);
-          if (container) {
-            container.querySelector('.sf-ap-lines-visible').style.display = 'none';
-            container.querySelector('.sf-ap-lines-all').style.display = 'flex';
-          }
-        });
-      });
-
-      // "Show less" links
-      const showLessBtns = modal.querySelectorAll('.sf-ap-show-less-btn');
-      showLessBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const targetId = btn.dataset.target;
-          const container = modal.querySelector(`[data-lines-id="${targetId}"]`);
-          if (container) {
-            container.querySelector('.sf-ap-lines-visible').style.display = 'flex';
-            container.querySelector('.sf-ap-lines-all').style.display = 'none';
-          }
-        });
-      });
-    }
-
-    /**
-     * Setup export buttons (PDF, MD, TXT) with dropdown menu
-     * @private
-     */
-    _setupExportAnalysisButtons(modal) {
-      // Toggle dropdown menu
-      const exportBtn = modal.querySelector('.sf-analysis-export-btn');
-      const exportMenu = modal.querySelector('.sf-analysis-export-menu');
-      
-      if (exportBtn && exportMenu) {
-        exportBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const isVisible = exportMenu.style.display !== 'none';
-          exportMenu.style.display = isVisible ? 'none' : 'block';
-        });
-
-        // Close menu when clicking outside
-        document.addEventListener('click', (e) => {
-          if (!exportBtn.contains(e.target) && !exportMenu.contains(e.target)) {
-            exportMenu.style.display = 'none';
-          }
-        });
-      }
-
-      // Export actions from menu items
-      const menuItems = modal.querySelectorAll('.sf-analysis-export-menu .sf-export-menu-item');
-      menuItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const action = item.dataset.action;
-          
-          if (exportMenu) exportMenu.style.display = 'none';
-          
-          switch (action) {
-            case 'export-pdf':
-              this._exportAnalysisPdf();
-              break;
-            case 'export-md':
-              this._exportAnalysisMd();
-              break;
-            case 'export-txt':
-              this._exportAnalysisTxt();
-              break;
-          }
-        });
-      });
-
-      logger.log('[Export Setup] Analysis export dropdown configured');
-    }
-
-    /**
-     * Export analysis report as PDF (via print dialog)
-     * @private
-     */
-    _exportAnalysisPdf() {
-      logger.log('[PDF Export] Starting PDF export...');
-      
-      if (!this.currentParsedLog || !this.currentAntiPatternResults) {
-        logger.error('[PDF Export] No data available', { 
-          hasLog: !!this.currentParsedLog, 
-          hasResults: !!this.currentAntiPatternResults 
-        });
-        this._showToast(i18n.toastExportError || 'Export error', 'error');
-        return;
-      }
-
-      const { metadata } = this.currentParsedLog;
-      const { patterns, summary } = this.currentAntiPatternResults;
-      const date = new Date().toLocaleString();
-
-      logger.log('[PDF Export] Generating HTML...');
-      // Generate PDF-friendly HTML
-      const html = this._generatePdfHtml(metadata, patterns, summary, date);
-
-      // Try to open print window
-      try {
-        logger.log('[PDF Export] Opening print window...');
-        const printWindow = window.open('', '_blank', 'width=900,height=700');
-        
-        if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
-          // Popup blocked - use iframe fallback
-          logger.warn('[PDF Export] Popup blocked, using iframe fallback');
-          this._exportPdfViaIframe(html);
-          return;
-        }
-
-        printWindow.document.write(html);
-        printWindow.document.close();
-
-        // Wait for content to load then print
-        printWindow.onload = () => {
-          setTimeout(() => {
-            printWindow.focus();
-            printWindow.print();
-          }, 300);
+      return tabs.map(tab => {
+        const ctx = {
+          tab,
+          modal,
+          pane: null,
+          button: null,
+          ...logData,
+          // Private to the tab, kept across log navigation, dropped on close
+          state: {},
+          isActive: () => Boolean(ctx.button && ctx.button.classList.contains('active')),
+          openTab: (tabId) => {
+            const tabBtn = modal.querySelector(`[data-tab="${tabId}"]`);
+            if (tabBtn) tabBtn.click();
+          },
+          showToast: (message, type) => this._showToast(message, type),
+          showInFlow: (spec) => this.showInFlow(spec),
+          showPatternInAnalysis: (patternIndex) => this.showPatternInAnalysis(patternIndex),
+          scrollToLogLine: (lineIndex) => this.scrollToLogLine(lineIndex)
         };
-
-        logger.success('[PDF Export] PDF export initiated');
-        this._showToast(i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog');
-        
-      } catch (error) {
-        logger.error('[PDF Export] PDF export failed', error);
-        this._exportPdfViaIframe(html);
-      }
+        return ctx;
+      });
     }
 
     /**
-     * Fallback: Export PDF via hidden iframe
+     * Call a hook (or any other method) of a tab module with its context
      * @private
      */
-    _exportPdfViaIframe(html) {
-      logger.log('[PDF Export] Using iframe fallback');
-      // Create a hidden iframe
-      const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-      document.body.appendChild(iframe);
-
-      const doc = iframe.contentWindow.document;
-      doc.open();
-      doc.write(html);
-      doc.close();
-
-      // Wait for content then print
-      setTimeout(() => {
-        try {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-          this._showToast(i18n.exportPdfReady || 'PDF ready - use "Save as PDF" in print dialog');
-        } catch (e) {
-          logger.error('[PDF Export] Iframe print failed', e);
-          this._showToast(i18n.toastExportError || 'Export error', 'error');
-        }
-        
-        // Remove iframe after a delay
-        setTimeout(() => {
-          document.body.removeChild(iframe);
-        }, 1000);
-      }, 500);
+    _invokeTab(ctx, method, ...args) {
+      const fn = ctx.tab[method];
+      return typeof fn === 'function' ? fn.call(ctx.tab, ctx, ...args) : undefined;
     }
 
     /**
-     * Export analysis report as Markdown
+     * Call a method of a tab of the open modal, by tab id (no-op if it has no such tab)
      * @private
      */
-    _exportAnalysisMd() {
-      if (!this.currentParsedLog || !this.currentAntiPatternResults) {
-        this._showToast(i18n.toastExportError || 'Export error', 'error');
-        return;
-      }
-
-      const { metadata } = this.currentParsedLog;
-      const { patterns, summary } = this.currentAntiPatternResults;
-      const date = new Date().toLocaleString();
-
-      const md = this._generateMdContent(metadata, patterns, summary, date);
-      const filename = this._generateFilename(this.currentParsedLog, 'md');
-      const blob = new Blob([md], { type: 'text/markdown' });
-      
-      this._downloadFile(blob, filename);
-      this._showToast(i18n.analysisExportSuccess || 'Export successful');
-      logger.success('[MD Export] Markdown exported');
+    _callTab(tabId, method, ...args) {
+      const ctx = this._tabContexts.get(tabId);
+      return ctx ? this._invokeTab(ctx, method, ...args) : undefined;
     }
 
     /**
-     * Export analysis report as plain text
+     * Tab bar button of a tab
      * @private
+     * @param {Object} ctx - Tab context
+     * @param {boolean} isActive - Whether the modal opens on this tab
      */
-    _exportAnalysisTxt() {
-      if (!this.currentParsedLog || !this.currentAntiPatternResults) {
-        this._showToast(i18n.toastExportError || 'Export error', 'error');
-        return;
-      }
-
-      const { metadata } = this.currentParsedLog;
-      const { patterns, summary } = this.currentAntiPatternResults;
-      const date = new Date().toLocaleString();
-
-      const txt = this._generateTxtContent(metadata, patterns, summary, date);
-      const filename = this._generateFilename(this.currentParsedLog, 'txt');
-      const blob = new Blob([txt], { type: 'text/plain' });
-      
-      this._downloadFile(blob, filename);
-      this._showToast(i18n.analysisExportSuccess || 'Export successful');
-      logger.success('[TXT Export] Text file exported');
+    _renderTabButton(ctx, isActive) {
+      return `<button type="button" class="sf-tab-btn${isActive ? ' active' : ''}" role="tab" aria-selected="${isActive}"${isActive ? '' : ' tabindex="-1"'} data-tab="${ctx.tab.id}">${this._renderTabButtonContent(ctx)}</button>`;
     }
 
     /**
-     * Generate Markdown content for export
+     * Icon, label and optional badge of a tab button (the badge is refreshed on log navigation)
      * @private
      */
-    _generateMdContent(metadata, patterns, summary, date) {
-      const criticalPatterns = patterns.filter(p => p.severity === 'critical');
-      const warningPatterns = patterns.filter(p => p.severity === 'warning');
-      const infoPatterns = patterns.filter(p => p.severity === 'info');
-
-      let md = `# FoxLog - Analysis Report\n\n`;
-      md += `**Generated:** ${date}\n\n`;
-      md += `---\n\n`;
-
-      // Score section
-      md += `## Health Score: ${summary.score}/100\n\n`;
-      md += `| Severity | Count |\n`;
-      md += `|----------|-------|\n`;
-      md += `| Critical | ${summary.critical} |\n`;
-      md += `| Warning | ${summary.warnings} |\n`;
-      md += `| Info | ${summary.info} |\n\n`;
-
-      // Metadata
-      md += `## Log Information\n\n`;
-      md += `- **Operation:** ${metadata.operation || '-'}\n`;
-      md += `- **Status:** ${metadata.status || '-'}\n`;
-      md += `- **Duration:** ${metadata.duration || 0}ms\n`;
-      md += `- **Log ID:** ${metadata.id || '-'}\n\n`;
-
-      if (patterns.length === 0) {
-        md += `## No Issues Detected\n\n`;
-        md += `Great job! No anti-patterns were found in this log.\n`;
-        return md;
-      }
-
-      // Critical patterns
-      if (criticalPatterns.length > 0) {
-        md += `## Critical Issues (${criticalPatterns.length})\n\n`;
-        criticalPatterns.forEach((p, i) => {
-          md += this._formatPatternMd(p, i + 1);
-        });
-      }
-
-      // Warning patterns
-      if (warningPatterns.length > 0) {
-        md += `## Warnings (${warningPatterns.length})\n\n`;
-        warningPatterns.forEach((p, i) => {
-          md += this._formatPatternMd(p, i + 1);
-        });
-      }
-
-      // Info patterns
-      if (infoPatterns.length > 0) {
-        md += `## Info (${infoPatterns.length})\n\n`;
-        infoPatterns.forEach((p, i) => {
-          md += this._formatPatternMd(p, i + 1);
-        });
-      }
-
-      md += `---\n\n`;
-      md += `*Report generated by FoxLog - Salesforce Debug Log Analyzer*\n`;
-
-      return md;
+    _renderTabButtonContent(ctx) {
+      const { tab } = ctx;
+      const label = typeof tab.label === 'function' ? tab.label() : tab.label;
+      const badge = tab.badge ? tab.badge(ctx) : '';
+      return `${window.FoxLog.icon(tab.icon, { size: 14 })} ${label}${badge ? ` ${badge}` : ''}`;
     }
 
     /**
-     * Format a single pattern for Markdown
+     * Pane of a tab, filled by the tab module
      * @private
      */
-    _formatPatternMd(pattern, index) {
-      let md = `### ${index}. ${pattern.title}\n\n`;
-      md += `${pattern.description}\n\n`;
-      
-      if (pattern.query) {
-        md += `**Query:**\n\`\`\`sql\n${pattern.query}\n\`\`\`\n\n`;
-      }
-      
-      if (pattern.method) {
-        md += `**Method:** \`${pattern.method}\`\n\n`;
-      }
-      
-      if (pattern.count) {
-        md += `**Occurrences:** ${pattern.count}\n\n`;
-      }
-      
-      if (pattern.suggestion) {
-        md += `> **Suggestion:** ${pattern.suggestion}\n\n`;
-      }
-      
-      return md;
-    }
-
-    /**
-     * Generate plain text content for export
-     * @private
-     */
-    _generateTxtContent(metadata, patterns, summary, date) {
-      const criticalPatterns = patterns.filter(p => p.severity === 'critical');
-      const warningPatterns = patterns.filter(p => p.severity === 'warning');
-      const infoPatterns = patterns.filter(p => p.severity === 'info');
-
-      const separator = '='.repeat(60);
-      const subSeparator = '-'.repeat(40);
-
-      let txt = `${separator}\n`;
-      txt += `  FOXLOG - ANALYSIS REPORT\n`;
-      txt += `${separator}\n\n`;
-      txt += `Generated: ${date}\n\n`;
-
-      // Score section
-      txt += `HEALTH SCORE: ${summary.score}/100\n`;
-      txt += `${subSeparator}\n`;
-      txt += `  Critical: ${summary.critical}\n`;
-      txt += `  Warning:  ${summary.warnings}\n`;
-      txt += `  Info:     ${summary.info}\n\n`;
-
-      // Metadata
-      txt += `LOG INFORMATION\n`;
-      txt += `${subSeparator}\n`;
-      txt += `  Operation: ${metadata.operation || '-'}\n`;
-      txt += `  Status:    ${metadata.status || '-'}\n`;
-      txt += `  Duration:  ${metadata.duration || 0}ms\n`;
-      txt += `  Log ID:    ${metadata.id || '-'}\n\n`;
-
-      if (patterns.length === 0) {
-        txt += `${separator}\n`;
-        txt += `  NO ISSUES DETECTED\n`;
-        txt += `${separator}\n\n`;
-        txt += `Great job! No anti-patterns were found in this log.\n`;
-        return txt;
-      }
-
-      // Critical patterns
-      if (criticalPatterns.length > 0) {
-        txt += `${separator}\n`;
-        txt += `  CRITICAL ISSUES (${criticalPatterns.length})\n`;
-        txt += `${separator}\n\n`;
-        criticalPatterns.forEach((p, i) => {
-          txt += this._formatPatternTxt(p, i + 1);
-        });
-      }
-
-      // Warning patterns
-      if (warningPatterns.length > 0) {
-        txt += `${separator}\n`;
-        txt += `  WARNINGS (${warningPatterns.length})\n`;
-        txt += `${separator}\n\n`;
-        warningPatterns.forEach((p, i) => {
-          txt += this._formatPatternTxt(p, i + 1);
-        });
-      }
-
-      // Info patterns
-      if (infoPatterns.length > 0) {
-        txt += `${separator}\n`;
-        txt += `  INFO (${infoPatterns.length})\n`;
-        txt += `${separator}\n\n`;
-        infoPatterns.forEach((p, i) => {
-          txt += this._formatPatternTxt(p, i + 1);
-        });
-      }
-
-      txt += `${separator}\n`;
-      txt += `Report generated by FoxLog - Salesforce Debug Log Analyzer\n`;
-
-      return txt;
-    }
-
-    /**
-     * Format a single pattern for plain text
-     * @private
-     */
-    _formatPatternTxt(pattern, index) {
-      let txt = `[${index}] ${pattern.title}\n`;
-      txt += `    ${pattern.description}\n`;
-      
-      if (pattern.query) {
-        txt += `    Query: ${pattern.query}\n`;
-      }
-      
-      if (pattern.method) {
-        txt += `    Method: ${pattern.method}\n`;
-      }
-      
-      if (pattern.count) {
-        txt += `    Occurrences: ${pattern.count}\n`;
-      }
-      
-      if (pattern.suggestion) {
-        txt += `    Suggestion: ${pattern.suggestion}\n`;
-      }
-      
-      txt += `\n`;
-      return txt;
-    }
-
-    /**
-     * Generate HTML content for PDF export
-     * @private
-     */
-    _generatePdfHtml(metadata, patterns, summary, date) {
-      const criticalPatterns = patterns.filter(p => p.severity === 'critical');
-      const warningPatterns = patterns.filter(p => p.severity === 'warning');
-      const infoPatterns = patterns.filter(p => p.severity === 'info');
-
-      // Determine score color
-      let scoreColor = '#16a34a';
-      if (summary.score < 50) scoreColor = '#dc2626';
-      else if (summary.score < 80) scoreColor = '#d97706';
-
-      // Use base64 logos if available, fallback to text
-      const logoHtml = this.logoIconBase64 && this.logoTextBase64
-        ? `<img src="${this.logoIconBase64}" alt="FoxLog" class="logo-icon" /><img src="${this.logoTextBase64}" alt="FoxLog" class="logo-text" />`
-        : `<span class="logo-fallback">FoxLog</span>`;
-
-      return `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>FoxLog Analysis Report - ${metadata.operation || 'Log'}</title>
-          <style>
-            * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              font-size: 12px;
-              line-height: 1.5;
-              color: #1f2937;
-              padding: 40px;
-              max-width: 800px;
-              margin: 0 auto;
-            }
-            .header {
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-start;
-              margin-bottom: 30px;
-              padding-bottom: 20px;
-              border-bottom: 2px solid #e5e7eb;
-            }
-            .logo {
-              display: flex;
-              align-items: center;
-              gap: 8px;
-            }
-            .logo-icon {
-              width: 40px;
-              height: 40px;
-            }
-            .logo-text {
-              height: 32px;
-            }
-            .logo-fallback {
-              font-size: 24px;
-              font-weight: 700;
-              color: #f97316;
-            }
-            .report-info { text-align: right; color: #6b7280; font-size: 11px; }
-            .score-section {
-              display: flex;
-              align-items: center;
-              gap: 30px;
-              margin-bottom: 30px;
-              padding: 20px;
-              background: #f9fafb;
-              border-radius: 8px;
-            }
-            .score-circle {
-              width: 100px;
-              height: 100px;
-              border-radius: 50%;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              color: white;
-              font-weight: 700;
-            }
-            .score-value { font-size: 32px; line-height: 1; }
-            .score-label { font-size: 10px; opacity: 0.9; }
-            .stats { display: flex; gap: 20px; }
-            .stat { text-align: center; }
-            .stat-value { font-size: 24px; font-weight: 700; }
-            .stat-label { font-size: 11px; color: #6b7280; }
-            .stat-critical .stat-value { color: #dc2626; }
-            .stat-warning .stat-value { color: #d97706; }
-            .stat-info .stat-value { color: #2563eb; }
-            .metadata {
-              margin-bottom: 30px;
-              padding: 15px;
-              background: #f3f4f6;
-              border-radius: 8px;
-            }
-            .metadata h3 { font-size: 14px; margin-bottom: 10px; }
-            .metadata-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-            .metadata-item { display: flex; gap: 8px; }
-            .metadata-label { color: #6b7280; min-width: 80px; }
-            .pattern-group { margin-bottom: 25px; }
-            .pattern-group h3 {
-              font-size: 14px;
-              padding: 10px 15px;
-              margin-bottom: 10px;
-              border-radius: 6px;
-            }
-            .group-critical h3 { background: #fef2f2; color: #dc2626; }
-            .group-warning h3 { background: #fffbeb; color: #d97706; }
-            .group-info h3 { background: #eff6ff; color: #2563eb; }
-            .pattern-item {
-              padding: 12px 15px;
-              margin-bottom: 8px;
-              border: 1px solid #e5e7eb;
-              border-radius: 6px;
-              border-left-width: 4px;
-              page-break-inside: avoid;
-            }
-            .pattern-item.critical { border-left-color: #dc2626; }
-            .pattern-item.warning { border-left-color: #d97706; }
-            .pattern-item.info { border-left-color: #2563eb; }
-            .pattern-title { font-weight: 600; margin-bottom: 4px; }
-            .pattern-desc { color: #4b5563; margin-bottom: 8px; }
-            .pattern-suggestion {
-              background: #f0fdf4;
-              border: 1px solid #bbf7d0;
-              padding: 8px 10px;
-              border-radius: 4px;
-              font-size: 11px;
-              color: #166534;
-            }
-            .pattern-query {
-              background: #f3f4f6;
-              padding: 6px 10px;
-              border-radius: 4px;
-              font-family: monospace;
-              font-size: 10px;
-              margin-bottom: 8px;
-              word-break: break-all;
-            }
-            .footer {
-              margin-top: 40px;
-              padding-top: 20px;
-              border-top: 1px solid #e5e7eb;
-              text-align: center;
-              color: #9ca3af;
-              font-size: 10px;
-            }
-            .healthy-message {
-              text-align: center;
-              padding: 40px;
-              background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-              border-radius: 12px;
-              border: 2px solid #10b981;
-            }
-            .healthy-icon { display: flex; justify-content: center; margin-bottom: 10px; }
-            .healthy-text { font-size: 20px; font-weight: 700; color: #059669; }
-            @media print {
-              body { padding: 20px; }
-              .pattern-item { page-break-inside: avoid; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo">
-              ${logoHtml}
-            </div>
-            <div class="report-info">
-              <div>${i18n.analysisReport || 'Analysis Report'}</div>
-              <div>${date}</div>
-            </div>
-          </div>
-
-          <div class="score-section">
-            <div class="score-circle" style="background: ${scoreColor};">
-              <div class="score-value">${summary.score}</div>
-              <div class="score-label">/100</div>
-            </div>
-            <div class="stats">
-              <div class="stat stat-critical">
-                <div class="stat-value">${summary.critical}</div>
-                <div class="stat-label">${i18n.critical || 'Critical'}</div>
-              </div>
-              <div class="stat stat-warning">
-                <div class="stat-value">${summary.warnings}</div>
-                <div class="stat-label">${i18n.warning || 'Warning'}</div>
-              </div>
-              <div class="stat stat-info">
-                <div class="stat-value">${summary.info}</div>
-                <div class="stat-label">${i18n.info || 'Info'}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="metadata">
-            <h3>${i18n.logInfo || 'Log Information'}</h3>
-            <div class="metadata-grid">
-              <div class="metadata-item">
-                <span class="metadata-label">${i18n.operation || 'Operation'}:</span>
-                <span>${metadata.operation || '-'}</span>
-              </div>
-              <div class="metadata-item">
-                <span class="metadata-label">${i18n.status || 'Status'}:</span>
-                <span>${metadata.status || '-'}</span>
-              </div>
-              <div class="metadata-item">
-                <span class="metadata-label">${i18n.duration || 'Duration'}:</span>
-                <span>${metadata.duration || 0}ms</span>
-              </div>
-              <div class="metadata-item">
-                <span class="metadata-label">ID:</span>
-                <span>${metadata.id || '-'}</span>
-              </div>
-            </div>
-          </div>
-
-          ${patterns.length === 0 ? `
-            <div class="healthy-message">
-              <div class="healthy-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              </div>
-              <div class="healthy-text">${i18n.codeHealthy || 'Code is healthy!'}</div>
-              <p>${i18n.noAntiPatterns || 'No anti-patterns detected'}</p>
-            </div>
-          ` : `
-            ${criticalPatterns.length > 0 ? `
-              <div class="pattern-group group-critical">
-                <h3>${i18n.critical || 'Critical'} (${criticalPatterns.length})</h3>
-                ${criticalPatterns.map(p => this._renderPdfPatternItem(p, 'critical')).join('')}
-              </div>
-            ` : ''}
-
-            ${warningPatterns.length > 0 ? `
-              <div class="pattern-group group-warning">
-                <h3>${i18n.warning || 'Warning'} (${warningPatterns.length})</h3>
-                ${warningPatterns.map(p => this._renderPdfPatternItem(p, 'warning')).join('')}
-              </div>
-            ` : ''}
-
-            ${infoPatterns.length > 0 ? `
-              <div class="pattern-group group-info">
-                <h3>${i18n.info || 'Info'} (${infoPatterns.length})</h3>
-                ${infoPatterns.map(p => this._renderPdfPatternItem(p, 'info')).join('')}
-              </div>
-            ` : ''}
-          `}
-
-          <div class="footer">
-            ${i18n.generatedBy || 'Generated by'} FoxLog v${chrome.runtime.getManifest().version}
-          </div>
-        </body>
-        </html>
-      `;
-    }
-
-    /**
-     * Render a single pattern item for PDF
-     * @private
-     */
-    _renderPdfPatternItem(pattern, severity) {
-      return `
-        <div class="pattern-item ${severity}">
-          <div class="pattern-title">${pattern.title}</div>
-          <div class="pattern-desc">${pattern.description}</div>
-          ${pattern.query ? `<div class="pattern-query">${this._escapeHtml(pattern.query)}</div>` : ''}
-          ${pattern.occurrences ? `<div style="color: #6b7280; font-size: 11px; margin-bottom: 8px;">${i18n.occurrences || 'Occurrences'}: ${pattern.occurrences}</div>` : ''}
-          <div class="pattern-suggestion"><strong>${i18n.suggestion || 'Suggestion'}:</strong> ${pattern.suggestion}</div>
-        </div>
-      `;
+    _renderTabPane(ctx, isActive) {
+      const classes = ['sf-tab-content', isActive && 'active', ctx.tab.paneClass].filter(Boolean).join(' ');
+      return `<div id="tab-${ctx.tab.id}" class="${classes}">${ctx.tab.render(ctx)}</div>`;
     }
 
     _setupTabs(modal) {
       const tabBtns = [...modal.querySelectorAll('.sf-tab-btn')];
       const tabContents = modal.querySelectorAll('.sf-tab-content');
+      const tabContexts = this._tabContexts;
 
       tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1658,6 +646,10 @@
           if (content) {
             content.classList.add('active');
           }
+
+          // Lazy tabs (Flow, Calls, Diff) build their content on activation
+          const ctx = tabContexts.get(btn.dataset.tab);
+          if (ctx) this._invokeTab(ctx, 'onActivate');
         });
       });
 
@@ -1680,1105 +672,8 @@
       });
     }
 
-    /**
-     * Configure le lazy-loading de l'onglet Appels
-     * @private
-     */
-    async _setupCallsTab(modal, parsedLog) {
-      const { callTreeBuilder, CallTreeView } = window.FoxLog;
-      
-      if (!callTreeBuilder || !CallTreeView) {
-        logger.warn('[ModalManager] CallTree components not available');
-        return;
-      }
-
-      // Listen for the Calls tab activation
-      const callsBtn = modal.querySelector('[data-tab="calls"]');
-      if (!callsBtn) return;
-
-      // Bump the generation token so a stale build from a previous log
-      // navigation can detect it's no longer current and bail out instead of
-      // clobbering this log's content (same DOM node is reused across logs).
-      const generation = (modal._foxlogCallsGeneration || 0) + 1;
-      modal._foxlogCallsGeneration = generation;
-
-      let callTreeBuilt = false;
-
-      const buildCallTree = async () => {
-        if (callTreeBuilt) return; // Already built
-        callTreeBuilt = true; // set before the first await to avoid re-entrant double-build
-
-        const callsContainer = modal.querySelector('#tab-calls');
-        if (!callsContainer) return;
-
-        try {
-          // Afficher le loading
-          callsContainer.innerHTML = `
-            <div class="sf-calls-loading">
-              <div class="sf-spinner"></div>
-              <div class="sf-loading-text">${i18n.buildingCallTree || 'Building call tree...'}</div>
-              <div class="sf-loading-subtext">${(i18n.analyzing || 'Analyzing')} ${parsedLog.lines.length} ${(i18n.lines || 'Lines').toLowerCase()}</div>
-            </div>
-          `;
-
-          // Construire l'arbre (via Web Worker)
-          const callTree = await callTreeBuilder.buildTree(parsedLog);
-          if (modal._foxlogCallsGeneration !== generation) return; // stale: navigated to another log meanwhile
-
-          // Create the view
-          callsContainer.innerHTML = '<div class="sf-call-tree-container"></div>';
-          const container = callsContainer.querySelector('.sf-call-tree-container');
-
-          const callTreeView = new CallTreeView(container, callTree, parsedLog);
-          callTreeView.init();
-
-          if (modal._foxlogCallsGeneration !== generation) {
-            callTreeView.destroy();
-            return;
-          }
-
-          if (modal._foxlogCallsView) {
-            modal._foxlogCallsView.destroy();
-          }
-          modal._foxlogCallsView = callTreeView;
-
-          this.logger.success('CallTree view initialized');
-        } catch (error) {
-          callTreeBuilt = false; // allow a retry on the next click/navigation
-          this.logger.error('Failed to build call tree', error);
-          if (modal._foxlogCallsGeneration !== generation) return; // stale error, another build is in charge now
-
-          callsContainer.innerHTML = `
-            <div class="sf-empty-state">
-              <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
-              <p style="color: #666;">${i18n.callTreeError || 'Unable to build the call tree'}</p>
-              <p class="sf-hint">${error.message}</p>
-            </div>
-          `;
-        }
-      };
-
-      // Avoid stacking a new listener on top of stale ones from a previous
-      // navigation (the tab button itself persists across log navigation).
-      if (callsBtn._foxlogCallsClickHandler) {
-        callsBtn.removeEventListener('click', callsBtn._foxlogCallsClickHandler);
-      }
-      callsBtn._foxlogCallsClickHandler = buildCallTree;
-      callsBtn.addEventListener('click', buildCallTree);
-
-      // Navigating to the previous/next log while the Calls tab is already
-      // active resets its content but never re-fires a click on the tab
-      // button, so nothing would otherwise trigger the rebuild — build now.
-      if (callsBtn.classList.contains('active')) {
-        buildCallTree();
-      }
-    }
-
-    /**
-     * Configure le lazy-loading de l'onglet Flow (graphe d'exécution visuel)
-     * @private
-     */
-    async _setupGraphTab(modal, parsedLog) {
-      const { callTreeBuilder, CallGraphView } = window.FoxLog;
-
-      if (!callTreeBuilder || !CallGraphView) {
-        logger.warn('[ModalManager] CallGraph components not available');
-        return;
-      }
-
-      const graphBtn = modal.querySelector('[data-tab="graph"]');
-      if (!graphBtn) return;
-
-      // Bump the generation token so a stale build from a previous log
-      // navigation can detect it's no longer current and bail out instead of
-      // clobbering this log's content (same DOM node is reused across logs).
-      const generation = (modal._foxlogGraphGeneration || 0) + 1;
-      modal._foxlogGraphGeneration = generation;
-
-      let graphBuilt = false;
-
-      const buildGraph = async () => {
-        if (graphBuilt) return;
-        graphBuilt = true; // set before the first await to avoid re-entrant double-build
-
-        const graphContainer = modal.querySelector('#tab-graph');
-        if (!graphContainer) return;
-
-        try {
-          graphContainer.innerHTML = `
-            <div class="sf-calls-loading">
-              <div class="sf-spinner"></div>
-              <div class="sf-loading-text">${i18n.buildingFlowGraph || 'Building graph...'}</div>
-              <div class="sf-loading-subtext">${(i18n.analyzing || 'Analyzing')} ${parsedLog.lines.length} ${(i18n.lines || 'Lines').toLowerCase()}</div>
-            </div>
-          `;
-
-          // Reuses the same CallTree already built for the Calls tab (cached by logId)
-          const callTree = await callTreeBuilder.buildTree(parsedLog);
-          if (modal._foxlogGraphGeneration !== generation) return; // stale: navigated to another log meanwhile
-
-          graphContainer.innerHTML = '<div class="sf-call-graph-container"></div>';
-          const container = graphContainer.querySelector('.sf-call-graph-container');
-
-          const graphView = new CallGraphView(container, callTree, parsedLog);
-          await graphView.init();
-
-          if (modal._foxlogGraphGeneration !== generation) {
-            // Navigated away again while init() was still rendering: tear
-            // down immediately instead of leaking its window listeners.
-            graphView.destroy();
-            return;
-          }
-
-          if (modal._foxlogGraphView) {
-            modal._foxlogGraphView.destroy();
-          }
-          modal._foxlogGraphView = graphView;
-          this._flushPendingFlowJump(modal);
-
-          this.logger.success('CallGraphView initialized');
-        } catch (error) {
-          graphBuilt = false; // allow a retry on the next click/navigation
-          modal._foxlogPendingFlowJump = null;
-          this.logger.error('Failed to build call graph', error);
-          if (modal._foxlogGraphGeneration !== generation) return; // stale error, another build is in charge now
-
-          graphContainer.innerHTML = `
-            <div class="sf-empty-state">
-              <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
-              <p style="color: #666;">${i18n.flowGraphError || 'Unable to build the graph'}</p>
-              <p class="sf-hint">${error.message}</p>
-            </div>
-          `;
-        }
-      };
-
-      // Avoid stacking a new listener on top of stale ones from a previous
-      // navigation (the tab button itself persists across log navigation).
-      if (graphBtn._foxlogGraphClickHandler) {
-        graphBtn.removeEventListener('click', graphBtn._foxlogGraphClickHandler);
-      }
-      graphBtn._foxlogGraphClickHandler = buildGraph;
-      graphBtn.addEventListener('click', buildGraph);
-
-      // Navigating to the previous/next log while the Flow tab is already
-      // active resets its content but never re-fires a click on the tab
-      // button, so nothing would otherwise trigger the rebuild — build now.
-      if (graphBtn.classList.contains('active')) {
-        buildGraph();
-      }
-    }
-
-    /**
-     * Configure le lazy-loading de l'onglet Diff
-     * @private
-     * @param {Object} currentLog - Parsed log currently open in the modal
-     */
-    async _setupDiffTab(modal, currentLog) {
-      const diffBtn = modal.querySelector('[data-tab="diff"]');
-      if (!diffBtn) return;
-
-      // Bump the token so a diff still running for the previous log navigation
-      // can detect it's no longer current (same DOM node is reused across logs).
-      modal._foxlogDiffRun = (modal._foxlogDiffRun || 0) + 1;
-
-      let diffInitialized = false;
-
-      const initDiffTab = async () => {
-        if (diffInitialized) return;
-        diffInitialized = true;
-        await this._populateDiffImportSelect(modal, currentLog);
-      };
-
-      // The tab button persists across log navigation: drop the listener bound
-      // to the previous log, otherwise it would still diff against that log.
-      if (diffBtn._foxlogDiffClickHandler) {
-        diffBtn.removeEventListener('click', diffBtn._foxlogDiffClickHandler);
-      }
-      diffBtn._foxlogDiffClickHandler = initDiffTab;
-      diffBtn.addEventListener('click', initDiffTab);
-
-      // Navigating to the previous/next log while the Diff tab is already
-      // active resets its content but never re-fires a click on the tab
-      // button, so nothing would otherwise fill the dropdown — init now.
-      if (diffBtn.classList.contains('active')) {
-        initDiffTab();
-      }
-    }
-
-    /**
-     * Load imported logs list into the Diff tab dropdown
-     * @private
-     */
-    async _populateDiffImportSelect(modal, currentLog) {
-      const select = modal.querySelector('.sf-diff-log-select');
-      const fileInput = modal.querySelector('.sf-diff-file-input');
-
-      // Wire inline file import
-      if (fileInput) {
-        fileInput.addEventListener('change', async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          await this._handleDiffImport(modal, currentLog, file);
-          fileInput.value = '';
-        });
-      }
-
-      if (!select) return;
-
-      try {
-        const result = await new Promise(resolve => {
-          chrome.storage.local.get('importedLogs', resolve);
-        });
-
-        const imports = result.importedLogs || [];
-
-        imports.forEach(imp => {
-          const option = document.createElement('option');
-          option.value = imp.id;
-          const date = new Date(imp.date).toLocaleString();
-          option.textContent = `${imp.filename} (${date})`;
-          select.appendChild(option);
-        });
-
-        select.addEventListener('change', async () => {
-          const importId = select.value;
-          if (!importId) return;
-          await this._runDiff(modal, currentLog, importId);
-        });
-      } catch (error) {
-        logger.error('Failed to load imported logs for diff', error);
-      }
-    }
-
-    /**
-     * Import a file directly from the Diff tab, save to storage, then run diff
-     * @private
-     */
-    async _handleDiffImport(modal, currentLog, file) {
-      const MAX_FILE_SIZE = 5 * 1024 * 1024;
-      const validExtensions = ['.txt', '.log'];
-      const ext = '.' + file.name.split('.').pop().toLowerCase();
-
-      if (!validExtensions.includes(ext)) {
-        this._showToast(i18n.importInvalidType || 'Invalid file type. Use .txt or .log', 'error');
-        return;
-      }
-      if (file.size > MAX_FILE_SIZE) {
-        this._showToast(i18n.importFileTooLarge || 'File too large (max 5 MB)', 'error');
-        return;
-      }
-
-      const content = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsText(file);
-      });
-
-      const importEntry = {
-        id: 'imp_' + Date.now(),
-        filename: file.name,
-        date: new Date().toISOString(),
-        size: file.size,
-        content
-      };
-
-      // Save to storage (same logic as panel-manager)
-      await new Promise(resolve => {
-        chrome.storage.local.get(['importedLogs'], (result) => {
-          const imports = result.importedLogs || [];
-          const MAX_STORAGE = 10 * 1024 * 1024;
-          imports.unshift(importEntry);
-
-          let totalSize = imports.reduce((sum, imp) => sum + (imp.size || 0), 0);
-          while (totalSize > MAX_STORAGE && imports.length > 1) {
-            const removed = imports.pop();
-            totalSize -= (removed.size || 0);
-          }
-
-          chrome.storage.local.set({ importedLogs: imports }, resolve);
-        });
-      });
-
-      // Refresh the Files panel if open
-      document.dispatchEvent(new CustomEvent('foxlog:importListChanged'));
-
-      // Add option to dropdown and select it
-      const select = modal.querySelector('.sf-diff-log-select');
-      if (select) {
-        const option = document.createElement('option');
-        option.value = importEntry.id;
-        const date = new Date(importEntry.date).toLocaleString();
-        option.textContent = `${importEntry.filename} (${date})`;
-        select.insertBefore(option, select.options[1]);
-        select.value = importEntry.id;
-      }
-
-      logger.success(`File imported from Diff tab: ${file.name}`);
-
-      // Run diff immediately
-      await this._runDiff(modal, currentLog, importEntry.id);
-    }
-
-    /**
-     * Parse an imported file like a Salesforce log.
-     * An import carries no Salesforce metadata, so hand LogParser the keys it
-     * reads (`Id`, `Operation`, ...). Without an `Id` every imported file gets
-     * the cache key `null` in CallTreeBuilder, which then returns the first
-     * tree it ever built for all of them.
-     * @private
-     */
-    _parseImportedLog(importData) {
-      const parsed = window.FoxLog.logParser.parse(importData.content, {
-        Id: importData.id,
-        Operation: importData.filename,
-        StartTime: importData.date,
-        Status: 'Import',
-        LogLength: importData.size
-      });
-
-      // The root node's duration comes from the metadata, which an import lacks:
-      // derive it from the log's own nanosecond counter so the diff doesn't
-      // report the root as a huge timing change against the current log.
-      const totalNs = parsed.lines.reduce((max, line) => Math.max(max, line.duration || 0), 0);
-      parsed.metadata.duration = Math.round(totalNs / 1e6);
-
-      return parsed;
-    }
-
-    /**
-     * Execute diff between the imported file (reference) and the current log.
-     * The imported file is side A and the current log side B, so a row "added"
-     * (+) exists only in the current log and a row "removed" (−) only in the
-     * imported file. The current log is shown in the left pane.
-     * @private
-     */
-    async _runDiff(modal, currentLog, importId) {
-      const { callTreeBuilder, LogDiffView } = window.FoxLog;
-      const contentArea = modal.querySelector('.sf-diff-content-area');
-      if (!contentArea) return;
-
-      // A newer selection, a log navigation or closing the modal supersedes
-      // this run: whichever finishes last must not overwrite the current one.
-      const run = (modal._foxlogDiffRun || 0) + 1;
-      modal._foxlogDiffRun = run;
-      const isStale = () => modal._foxlogDiffRun !== run;
-
-      if (modal._foxlogDiffView) {
-        modal._foxlogDiffView.destroy();
-        modal._foxlogDiffView = null;
-      }
-
-      contentArea.innerHTML = `
-        <div class="sf-calls-loading">
-          <div class="sf-spinner"></div>
-          <div class="sf-loading-text">${i18n.diffComputing || 'Computing diff...'}</div>
-        </div>
-      `;
-
-      try {
-        const result = await new Promise(resolve => {
-          chrome.storage.local.get('importedLogs', resolve);
-        });
-        const imports = result.importedLogs || [];
-        const importData = imports.find(imp => imp.id === importId);
-
-        if (!importData || !importData.content) {
-          throw new Error('Imported log content not found');
-        }
-
-        const fileLog = this._parseImportedLog(importData);
-
-        if (!callTreeBuilder) {
-          throw new Error('CallTreeBuilder not available');
-        }
-
-        const [fileTree, currentTree] = await Promise.all([
-          callTreeBuilder.buildTree(fileLog),
-          callTreeBuilder.buildTree(currentLog)
-        ]);
-        if (isStale()) return;
-
-        const diffResult = await this._runDiffWorker(fileTree, currentTree);
-        if (isStale()) return;
-
-        contentArea.innerHTML = '<div class="sf-diff-view-container"></div>';
-        const container = contentArea.querySelector('.sf-diff-view-container');
-
-        const metaA = {
-          label: i18n.diffLabelFile || 'Reference file',
-          onlyLabel: i18n.diffOnlyInFile || 'Only in the file',
-          filename: importData.filename || 'File'
-        };
-        const metaB = {
-          label: i18n.diffLabelCurrent || 'Current log',
-          onlyLabel: i18n.diffOnlyInCurrent || 'Only in the current log',
-          filename: currentLog.metadata?.operation || 'Log'
-        };
-
-        const diffView = new LogDiffView(container, diffResult, metaA, metaB, { leftSide: 'b' });
-        diffView.render();
-        modal._foxlogDiffView = diffView;
-
-        logger.success('Diff view rendered');
-      } catch (error) {
-        logger.error('Diff computation failed', error);
-        if (isStale()) return; // another run is in charge of the content now
-
-        contentArea.innerHTML = `
-          <div class="sf-empty-state">
-            <p style="color: #ef4444; font-weight: 600;">${window.FoxLog.icon('alert-triangle')} ${i18n.error || 'Error'}</p>
-            <p style="color: #666;">${i18n.diffError || 'Diff computation error'}</p>
-            <p class="sf-hint">${error.message}</p>
-          </div>
-        `;
-      }
-    }
-
-    /**
-     * Run diff in a Web Worker with timeout
-     * @private
-     */
-    async _runDiffWorker(treeA, treeB) {
-      const timeout = window.FoxLog.CONFIG?.DIFF_WORKER_TIMEOUT ?? 10000;
-
-      // Fetch worker code and create Blob URL (same pattern as call-tree-builder)
-      const workerUrl = chrome.runtime.getURL('src/workers/log-diff-worker.js');
-      const response = await fetch(workerUrl);
-      const workerCode = await response.text();
-      const blob = new Blob([workerCode], { type: 'application/javascript' });
-      const blobUrl = URL.createObjectURL(blob);
-
-      return new Promise((resolve, reject) => {
-        const worker = new Worker(blobUrl);
-        const requestId = Date.now().toString();
-
-        const timer = setTimeout(() => {
-          worker.terminate();
-          URL.revokeObjectURL(blobUrl);
-          reject(new Error(i18n.diffTimeout || 'Diff computation timed out'));
-        }, timeout);
-
-        worker.onmessage = (event) => {
-          clearTimeout(timer);
-          worker.terminate();
-          URL.revokeObjectURL(blobUrl);
-          if (event.data.type === 'error') {
-            reject(new Error(event.data.error));
-          } else {
-            resolve(event.data.result);
-          }
-        };
-
-        worker.onerror = (error) => {
-          clearTimeout(timer);
-          worker.terminate();
-          URL.revokeObjectURL(blobUrl);
-          reject(error);
-        };
-
-        worker.postMessage({ type: 'diff', treeA, treeB, requestId });
-      });
-    }
-
-    /**
-     * One collapsible Summary section. The collapsed state is remembered by key.
-     * @private
-     */
-    _renderSummarySection(key, iconName, title, bodyHtml, extraClass = '') {
-      const collapsed = this._collapsedSections.has(key);
-      return `
-        <div class="sf-summary-section ${extraClass}${collapsed ? ' sf-collapsed' : ''}" data-section="${key}">
-          <h4>
-            <button type="button" class="sf-section-toggle" aria-expanded="${!collapsed}">
-              ${window.FoxLog.icon(iconName, { size: 14 })}
-              <span class="sf-section-title">${title}</span>
-              <span class="sf-section-chevron">${window.FoxLog.icon('chevron-down', { size: 14 })}</span>
-            </button>
-          </h4>
-          <div class="sf-section-body">${bodyHtml}</div>
-        </div>
-      `;
-    }
-
-    /**
-     * Identical errors (same type and message) collapse into one card with a count.
-     * @private
-     */
-    _groupErrors(errors) {
-      const groups = new Map();
-      errors.forEach(error => {
-        const key = `${error.type}|${error.exceptionType || ''}|${error.message}`;
-        let group = groups.get(key);
-        if (!group) {
-          group = { error, count: 0, lineIndexes: [] };
-          groups.set(key, group);
-        }
-        group.count++;
-        if (Number.isInteger(error.lineIndex)) group.lineIndexes.push(error.lineIndex);
-      });
-      return [...groups.values()];
-    }
-
-    _renderErrorsSection(errors) {
-      const viewInFlow = this._escapeHtml(i18n.viewInFlow || 'View in Flow');
-      const copyLabel = this._escapeHtml(i18n.copyMessage || 'Copy message');
-
-      const cards = this._groupErrors(errors).map(({ error, count, lineIndexes }) => {
-        const canJump = lineIndexes.length > 0;
-        return `
-          <div class="sf-error-item${canJump ? ' sf-error-item--jumpable' : ''}"${canJump ? ` data-line-indexes="${lineIndexes.join(',')}"` : ''}>
-            <div class="sf-error-item-head">
-              <div class="sf-error-type">${this._escapeHtml(error.type)}</div>
-              ${count > 1 ? `<span class="sf-error-count" title="${count}×">×${count}</span>` : ''}
-              <span class="sf-error-actions">
-                <button type="button" class="sf-error-action sf-error-copy-btn" title="${copyLabel}" aria-label="${copyLabel}">${window.FoxLog.icon('copy', { size: 13 })}</button>
-                ${canJump ? `<button type="button" class="sf-error-action sf-error-jump-btn">${viewInFlow} ${window.FoxLog.icon('arrow-right', { size: 12 })}</button>` : ''}
-              </span>
-            </div>
-            <div class="sf-error-details">
-              <div class="sf-error-message">${this._escapeHtml(error.exceptionType || 'Exception')}: ${this._escapeHtml(error.message)}</div>
-              ${error.method ? `<div class="sf-error-location">${window.FoxLog.icon('map-pin', { size: 12 })} ${(i18n.location || 'Location')}: <code>${this._escapeHtml(error.method)}</code></div>` : ''}
-              <div class="sf-error-time">${this._escapeHtml(error.timestamp)}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      return this._renderSummarySection(
-        'errors',
-        'alert-circle',
-        `${i18n.errors || 'Errors'} (${errors.length})`,
-        `<div class="sf-errors-list">${cards}</div>`,
-        'sf-summary-errors'
-      );
-    }
-
-    /**
-     * Top anti-patterns (worst first) with a way into the Analysis tab.
-     * @private
-     */
-    _renderAntiPatternsSection(results) {
-      if (!results || !results.patterns || results.patterns.length === 0) return '';
-
-      const preview = ['critical', 'warning', 'info']
-        .flatMap(severity => results.patterns.filter(p => p.severity === severity))
-        .slice(0, 3);
-      const remaining = results.patterns.length - preview.length;
-      const viewInAnalysis = this._escapeHtml(i18n.viewInAnalysis || 'View in Analysis');
-
-      const items = preview.map(pattern => `
-        <button type="button" class="sf-ap-preview-item sf-ap-preview--${pattern.severity}" data-pattern-index="${results.patterns.indexOf(pattern)}" title="${viewInAnalysis}">
-          <span class="sf-ap-preview-dot">${window.FoxLog.dot(pattern.severity)}</span>
-          <span class="sf-ap-preview-title">${this._escapeHtml(pattern.title)}</span>
-          ${pattern.query || pattern.method ? `<span class="sf-ap-preview-detail">${this._escapeHtml(pattern.query || pattern.method)}</span>` : ''}
-          ${pattern.occurrences ? `<span class="sf-ap-preview-count">×${pattern.occurrences}</span>` : ''}
-          <span class="sf-ap-preview-arrow">${window.FoxLog.icon('arrow-right', { size: 13 })}</span>
-        </button>
-      `).join('');
-
-      const moreLink = remaining > 0
-        ? `<button type="button" class="sf-summary-more" data-open-tab="analysis">${this._escapeHtml((i18n.viewAllAntiPatterns || 'View all {count} anti-patterns').replace('{count}', results.patterns.length))} ${window.FoxLog.icon('arrow-right', { size: 12 })}</button>`
-        : '';
-
-      return this._renderSummarySection(
-        'antipatterns',
-        'activity',
-        `${i18n.antiPatterns || 'Detected Anti-patterns'} (${results.patterns.length})`,
-        `<div class="sf-ap-preview-list">${items}${moreLink}</div>`
-      );
-    }
-
-    _renderMethodsSection(methods, totalCount) {
-      const hasTiming = methods.some(m => m.totalMs > 0);
-      const ranked = [...methods].sort((a, b) => hasTiming
-        ? (b.totalMs - a.totalMs) || (b.calls - a.calls)
-        : b.calls - a.calls);
-      const top = ranked.slice(0, 10);
-      const maxMs = top.length > 0 ? top[0].totalMs : 0;
-      const extraCount = ranked.length - top.length;
-      const viewInFlow = this._escapeHtml(i18n.viewInFlow || 'View in Flow');
-      const timeTitle = this._escapeHtml(i18n.methodTimeTitle || 'Total time');
-
-      const rows = top.map(m => {
-        // Same naming as the Flow nodes, which is what the jump matches on
-        const name = m.class && m.method ? `${m.class}.${m.method}` : (m.method || 'Unknown Method');
-        const timeHtml = hasTiming
-          ? `<span class="sf-method-time" title="${timeTitle}">${m.totalMs >= 1 ? window.FoxLog.formatDuration(Math.round(m.totalMs)) : '<1 ms'}</span>`
-          : '';
-        const barHtml = hasTiming && maxMs > 0
-          ? `<span class="sf-method-bar"><span class="sf-method-bar-fill" style="width: ${Math.max(2, m.totalMs / maxMs * 100).toFixed(1)}%"></span></span>`
-          : '';
-        return `
-          <button type="button" class="sf-method-item" data-flow-method="${this._escapeHtml(name)}" title="${viewInFlow}">
-            <span class="sf-method-main">
-              <span class="sf-method-name">${this._escapeHtml(name)}</span>
-              ${barHtml}
-            </span>
-            ${timeHtml}
-            <span class="sf-method-calls">${m.calls} ${i18n.callsSuffix || 'call(s)'}</span>
-          </button>
-        `;
-      }).join('');
-
-      const extraHint = extraCount > 0
-        ? `<div class="sf-hint">${(i18n.andOthers || '...and {count} more').replace('{count}', extraCount)}</div>`
-        : '';
-
-      return this._renderSummarySection(
-        'methods',
-        'code',
-        `${i18n.methods || 'Methods'} (${totalCount})`,
-        `<div class="sf-methods-list">${rows}${extraHint}</div>`
-      );
-    }
-
-    // Verdict banner at the top of the Summary: errors, log status, anti-patterns and the hottest limit set the tone.
-    _renderVerdictBanner(summary, parsedLog, results) {
-      const { limits } = parsedLog.stats;
-      const pct = (used, max) => (max > 0 ? used / max * 100 : 0);
-      const limitPct = {
-        soql: pct(limits.soqlQueries, limits.maxSoqlQueries),
-        dml: pct(limits.dmlStatements, limits.maxDmlStatements),
-        cpu: pct(limits.cpuTime, limits.maxCpuTime),
-        heap: pct(limits.heapSize, limits.maxHeapSize)
-      };
-      const hottest = Math.max(...Object.values(limitPct));
-      const errorCount = parsedLog.stats.errors.length;
-      const criticalCount = results ? results.summary.critical : 0;
-      const warningCount = results ? results.summary.warnings : 0;
-      const plural = (count, one, many) => (count === 1 ? one : many).replace('{count}', count);
-
-      // A log can fail without any parsed error line (e.g. only FATAL_ERROR), the status still says so
-      const statusFailed = this._getStatusTone(String(summary.metadata.status)) === 'danger';
-
-      let tone = 'healthy';
-      if (errorCount > 0 || criticalCount > 0 || statusFailed || hottest >= LIMIT_DANGER_PCT) tone = 'critical';
-      else if (warningCount > 0 || hottest > LIMIT_WARNING_PCT) tone = 'warning';
-
-      // Without analysis results "healthy" would be a claim nobody checked
-      if (tone === 'healthy' && !results) return '';
-
-      let title;
-      if (tone === 'critical') {
-        const parts = [];
-        if (errorCount > 0) parts.push(plural(errorCount, i18n.verdictErrorOne || '{count} error', i18n.verdictErrorMany || '{count} errors'));
-        if (criticalCount > 0) parts.push(plural(criticalCount, i18n.verdictCriticalOne || '{count} critical anti-pattern', i18n.verdictCriticalMany || '{count} critical anti-patterns'));
-        if (parts.length > 0) title = parts.join(i18n.verdictAnd || ' and ');
-        else if (statusFailed) title = i18n.verdictStatusFailed || 'The log did not finish successfully';
-        else title = i18n.verdictLimitCritical || 'A Salesforce limit is almost reached';
-      } else if (tone === 'warning') {
-        title = warningCount > 0
-          ? `${i18n.verdictNoErrors || 'No errors'}, ${plural(warningCount, i18n.verdictAttentionOne || '{count} warning', i18n.verdictAttentionMany || '{count} warnings')}`
-          : (i18n.verdictLimitWarning || 'A Salesforce limit is above 75%');
-      } else {
-        title = i18n.verdictHealthy || 'Healthy log';
-      }
-
-      const worstTitles = results && tone !== 'healthy'
-        ? ['critical', 'warning'].flatMap(severity => results.patterns.filter(p => p.severity === severity).map(p => p.title))
-        : [];
-      const subline = [...new Set(worstTitles)].slice(0, 2).map(title => this._escapeHtml(title)).join(' · ');
-
-      const chips = [
-        { icon: 'search', text: `SOQL ${limits.soqlQueries}/${limits.maxSoqlQueries}`, hot: limitPct.soql > LIMIT_WARNING_PCT },
-        { icon: 'database', text: `DML ${limits.dmlStatements}/${limits.maxDmlStatements}`, hot: limitPct.dml > LIMIT_WARNING_PCT },
-        { icon: 'zap', text: `CPU ${Math.round(limitPct.cpu)} %`, hot: limitPct.cpu > LIMIT_WARNING_PCT }
-      ];
-      if (limitPct.heap > LIMIT_WARNING_PCT) chips.push({ icon: 'bar-chart', text: `Heap ${Math.round(limitPct.heap)} %`, hot: true });
-      chips.push({ icon: null, text: window.FoxLog.formatDuration(summary.duration), hot: false });
-
-      const chipsHtml = chips.map(chip => `
-        <span class="sf-verdict-chip${chip.hot ? ' sf-verdict-chip--hot' : ''}">${chip.icon ? window.FoxLog.icon(chip.icon, { size: 12 }) : ''}${this._escapeHtml(chip.text)}</span>
-      `).join('');
-
-      const score = results ? results.summary.score : null;
-      const scoreHtml = Number.isFinite(score)
-        ? `
-          <div class="sf-verdict-score" title="${this._escapeHtml(i18n.healthScore || 'Health Score')}: ${score}/100">
-            <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
-              <circle cx="23" cy="23" r="18" fill="none" style="stroke: var(--fl-track)" stroke-width="4"/>
-              <circle cx="23" cy="23" r="18" fill="none" style="stroke: var(--v-solid)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(Math.min(100, Math.max(0, score)) / 100 * 113.1).toFixed(1)} 113.1"/>
-            </svg>
-            <span class="sf-verdict-score-value">${Math.round(score)}</span>
-          </div>
-        `
-        : '';
-
-      const ctaHtml = results && results.patterns.length > 0
-        ? `<button type="button" class="sf-verdict-cta" data-open-tab="analysis">${this._escapeHtml(i18n.viewAnalysis || 'View analysis')} ${window.FoxLog.icon('arrow-right', { size: 12 })}</button>`
-        : '';
-
-      const iconName = { critical: 'alert-circle', warning: 'alert-triangle', healthy: 'check-circle' }[tone];
-
-      return `
-        <div class="sf-verdict sf-verdict--${tone}">
-          <div class="sf-verdict-icon">${window.FoxLog.icon(iconName, { size: 22 })}</div>
-          <div class="sf-verdict-body">
-            <div class="sf-verdict-title">${this._escapeHtml(title)}</div>
-            ${subline ? `<div class="sf-verdict-sub">${subline}</div>` : ''}
-            <div class="sf-verdict-chips">${chipsHtml}</div>
-          </div>
-          ${scoreHtml}
-          ${ctaHtml}
-        </div>
-      `;
-    }
-
-    _renderSummaryTab(summary, parsedLog, antiPatternResults = null) {
-      const status = String(summary.metadata.status);
-      const statusClass = { success: 'sf-status-success', danger: 'sf-status-error' }[this._getStatusTone(status)] || '';
-      const errorsSection = parsedLog.stats.errors.length > 0
-        ? this._renderErrorsSection(parsedLog.stats.errors)
-        : '';
-
-      return `
-        <div class="sf-summary-container">
-          ${this._renderVerdictBanner(summary, parsedLog, antiPatternResults)}
-
-          <div class="sf-summary-section sf-summary-overview">
-            <h4>${window.FoxLog.icon('info', { size: 14 })} ${i18n.generalInfo || 'General Information'}</h4>
-            <div class="sf-summary-grid">
-              <div class="sf-summary-item">
-                <span class="sf-label">${i18n.operation || 'Operation'}</span>
-                <span class="sf-value">${this._escapeHtml(summary.metadata.operation)}</span>
-              </div>
-              <div class="sf-summary-item">
-                <span class="sf-label">${i18n.status || 'Status'}</span>
-                <span class="sf-value sf-value--status ${statusClass}" title="${this._escapeHtml(status)}">${this._escapeHtml(status.split(':')[0])}</span>
-              </div>
-              <div class="sf-summary-item">
-                <span class="sf-label">${i18n.duration || 'Duration'}</span>
-                <span class="sf-value">${window.FoxLog.formatDuration(summary.duration)}</span>
-              </div>
-              <div class="sf-summary-item">
-                <span class="sf-label">${i18n.lines || 'Lines'}</span>
-                <span class="sf-value">${summary.totalLines}</span>
-              </div>
-            </div>
-          </div>
-
-          ${this._renderSummarySection('limits', 'bar-chart', i18n.salesforceLimits || 'Salesforce Limits', `
-            <div class="sf-limits-grid">
-              ${this._renderLimitBar(i18n.limitSoql || 'SOQL Queries', parsedLog.stats.limits.soqlQueries, parsedLog.stats.limits.maxSoqlQueries, summary.limits.soql, 'soql')}
-              ${this._renderLimitBar(i18n.limitDml || 'DML Statements', parsedLog.stats.limits.dmlStatements, parsedLog.stats.limits.maxDmlStatements, summary.limits.dml, 'dml')}
-              ${this._renderLimitBar(i18n.limitCpu || 'CPU Time', parsedLog.stats.limits.cpuTime, parsedLog.stats.limits.maxCpuTime, summary.limits.cpu)}
-              ${this._renderLimitBar(i18n.limitHeap || 'Heap Size', parsedLog.stats.limits.heapSize, parsedLog.stats.limits.maxHeapSize, summary.limits.heap)}
-            </div>
-          `)}
-
-          ${errorsSection}
-
-          ${this._renderAntiPatternsSection(antiPatternResults)}
-
-          ${this._renderMethodsSection(parsedLog.stats.methods, summary.methods)}
-        </div>
-      `;
-    }
-
-    /**
-     * @param {string} [flowGroup] - 'soql' | 'dml' makes the bar a link to those nodes in the Flow tab
-     * @private
-     */
-    _renderLimitBar(label, used, max, displayValue, flowGroup = null) {
-      const percentage = max > 0 ? (used / max * 100).toFixed(1) : 0;
-      const isWarning = percentage > LIMIT_WARNING_PCT;
-      const isDanger = percentage > LIMIT_DANGER_PCT;
-      const statusClass = isDanger ? 'danger' : (isWarning ? 'warning' : 'success');
-      const inner = `
-          <span class="sf-label">${label}</span>
-          <span class="sf-limit-bar">
-            <span class="sf-limit-fill sf-limit-${statusClass}" style="width: ${percentage}%"></span>
-          </span>
-          <span class="sf-limit-value">${displayValue}</span>
-      `;
-
-      if (flowGroup && used > 0) {
-        return `<button type="button" class="sf-limit-item sf-limit-item--jumpable" data-flow-group="${flowGroup}" title="${this._escapeHtml(i18n.viewInFlow || 'View in Flow')}">${inner}</button>`;
-      }
-      return `<div class="sf-limit-item">${inner}</div>`;
-    }
-
-    /**
-     * Render badge for analysis tab
-     * @private
-     */
-    _renderAnalysisBadge(results) {
-      if (!results || results.totalCount === 0) {
-        return `<span class="sf-tab-badge sf-badge-success">${window.FoxLog.icon('check', { size: 10 })}</span>`;
-      }
-      
-      if (results.hasCritical) {
-        return `<span class="sf-tab-badge sf-badge-critical">${results.summary.critical}</span>`;
-      }
-      
-      if (results.hasWarning) {
-        return `<span class="sf-tab-badge sf-badge-warning">${results.summary.warnings}</span>`;
-      }
-      
-      return `<span class="sf-tab-badge sf-badge-info">${results.summary.info}</span>`;
-    }
-
-    /**
-     * Render the Analysis tab content
-     * @private
-     */
-    _renderAnalysisTab(results) {
-      if (!results) {
-        return `
-          <div class="sf-analysis-container">
-            <div class="sf-empty-state">
-              <p>${window.FoxLog.icon('alert-triangle')} ${i18n.analysisUnavailable || 'Analysis unavailable'}</p>
-            </div>
-          </div>
-        `;
-      }
-
-      const { patterns, summary } = results;
-      
-      // Determine score color
-      let scoreClass = 'success';
-      if (summary.score < 50) scoreClass = 'danger';
-      else if (summary.score < 80) scoreClass = 'warning';
-      
-      // If no patterns detected, show success message
-      if (patterns.length === 0) {
-        return `
-          <div class="sf-analysis-container">
-            <div class="sf-analysis-header sf-analysis-header-healthy">
-              <div class="sf-analysis-export-dropdown">
-                <button class="sf-call-tree-btn sf-analysis-export-btn" data-action="toggle-analysis-export" title="${i18n.exportReport || 'Export Report'}">
-                  <svg viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                  </svg>
-                </button>
-                <div class="sf-analysis-export-menu" style="display: none;">
-                  <button class="sf-export-menu-item" data-action="export-pdf">${window.FoxLog.icon('file')} ${i18n.exportPdfShort || 'PDF'}</button>
-                  <button class="sf-export-menu-item" data-action="export-md">${window.FoxLog.icon('file-text')} ${i18n.exportMdShort || 'MD'}</button>
-                  <button class="sf-export-menu-item" data-action="export-txt">${window.FoxLog.icon('file')} ${i18n.exportTxtShort || 'TXT'}</button>
-                </div>
-              </div>
-            </div>
-            <div class="sf-analysis-healthy">
-              <div class="sf-healthy-icon">${window.FoxLog.icon('check-circle', { size: 40 })}</div>
-              <div class="sf-healthy-text">${i18n.codeHealthy || 'Code is healthy!'}</div>
-              <div class="sf-health-score-large sf-score-${scoreClass}" style="--score: ${summary.score}">
-                ${i18n.healthScore || 'Health Score'}: <strong>${summary.score}/100</strong>
-              </div>
-              <p class="sf-healthy-description">${i18n.noAntiPatterns || 'No anti-patterns detected'}</p>
-            </div>
-          </div>
-        `;
-      }
-
-      // Render patterns grouped by severity
-      const criticalPatterns = patterns.filter(p => p.severity === 'critical');
-      const warningPatterns = patterns.filter(p => p.severity === 'warning');
-      const infoPatterns = patterns.filter(p => p.severity === 'info');
-
-      return `
-        <div class="sf-analysis-container">
-          <div class="sf-analysis-header">
-            <div class="sf-health-score-large sf-score-${scoreClass}" style="--score: ${summary.score}">
-              <span class="sf-score-label">${i18n.healthScore || 'Health Score'}</span>
-              <span class="sf-score-value">${summary.score}<span class="sf-score-max">/100</span></span>
-            </div>
-            <div class="sf-analysis-summary">
-              ${summary.critical > 0 ? `<div class="sf-ap-stat sf-ap-critical">${window.FoxLog.dot('critical')} ${summary.critical} ${i18n.critical || 'Critical'}</div>` : ''}
-              ${summary.warnings > 0 ? `<div class="sf-ap-stat sf-ap-warning">${window.FoxLog.dot('warning')} ${summary.warnings} ${i18n.warning || 'Warning'}</div>` : ''}
-              ${summary.info > 0 ? `<div class="sf-ap-stat sf-ap-info">${window.FoxLog.dot('info')} ${summary.info} ${i18n.info || 'Info'}</div>` : ''}
-            </div>
-            <div class="sf-analysis-export-dropdown">
-              <button class="sf-call-tree-btn sf-analysis-export-btn" data-action="toggle-analysis-export" title="${i18n.exportReport || 'Export Report'}">
-                <svg viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                </svg>
-              </button>
-              <div class="sf-analysis-export-menu" style="display: none;">
-                <button class="sf-export-menu-item" data-action="export-pdf">${window.FoxLog.icon('file')} ${i18n.exportPdfShort || 'PDF'}</button>
-                <button class="sf-export-menu-item" data-action="export-md">${window.FoxLog.icon('file-text')} ${i18n.exportMdShort || 'MD'}</button>
-                <button class="sf-export-menu-item" data-action="export-txt">${window.FoxLog.icon('file')} ${i18n.exportTxtShort || 'TXT'}</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="sf-analysis-patterns">
-            ${criticalPatterns.length > 0 ? `
-              <div class="sf-pattern-group sf-group-critical">
-                <h4 class="sf-group-title">${window.FoxLog.dot('critical')} ${i18n.critical || 'Critical'} (${criticalPatterns.length})</h4>
-                ${this._renderPatternGroup(criticalPatterns, 'critical', patterns)}
-              </div>
-            ` : ''}
-
-            ${warningPatterns.length > 0 ? `
-              <div class="sf-pattern-group sf-group-warning">
-                <h4 class="sf-group-title">${window.FoxLog.dot('warning')} ${i18n.warning || 'Warning'} (${warningPatterns.length})</h4>
-                ${this._renderPatternGroup(warningPatterns, 'warning', patterns)}
-              </div>
-            ` : ''}
-
-            ${infoPatterns.length > 0 ? `
-              <div class="sf-pattern-group sf-group-info">
-                <h4 class="sf-group-title">${window.FoxLog.dot('info')} ${i18n.info || 'Info'} (${infoPatterns.length})</h4>
-                ${this._renderPatternGroup(infoPatterns, 'info', patterns)}
-              </div>
-            ` : ''}
-          </div>
-        </div>
-      `;
-    }
-
-    /**
-     * Render a group of patterns
-     * @private
-     */
-    _renderPatternGroup(patterns, severity, allPatterns) {
-      if (patterns.length === 0) return '';
-
-      return patterns.map(pattern => this._renderPatternItem(pattern, allPatterns.indexOf(pattern))).join('');
-    }
-
-    /**
-     * Render a single pattern item
-     * @param {number} patternIndex - Position in results.patterns (the Summary links to it)
-     * @private
-     */
-    _renderPatternItem(pattern, patternIndex) {
-      const severityTones = {
-        critical: 'critical',
-        warning: 'warning',
-        info: 'info'
-      };
-
-      const icon = window.FoxLog.dot(severityTones[pattern.severity] || 'neutral');
-      
-      // Build details section
-      let detailsHtml = '';
-      
-      if (pattern.query) {
-        detailsHtml += `<div class="sf-ap-query"><code>${this._escapeHtml(pattern.query)}</code></div>`;
-      }
-      
-      if (pattern.occurrences) {
-        detailsHtml += `<div class="sf-ap-occurrences">${i18n.occurrences || 'Occurrences'}: <strong>${pattern.occurrences}</strong></div>`;
-      }
-      
-      if (pattern.method) {
-        detailsHtml += `<div class="sf-ap-method">${window.FoxLog.icon('map-pin', { size: 12 })} <code>${this._escapeHtml(pattern.method)}</code></div>`;
-      }
-      
-      if (pattern.percent !== undefined) {
-        detailsHtml += `<div class="sf-ap-percent">${pattern.percent.toFixed(0)}% ${i18n.limitUsed || 'of limit used'}</div>`;
-      }
-
-      // Line navigation buttons (max 15 visible, expandable)
-      let linesHtml = '';
-      if (pattern.lines && pattern.lines.length > 0) {
-        const maxVisible = 15;
-        const allLines = pattern.lines;
-        const visibleLines = allLines.slice(0, maxVisible);
-        const hiddenCount = allLines.length - maxVisible;
-        const uniqueId = `lines-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
-        linesHtml = `
-          <div class="sf-ap-lines" data-lines-id="${uniqueId}">
-            <div class="sf-ap-lines-visible">
-              ${visibleLines.map(lineIdx => `
-                <button class="sf-ap-line-btn" data-line="${lineIdx}" title="${i18n.viewInLog || 'View in log'}">
-                  L${lineIdx + 1}
-                </button>
-              `).join('')}
-              ${hiddenCount > 0 ? `
-                <button class="sf-ap-show-more-btn" data-target="${uniqueId}" title="${i18n.showAll || 'Show all'}">
-                  +${hiddenCount}
-                </button>
-              ` : ''}
-            </div>
-            ${hiddenCount > 0 ? `
-              <div class="sf-ap-lines-all" style="display: none;">
-                ${allLines.map(lineIdx => `
-                  <button class="sf-ap-line-btn" data-line="${lineIdx}" title="${i18n.viewInLog || 'View in log'}">
-                    L${lineIdx + 1}
-                  </button>
-                `).join('')}
-                <a href="#" class="sf-ap-show-less-btn" data-target="${uniqueId}">${i18n.showLess || 'Less'}</a>
-              </div>
-            ` : ''}
-          </div>
-        `;
-      }
-
-      return `
-        <div class="sf-anti-pattern-item sf-ap-${pattern.severity}" data-pattern-index="${patternIndex}">
-          <div class="sf-ap-header">
-            <span class="sf-ap-icon">${icon}</span>
-            <span class="sf-ap-title">${pattern.title}</span>
-          </div>
-          <div class="sf-ap-description">${pattern.description}</div>
-          ${detailsHtml}
-          <div class="sf-ap-suggestion">
-            <span class="sf-ap-suggestion-label">${window.FoxLog.icon('lightbulb', { size: 13 })} ${i18n.suggestion || 'Suggestion'}:</span>
-            ${pattern.suggestion}
-          </div>
-          ${pattern.impact ? `
-            <div class="sf-ap-impact">
-              <span class="sf-ap-impact-label">${window.FoxLog.icon('zap', { size: 13 })} ${i18n.impact || 'Impact'}:</span>
-              ${pattern.impact}
-            </div>
-          ` : ''}
-          ${linesHtml}
-        </div>
-      `;
-    }
-
-    _renderRawTab(parsedLog) {
-      // Split raw content into lines and wrap each in a span with data-line
-      const rawLines = parsedLog.rawContent.split('\n');
-      const structuredLines = rawLines.map((line, index) => 
-        `<span class="sf-log-line" data-line="${index}">${this._escapeHtml(line)}</span>`
-      ).join('\n');
-      
-      return `
-        <div class="sf-raw-tab-content">
-          <div class="sf-export-toolbar">
-            <button id="copy-raw-btn" class="sf-export-btn sf-export-btn-primary">
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/>
-                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/>
-              </svg>
-              ${i18n.copy || 'Copy'}
-            </button>
-            <button id="export-raw-btn" class="sf-export-btn">
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
-              </svg>
-              ${i18n.exportRaw || 'Export (.txt)'}
-            </button>
-            <div class="sf-export-info">
-              <span class="sf-export-size">${this._formatBytes(parsedLog.rawContent.length)}</span>
-              <span class="sf-export-lines">${rawLines.length} ${(i18n.lines || 'Lines').toLowerCase()}</span>
-            </div>
-          </div>
-          <pre class="sf-raw-log-content" tabindex="0" aria-label="${i18n.rawLog || 'Raw Log'}">${structuredLines}</pre>
-        </div>
-      `;
-    }
-
-    _formatBytes(bytes) {
-      if (bytes < 1024) return bytes + ' B';
-      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    }
-
     _escapeHtml(unsafe) {
-      if (!unsafe) return '';
-      return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+      return window.FoxLog.escapeHtml(unsafe);
     }
 
     /**

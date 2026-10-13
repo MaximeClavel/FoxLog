@@ -81,7 +81,7 @@
 - **Responsive design** down to narrow browser windows
 - **Performance report export** in TXT and Markdown formats
 
-See [docs/ui-design-system.md](docs/ui-design-system.md) for the tokens and component conventions.
+See [docs/ui-design-system.md](docs/ui-design-system.md) for the tokens and component conventions, and [docs/tech-solution/modal-tabs.md](docs/tech-solution/modal-tabs.md) for how the log modal's tabs are built and how to add one.
 
 ## 📦 Installation
 

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Internal
+
+- **Log modal split into one module per tab**: `src/ui/modal-manager.js` (2,800 lines) is now only the modal shell — header, tab bar, tab switching and keyboard, focus trap, prev/next navigation, toasts and the cross-tab jumps (`showInFlow`, `showPatternInAnalysis`, `scrollToLogLine`). Each tab lives in `src/ui/modal-tabs/` (`summary-tab.js`, `analysis-tab.js`, `graph-tab.js`, `calls-tab.js`, `raw-tab.js`, `diff-tab.js`) and registers itself in `window.FoxLog.modalTabs` with `render` / `setup` / `onActivate` / `onLogChange` / `destroy` hooks; the shell builds the tab bar from that registry. The PDF / Markdown / text report export moved to `src/ui/modal-tabs/analysis-export.js` and the helpers shared by the tabs to `tab-utils.js`. Adding a tab is now one file plus its two manifest entries — see [docs/tech-solution/modal-tabs.md](docs/tech-solution/modal-tabs.md). No visible change: same tabs, order, markup and behavior (lazy Flow / Calls / Diff, rebuild on prev/next while active, Summary → Flow and Summary → Analysis jumps), and the public `window.FoxLog.modalManager` API is unchanged
+
 ## [1.11.0] - 2026-09-25
 
 ### Added
