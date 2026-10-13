@@ -11,13 +11,13 @@
    */
   class LogPreviewService {
     constructor() {
-      this.cache = new Map(); // Cache: {logId: {hasError, errorCount, errorTypes}}
+      this.cache = new Map(); // Cache: {logId: {hasError, errorCount, errorTypes, firstError}}
     }
 
     /**
      * Analyze a batch of logs to detect errors
      * @param {Array} logs - List of log metadata
-     * @returns {Promise<Map>} Map of logId -> {hasError, errorCount, errorTypes}
+     * @returns {Promise<Map>} Map of logId -> {hasError, errorCount, errorTypes, firstError}
      */
     async analyzeBatch(logs) {
       logger.log(`Analyzing ${logs.length} logs for errors`);
@@ -94,13 +94,16 @@
         // tests/flow-error-repro/) -- matching on them flagged fully
         // successful runs as errors just for having a Validation Rule
         // anywhere in the transaction. VALIDATION_FAIL is the real signal,
-        // and is confirmed bare (no trailing pipe), unlike VF_PAGE_MESSAGE.
-        validation: /^.*\|(?:VALIDATION_FAIL(?=\||$)|VF_PAGE_MESSAGE\|)/gm
+        // and is confirmed bare (no trailing pipe), unlike VF_PAGE_MESSAGE
+        // (whose text, captured here, is the message the user saw).
+        validation: /^.*\|(?:VALIDATION_FAIL(?=\||$)|VF_PAGE_MESSAGE\|(.*))/gm
       };
 
       let hasError = false;
       let errorCount = 0;
       const errorTypes = new Set();
+      // First error message, shown by the error alert toast
+      let firstError = null;
 
       // Detect exceptions (primary error source)
       let match;
@@ -108,6 +111,7 @@
         hasError = true;
         errorCount++;
         errorTypes.add(match[1]);
+        firstError = firstError || match[2];
       }
 
       // Detect fatal errors only if no EXCEPTION_THROWN found (avoids double-counting)
@@ -117,21 +121,30 @@
           hasError = true;
           errorCount++;
           errorTypes.add('FATAL_ERROR');
+          firstError = firstError || match[1];
         }
       }
 
       // Detect validation events (line-level match to avoid matching inside EXCEPTION_THROWN text)
       errorPatterns.validation.lastIndex = 0;
-      if (errorPatterns.validation.test(logContent)) {
+      let hasValidationError = false;
+      let validationMessage = null;
+      while (!validationMessage && (match = errorPatterns.validation.exec(logContent)) !== null) {
+        hasValidationError = true;
+        validationMessage = match[1] || null;
+      }
+      if (hasValidationError) {
         hasError = true;
         if (errorCount === 0) errorCount++;
         errorTypes.add('VALIDATION_FAIL');
+        firstError = firstError || validationMessage || 'VALIDATION_FAIL';
       }
 
       return {
         hasError,
         errorCount,
-        errorTypes: Array.from(errorTypes)
+        errorTypes: Array.from(errorTypes),
+        firstError
       };
     }
 

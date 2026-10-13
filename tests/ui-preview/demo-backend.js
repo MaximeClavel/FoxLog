@@ -77,7 +77,9 @@
       debugLevel: 'SFDC_DevConsole',
       logCount: (logsByUser[user.id] || []).length
     })),
-    fetchLogs: async (userId) => logsByUser[userId] || [],
+    fetchLogs: async (userId, limit = 100, since = null) => (logsByUser[userId] || [])
+      .filter((log) => !since || new Date(log.StartTime) >= new Date(since))
+      .slice(0, limit),
     fetchLogBody: async (id) => bodiesById.get(id) || '',
     deleteLog: async () => {},
     getActiveTraceFlag: async (userId) => activeTraceFlag(userId)
@@ -105,4 +107,46 @@
   }
 
   seedImportedLogs();
+
+  // Error alerts: new logs can land after page load, from a test (window.FoxLogPreview.addLog)
+  // or from the URL: ?simulateErrorLog=N adds N error logs a moment after FoxLog starts
+  // (N >= 2 shows the grouped toast); ?alertInterval=ms shortens the background poll.
+  const NEW_ERROR_LOGS = [
+    { scenario: 'opportunitySaveWithValidationError', operation: '/aura', status: 'Success', duration: 412 },
+    { scenario: 'accountTriggerWithErrors', operation: 'ApexTrigger', status: 'System.NullPointerException: Attempt to de-reference a null object', duration: 8460 },
+    { scenario: 'accountTriggerWithErrors', operation: 'BatchApexWorker', status: 'System.NullPointerException: Attempt to de-reference a null object', duration: 9120 }
+  ];
+  let addedLogCount = 0;
+
+  /**
+   * Add a log that started now, as if Salesforce just recorded it
+   * @param {{scenario?: string, operation?: string, status?: string, duration?: number, userId?: string}} [template]
+   * @returns {Object} The ApexLog record
+   */
+  function addLog(template = NEW_ERROR_LOGS[0]) {
+    const userId = template.userId || CURRENT_USER_ID;
+    addedLogCount += 1;
+    const log = buildLog({ scenario: 'contactRestLookup', duration: 120, ...template, ago: 0 }, 400 + addedLogCount, userId);
+    logsByUser[userId] = [log, ...(logsByUser[userId] || [])];
+    return log;
+  }
+  window.FoxLogPreview.addLog = addLog;
+  window.FoxLogPreview.newErrorLogs = NEW_ERROR_LOGS;
+
+  const params = new URLSearchParams(location.search);
+  const alertInterval = Number(params.get('alertInterval')) || (params.has('simulateErrorLog') ? 1500 : 0);
+  if (alertInterval) {
+    window.FoxLog.CONFIG.ERROR_ALERT_INTERVAL = alertInterval;
+  }
+  if (params.has('simulateErrorLog')) {
+    const count = Math.max(1, Number(params.get('simulateErrorLog')) || 1);
+    const waitForBaseline = setInterval(() => {
+      const app = window.FoxLogApp;
+      if (!app || !app.initialized || app.preloadPromise) return;
+      clearInterval(waitForBaseline);
+      setTimeout(() => {
+        for (let index = 0; index < count; index += 1) addLog(NEW_ERROR_LOGS[index % NEW_ERROR_LOGS.length]);
+      }, 500);
+    }, 100);
+  }
 })();

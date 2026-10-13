@@ -47,6 +47,7 @@ All data is stored **locally in your browser** using:
 - Session tokens are cached for 30 seconds
 - Parsed log data expires after 30 seconds
 - The panel's "Clear" button hides the listed logs in FoxLog only: it stores the time of the last clear locally (per organization and user) and never deletes anything in Salesforce
+- Error alerts store locally, per organization and user, the start time and IDs of the most recent logs already seen (about the last 10 minutes' worth) so a log is never alerted twice. They can be turned off in the settings popup ("Error alerts"), which also stops their background checks
 
 ### Security Measures
 

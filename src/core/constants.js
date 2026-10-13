@@ -47,6 +47,15 @@
     CACHE_DURATION: 30000,
     REFRESH_INTERVAL: 5000,
     
+    // Error alerts: while the panel is closed a lighter poll looks for new error logs
+    // (while it is open, its own REFRESH_INTERVAL refresh feeds the alerts instead)
+    ERROR_ALERT_INTERVAL: 20000,
+    ERROR_ALERT_FETCH_LIMIT: 20,
+    // A log is listed when its transaction ends but sorted by when it started, so a long
+    // transaction can land behind newer logs: keep looking this far back from the newest one
+    ERROR_ALERT_LATE_WINDOW: 10 * 60 * 1000,
+    ERROR_ALERT_TOAST_DURATION: 8000,
+    
     // ✅ LOGGER CONFIGURATION
     // Set to false before publishing to production
     DEBUG_MODE: false,           // Enable/disable all logs
@@ -305,6 +314,14 @@
     copySuccess: isFrench ? 'Copié dans le presse-papier !' : 'Copied to clipboard!',
     toastExportError: isFrench ? 'Erreur lors de l\'export' : 'Export error',
     copyError: isFrench ? 'Erreur lors de la copie' : 'Copy error',
+    
+    // Error alerts (toast while the panel is closed)
+    errorAlertTitle: isFrench ? 'Nouveau log en erreur' : 'New log with an error',
+    errorAlertTitleMany: isFrench ? '{count} nouveaux logs en erreur' : '{count} new logs with errors',
+    errorAlertOpen: isFrench ? 'Ouvrir' : 'Open',
+    errorAlertOpenLog: isFrench ? 'Ouvrir ce log dans FoxLog' : 'Open this log in FoxLog',
+    errorAlertOpenPanel: isFrench ? 'Ouvrir le panneau FoxLog' : 'Open the FoxLog panel',
+    errorAlertDismiss: isFrench ? 'Fermer l\'alerte' : 'Dismiss alert',
     
     // Filters (legacy)
     eventTypesLabel: isFrench ? 'Types d\'événements:' : 'Event types:',

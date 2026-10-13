@@ -52,8 +52,10 @@
 
     /**
      * load users into the picklist
+     * @param {string|null} [currentUserId] - Logged-in user, always listed
+     * @param {string|null} [userIdToSelect] - User to select if listed, the logged-in user otherwise
      */
-    async loadUsers(currentUserId = null) {
+    async loadUsers(currentUserId = null, userIdToSelect = currentUserId) {
       const { salesforceAPI, logger } = window.FoxLog;
       const userSelect = this.panel.querySelector('#sf-user-select');
       
@@ -100,8 +102,9 @@
 
         this.hideLoading();
 
+        const selectedId = users.some(user => user.id === userIdToSelect) ? userIdToSelect : currentUserId;
         const options = users.map(user => {
-          const selected = user.id === currentUserId ? 'selected' : '';
+          const selected = user.id === selectedId ? 'selected' : '';
           
           // Plain marker for quick scanning (native <option> text can't render icons/color)
           const marker = (user.hasTraceFlag || user.logCount > 0) ? '●' : '○';
@@ -127,12 +130,12 @@
         userSelect.innerHTML = options;
         userSelect.disabled = false;
 
-        if (!currentUserId && users.length > 0) {
+        if (!selectedId && users.length > 0) {
           this.selectedUserId = users[0].id;
           userSelect.value = users[0].id;
         } else {
-          userSelect.value = currentUserId;
-          this.selectedUserId = currentUserId;
+          userSelect.value = selectedId;
+          this.selectedUserId = selectedId;
         }
 
         // Update debug status
@@ -324,6 +327,16 @@
     getSelectedUserId() {
       const userSelect = this.panel.querySelector('#sf-user-select');
       return userSelect?.value || this.selectedUserId;
+    }
+
+    /** Whether the panel is open on its Salesforce log list (not the Files tab) */
+    isShowingLogList() {
+      return this.isOpen && Boolean(this.panel?.querySelector('#sf-tab-salesforce.active'));
+    }
+
+    /** Bring the Salesforce log list to the front */
+    showLogList() {
+      this._switchPanelTab('salesforce');
     }
 
     /**

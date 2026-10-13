@@ -13,6 +13,8 @@ const isFrench = browserLang.startsWith('fr');
 
 const i18n = {
   showButton: isFrench ? 'Afficher le bouton' : 'Show button',
+  errorAlerts: isFrench ? 'Alertes d\'erreur' : 'Error alerts',
+  errorAlertsHint: isFrench ? 'Badge et notification quand un nouveau log contient une erreur' : 'Badge and notification when a new log has an error',
   version: isFrench ? 'Version' : 'Version'
 };
 
@@ -24,41 +26,49 @@ document.querySelectorAll('[data-i18n]').forEach(element => {
   }
 });
 
-// Get elements
-const toggleButton = document.getElementById('toggle-button');
+/**
+ * Bind a switch to a chrome.storage.local flag that is on unless explicitly turned off
+ * @param {HTMLElement} switchElement
+ * @param {string} storageKey
+ * @param {Function} [onChange] - Called with the new state once saved
+ */
+function bindSwitch(switchElement, storageKey, onChange) {
+  // Load current state
+  chrome.storage.local.get([storageKey], (result) => {
+    updateSwitchUI(switchElement, result[storageKey] !== false); // Default: true
+  });
 
-// Load current state
-chrome.storage.local.get(['buttonVisible'], (result) => {
-  const isVisible = result.buttonVisible !== false; // Default: true
-  updateToggleUI(isVisible);
-});
+  switchElement.addEventListener('click', () => {
+    chrome.storage.local.get([storageKey], (result) => {
+      const newState = result[storageKey] === false;
 
-// Toggle button click
-toggleButton.addEventListener('click', () => {
-  chrome.storage.local.get(['buttonVisible'], (result) => {
-    const currentState = result.buttonVisible !== false;
-    const newState = !currentState;
-    
-    // Save new state
-    chrome.storage.local.set({ buttonVisible: newState }, () => {
-      updateToggleUI(newState);
-      
-      // Send message to content script
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]) {
-          chrome.tabs.sendMessage(tabs[0].id, {
-            action: 'toggleButton',
-            visible: newState
-          }).catch(err => {
-            console.log('Content script not ready:', err);
-          });
-        }
+      // Save new state
+      chrome.storage.local.set({ [storageKey]: newState }, () => {
+        updateSwitchUI(switchElement, newState);
+        onChange?.(newState);
       });
     });
   });
+}
+
+function updateSwitchUI(switchElement, isActive) {
+  switchElement.classList.toggle('active', isActive);
+  switchElement.setAttribute('aria-checked', String(isActive));
+}
+
+bindSwitch(document.getElementById('toggle-button'), 'buttonVisible', (visible) => {
+  // Send message to content script
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]) {
+      chrome.tabs.sendMessage(tabs[0].id, {
+        action: 'toggleButton',
+        visible
+      }).catch(err => {
+        console.log('Content script not ready:', err);
+      });
+    }
+  });
 });
 
-function updateToggleUI(isActive) {
-  toggleButton.classList.toggle('active', isActive);
-  toggleButton.setAttribute('aria-checked', String(isActive));
-}
+// Every Salesforce tab follows this one through chrome.storage.onChanged (polling, badge, toast)
+bindSwitch(document.getElementById('toggle-alerts'), 'errorAlertsEnabled');

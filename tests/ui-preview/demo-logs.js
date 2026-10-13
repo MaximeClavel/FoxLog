@@ -146,6 +146,25 @@
     return b.build();
   }
 
+  // A save blocked by a Validation Rule: the controller handles it, so the log's status stays Success
+  // and only the quick body scan (VALIDATION_FAIL / VF_PAGE_MESSAGE) tells it is an error
+  function opportunitySaveWithValidationError(startedAt) {
+    const unit = 'OpportunityController.save';
+    const b = new LogBuilder(startedAt);
+    open(b, unit);
+    b.enter('OpportunityController.save(Opportunity)', 9);
+    b.emit('DML_BEGIN', '[14]|Op:Update|Type:Opportunity|Rows:1');
+    b.emit('VALIDATION_RULE', '03dDEMO000000001AA|Amount_Must_Be_Positive');
+    b.emit('VALIDATION_FORMULA', 'Amount < 0|Amount=-1200');
+    b.emit('VALIDATION_FAIL');
+    b.emit('DML_END', '[14]', 6);
+    b.emit('VF_PAGE_MESSAGE', 'Amount must be positive');
+    b.exit('OpportunityController.save(Opportunity)', 9);
+    b.limits({ cpu: 210, heap: 182000 });
+    close(b, unit);
+    return b.build();
+  }
+
   window.FoxLogPreview = window.FoxLogPreview || {};
-  window.FoxLogPreview.scenarios = { accountTriggerWithErrors, contactRestLookup, forecastController };
+  window.FoxLogPreview.scenarios = { accountTriggerWithErrors, contactRestLookup, forecastController, opportunitySaveWithValidationError };
 })();
