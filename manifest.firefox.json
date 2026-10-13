@@ -49,6 +49,7 @@
         "src/services/call-tree-builder.js",
         "src/services/anti-pattern-detector.js",
         "src/services/log-diff-engine.js",
+        "src/services/new-tab-opener.js",
         "src/parsers/log-parser.js",
         "src/ui/filter-manager.js",
         "src/ui/call-tree-view.js",

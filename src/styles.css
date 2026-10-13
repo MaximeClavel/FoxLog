@@ -454,10 +454,10 @@
 .sf-log-entry {
   position: relative;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   flex: none;
-  gap: 8px;
-  padding: 12px 14px 12px 18px;
+  gap: 4px;
+  padding: 12px 8px 12px 18px;
   background: var(--fl-card);
   border: 1px solid var(--fl-border);
   border-radius: var(--fl-r-lg);
@@ -486,12 +486,47 @@
   box-shadow: var(--fl-shadow-2);
 }
 
-.sf-log-entry:active { transform: scale(0.995); }
+.sf-log-entry:active:not(:has(.sf-card-newtab-btn:active)) { transform: scale(0.995); }
+
+/* The card's button area (role="button"); its focus ring is drawn around the whole card */
+.sf-log-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+}
+
+#sf-debug-panel .sf-log-main:focus-visible { outline: none !important; }
+
+#sf-debug-panel .sf-log-entry:has(.sf-log-main:focus-visible) {
+  outline: 2px solid var(--fl-focus);
+  outline-offset: 2px;
+}
+
+/* "Open in a new tab" on log and import cards */
+.sf-card-newtab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--fl-r-md);
+  background: transparent;
+  color: var(--fl-text-3);
+  cursor: pointer;
+  transition: background var(--fl-dur), color var(--fl-dur);
+}
+
+.sf-card-newtab-btn:hover { background: var(--fl-accent-tint); color: var(--fl-accent-fg); }
 
 /* Logs hidden by Clear, listed on demand */
 .sf-log-entry.sf-log-cleared { opacity: 0.6; }
 .sf-log-entry.sf-log-cleared:hover,
-.sf-log-entry.sf-log-cleared:focus-visible { opacity: 1; }
+.sf-log-entry.sf-log-cleared:focus-within { opacity: 1; }
 
 .sf-cleared-separator {
   display: flex;
@@ -933,6 +968,9 @@
 }
 
 .sf-import-item-delete:hover { background: var(--fl-danger-tint); color: var(--fl-danger-fg); }
+
+/* The two icon buttons of an import read as one group */
+.sf-import-item .sf-card-newtab-btn + .sf-import-item-delete { margin-left: -8px; }
 
 .sf-import-empty {
   padding: 20px 12px;

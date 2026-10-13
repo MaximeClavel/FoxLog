@@ -14,6 +14,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **When it checks**: while the panel is open, its 5 s refresh feeds the alerts — and new logs are simply marked as seen while the log list is on screen (no toast, no badge), since you are looking at them; behind the analysis modal or on the Files tab they are alerted. While the panel is closed, a lighter check runs every 20 s: it only fetches the logs since the last one seen and only scans the bodies of the new ones. It stops while the tab is hidden and catches up when you come back
 - **Never twice, never old logs**: the logs already there when the page loads (or when you pick another user) are the baseline and are never alerted; logs hidden by Clear are never alerted. What was seen is kept per org and user in `chrome.storage.local`, shared by the tabs of the org, so a log alerted in one tab isn't alerted again in another. A log of a long transaction that only shows up after newer ones is still caught (up to 10 minutes late)
 - **Settings popup, "Error alerts" switch** (on by default, `chrome.storage.local`): off stops the checks and clears the badge and the toast in every Salesforce tab; back on starts from a fresh baseline
+- **Open in a new tab**: a button in the log modal header opens the same analysis full page in a new browser tab, on the tab selected in the modal (Summary, Analysis, Flow, Calls, Raw Log or Diff). The same button sits on every log card of the side panel and on every file of the Files tab, to go straight to the full-page view without opening the modal. The tab opens right after the Salesforce tab; reloading it keeps the log and the selected tab. The log is handed over through the background (`chrome.storage.session`, or `chrome.storage.local` when it is too large for the session quota) and released when its tab is closed. No new permission. See `docs/tech-solution/open-in-new-tab.md`
+
+### Changed
+
+- **Panel log cards**: the clickable part of a card is now an inner `role="button"` element with the new-tab button next to it, since a `role="button"` must not contain another control. Clicking anywhere else on the card still opens the modal, and the focus ring still surrounds the whole card
+
+### Fixed
+
+- **UI preview**: opening a scene from the root URL (`http://foxlog.lightning.force.com.localhost:8123/?open=modal…`) lost the query string in the redirect to `index.html`, so the scene never opened
 
 ### Internal
 
@@ -25,6 +34,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `salesforceAPI.fetchLogs()` takes an optional `since` date (`StartTime >=` filter); the quick error scan also returns the first error message (`firstError`); `panelManager.loadUsers()` can select a given user
 - `tests/test-error-alerts.js` (`node tests/test-error-alerts.js`): baseline on the first check, no double alert, late logs, soft-clear mark, user switch, and the error signals shared with the log cards
 - UI preview: `?simulateErrorLog=N` adds N error logs after load (`window.FoxLogPreview.addLog()` from a test), `?alertInterval=ms` shortens the check; runtime messages now reach the real `src/background.js`, and the badge it sets is recorded in `window.FoxLogPreviewChrome`
+- `window.FoxLog.createWorker(path)` (`constants.js`) starts an extension worker from a `blob:` URL in the content script and by URL on an extension page, whose CSP always allows its own scripts; the call tree builder uses it
+- `ModalManager.pageMode`, set by the viewer page: Esc and clicks on the backdrop don't close the analysis, and Tab isn't trapped
+- New `external-link` icon. In the UI preview, "Open in a new tab" goes through the real background handler; the tab it would open is recorded in `window.FoxLogPreviewChrome.openedTabs` and every runtime message in `chrome.runtime.sentMessages`
+- The Diff tab starts its worker with `window.FoxLog.createWorker()` too, so it also runs on the viewer page
 
 ## [1.11.0] - 2026-09-25
 

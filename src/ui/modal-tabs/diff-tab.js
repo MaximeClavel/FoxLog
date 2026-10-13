@@ -299,27 +299,23 @@
   async function runDiffWorker(treeA, treeB) {
     const timeout = window.FoxLog.CONFIG?.DIFF_WORKER_TIMEOUT ?? 10000;
 
-    // Fetch worker code and create Blob URL (same pattern as call-tree-builder)
-    const workerUrl = chrome.runtime.getURL('src/workers/log-diff-worker.js');
-    const response = await fetch(workerUrl);
-    const workerCode = await response.text();
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    const blobUrl = URL.createObjectURL(blob);
+    // Loaded by URL on an extension page (the "Open in a new tab" viewer), from a Blob URL
+    // in the content script (see window.FoxLog.createWorker in src/core/constants.js)
+    const { worker, release } = await window.FoxLog.createWorker('src/workers/log-diff-worker.js');
 
     return new Promise((resolve, reject) => {
-      const worker = new Worker(blobUrl);
       const requestId = Date.now().toString();
 
       const timer = setTimeout(() => {
         worker.terminate();
-        URL.revokeObjectURL(blobUrl);
+        release();
         reject(new Error(i18n.diffTimeout || 'Diff computation timed out'));
       }, timeout);
 
       worker.onmessage = (event) => {
         clearTimeout(timer);
         worker.terminate();
-        URL.revokeObjectURL(blobUrl);
+        release();
         if (event.data.type === 'error') {
           reject(new Error(event.data.error));
         } else {
@@ -330,7 +326,7 @@
       worker.onerror = (error) => {
         clearTimeout(timer);
         worker.terminate();
-        URL.revokeObjectURL(blobUrl);
+        release();
         reject(error);
       };
 

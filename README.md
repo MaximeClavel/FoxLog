@@ -81,6 +81,7 @@
 ### 🎨 User Interface [NEW]
 - **Side panel** with a draggable floating button that docks to the window edges
 - **Modern modal** with an identity header (operation, status, duration), underlined tabs and prev/next log navigation
+- **Open in a new tab**: a button in the modal header, on every log card and on every imported file opens the analysis full page in its own browser tab, on the tab you were looking at. Keep several logs side by side or move one to a second screen; reloading the tab keeps the log, and closing it frees the stored copy
 - **Design system**: one set of tokens (`src/theme.css`) drives colors, type, radius and elevation for the panel, modal, toasts and settings popup
 - **Light and dark themes** that follow your OS setting, with WCAG AA contrast in both
 - **Accessible by default**: keyboard-operable panel, tabs and log cards, visible focus rings, dialog focus trap, `prefers-reduced-motion` support
@@ -117,8 +118,8 @@ See [docs/ui-design-system.md](docs/ui-design-system.md) for the tokens and comp
 4. **You are automatically selected** in the dropdown list (marked with "You")
 5. If you have no active TraceFlag, use the toggle to enable debug logs
 6. Switch to the **Files** tab to import and analyze local .txt/.log files
-7. Click "Details" to analyze a log in depth
-8. Explore the different tabs: Summary, Calls, Flow, Analysis, Raw Log
+7. Click a log card to analyze it in depth, or its ↗ button to open the analysis full page in a new tab
+8. Explore the different tabs: Summary, Calls, Flow, Analysis, Raw Log (the ↗ button in the modal header opens the current one in a new tab)
 9. Use the **Analysis tab** to detect anti-patterns and export reports (PDF/MD/TXT)
 10. Use the **Diff tab** to compare execution with an imported log from another environment
 11. Use the export button in the Calls tab to generate a performance report
@@ -139,7 +140,7 @@ Execute them in Salesforce Developer Console (Execute Anonymous) and open the lo
 node tests/ui-preview/server.js
 ```
 
-Then open `http://foxlog.lightning.force.com.localhost:8123` (the `*.localhost` host name lets the extension's Salesforce-page check pass). Scenes can be opened directly, e.g. `?open=panel`, `?open=panel&panelTab=import` or `?open=modal&log=0&tab=analysis`. `?simulateErrorLog=1` adds a log with an error a moment after load to show the error alert toast (`=3` for the grouped one). Switch your OS between light and dark to check both themes.
+Then open `http://foxlog.lightning.force.com.localhost:8123` (the `*.localhost` host name lets the extension's Salesforce-page check pass). Scenes can be opened directly, e.g. `?open=panel`, `?open=panel&panelTab=import` or `?open=modal&log=0&tab=analysis`. `?simulateErrorLog=1` adds a log with an error a moment after load to show the error alert toast (`=3` for the grouped one). Switch your OS between light and dark to check both themes. The preview has no browser tabs: the "Open in a new tab" buttons go through the real background handler, which records the tab it would open in `window.FoxLogPreviewChrome.openedTabs` (and every runtime message in `chrome.runtime.sentMessages`).
 
 ## 🏷️ Releasing
 

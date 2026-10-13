@@ -1,0 +1,52 @@
+/* ==========================================================================
+   Full-page viewer (src/viewer/viewer.html): the log modal in PAGE MODE.
+   The modal shell (modal-styles.css) is reused as is; this only turns the
+   overlay + floating card into a page that fills the tab.
+   ========================================================================== */
+
+:root { color-scheme: light dark; }
+
+html,
+body.foxlog-viewer {
+  height: 100%;
+  margin: 0;
+}
+
+body.foxlog-viewer {
+  background: var(--fl-page);
+}
+
+/* Loading / "no longer available" / error states */
+.foxlog-viewer-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 100%;
+  padding: 24px;
+}
+
+/* No backdrop, no floating card: the analysis is the page */
+body.foxlog-viewer .sf-log-modal {
+  padding: 0 !important;
+  background: var(--fl-page) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: none;
+}
+
+body.foxlog-viewer .sf-modal-content {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+
+/* Nothing to close, and this already is the tab */
+body.foxlog-viewer .sf-modal-close-btn,
+body.foxlog-viewer .sf-modal-newtab-btn {
+  display: none;
+}

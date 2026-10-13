@@ -7,7 +7,7 @@ The log modal (Summary, Analysis, Flow, Calls, Raw Log, Diff) used to be one 2,8
 - a **shell**, `src/ui/modal-manager.js`, that owns everything common to all tabs;
 - **one module per tab** in `src/ui/modal-tabs/`, which registers itself in a small registry.
 
-Adding a tab (for example "Database" or "Query") means writing one file and listing it in the two manifests. The shell does not change.
+Adding a tab (for example "Database" or "Query") means writing one file and listing it in the two manifests and in the full-page viewer (`src/viewer/viewer.html`). The shell does not change.
 
 ## Architecture
 
@@ -158,6 +158,7 @@ Content scripts run in the order of the `js` list, and the lists of `manifest.js
 
 ```json
 "src/ui/log-diff-view.js",
+"src/ui/toast-manager.js",
 "src/ui/modal-tabs/tab-registry.js",
 "src/ui/modal-tabs/tab-utils.js",
 "src/ui/modal-tabs/summary-tab.js",
@@ -171,6 +172,8 @@ Content scripts run in the order of the `js` list, and the lists of `manifest.js
 ```
 
 A file missing from a manifest doesn't raise an error: its tab is simply not in the bar.
+
+**Full-page viewer** (`src/viewer/viewer.html`, the "Open in a new tab" page, see [open-in-new-tab.md](open-in-new-tab.md)): an extension page can't use the manifest's content-script list, so it loads the same modules with its own `<script>` tags, in the same order. A new tab module must be added there too, before `../ui/modal-manager.js`, or the tab is missing from the new-tab view. The shell's `pageMode` flag (set by the viewer) only changes how the dialog behaves (no Esc / backdrop close, no focus trap); tabs don't need to know about it, but they must not assume a Salesforce session: the viewer has none, only the log.
 
 **UI preview harness** (`tests/ui-preview/`): `index.html` loads the content scripts listed in `manifest.json` (read by `mock-chrome.js`), in order. There is no separate list to update. Check a new tab with `node tests/ui-preview/server.js` and `http://foxlog.lightning.force.com.localhost:8123/?open=modal&log=0&tab=<id>`.
 
@@ -314,9 +317,11 @@ If the content needs the call tree, a worker, or a big DOM, render a placeholder
   });
 ```
 
-### 3. List it in both manifests
+### 3. List it in both manifests and in the viewer
 
 Add `"src/ui/modal-tabs/database-tab.js",` to the `content_scripts[0].js` list of **both** `manifest.json` and `manifest.firefox.json`, after `tab-utils.js` and before `src/ui/modal-manager.js` (see [Load order](#load-order)).
+
+Add `<script src="../ui/modal-tabs/database-tab.js"></script>` to `src/viewer/viewer.html` at the same place (before `../ui/modal-manager.js`), so the tab also shows in the "Open in a new tab" page.
 
 ### 4. Add the translations
 
@@ -345,6 +350,7 @@ Always keep an English fallback in the code (`i18n.databaseTab || 'Database'`), 
 
 - [ ] `src/ui/modal-tabs/<id>-tab.js` registers `{ id, order, icon, label, render }` plus the hooks it needs
 - [ ] Listed in `manifest.json` **and** `manifest.firefox.json`, before `src/ui/modal-manager.js`
+- [ ] Listed in `src/viewer/viewer.html`, before `../ui/modal-manager.js`, and checked in the new-tab view (no Salesforce session there)
 - [ ] i18n keys in French and English in `src/core/constants.js`
 - [ ] Icon present in `src/core/icons.js`
 - [ ] Styles in `src/modal-styles.css` with `--fl-` tokens, checked in light and dark mode

@@ -27,6 +27,10 @@
 
       // Contexts of the tabs of the open parsed-log modal, by tab id (see _createTabContexts)
       this._tabContexts = new Map();
+
+      // PAGE MODE hook (set by src/viewer/viewer.js): the analysis is the whole page of an
+      // extension tab, so Esc and backdrop clicks don't close it and Tab isn't trapped
+      this.pageMode = false;
     }
 
     /**
@@ -101,6 +105,7 @@
           <div class="sf-modal-header">
             <div class="sf-modal-title">${this._renderModalTitle(parsedLog.metadata)}</div>
             ${this._renderNavigationButtons()}
+            <button type="button" class="sf-modal-newtab-btn" title="${i18n.openInNewTab || 'Open in a new tab'}" aria-label="${i18n.openInNewTab || 'Open in a new tab'}">${window.FoxLog.icon('external-link', { size: 16 })}</button>
             <button type="button" class="sf-modal-close-btn" aria-label="${i18n.close || 'Close'}">${window.FoxLog.icon('x')}</button>
           </div>
 
@@ -414,7 +419,7 @@
 
       // Keep Tab inside the dialog while it is open
       modal.addEventListener('keydown', (e) => {
-        if (e.key !== 'Tab') return;
+        if (e.key !== 'Tab' || this.pageMode) return; // PAGE MODE: a page, not a dialog
         const focusable = [...modal.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])')]
           .filter(el => el.offsetParent !== null);
         if (focusable.length === 0) return;
@@ -436,19 +441,28 @@
         closeBtn.addEventListener('click', () => this.close());
       }
 
+      // Open in a new tab: the same analysis full page, on the tab selected here (src/services/new-tab-opener.js)
+      const newTabBtn = modal.querySelector('.sf-modal-newtab-btn');
+      if (newTabBtn) {
+        newTabBtn.addEventListener('click', () => {
+          const activeTab = modal.querySelector('.sf-tab-btn.active')?.dataset.tab;
+          window.FoxLog.newTabOpener?.openParsedLog(this.currentParsedLog, activeTab);
+        });
+      }
+
       // Setup navigation buttons
       this._setupNavigation(modal);
 
       // Click outside to close
       modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
+        if (e.target === modal && !this.pageMode) { // PAGE MODE: nothing to close
           this.close();
         }
       });
 
       // Escape key to close
       const escapeHandler = (e) => {
-        if (e.key === 'Escape') {
+        if (e.key === 'Escape' && !this.pageMode) { // PAGE MODE: nothing to close
           this.close();
           document.removeEventListener('keydown', escapeHandler);
         }

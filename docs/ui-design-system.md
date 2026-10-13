@@ -10,6 +10,7 @@ FoxLog's interface (launcher, side panel, log modal, toasts, settings popup) is 
 | `src/styles.css` | Launcher button, side panel, shared spinner/icon primitives |
 | `src/modal-styles.css` | Log modal shell and every tab (Summary, Analysis, Flow, Calls, Raw, Diff), toasts |
 | `popup.html` | Settings popup. Links `theme.css` and uses the `fl-theme` class on `<body>` |
+| `src/viewer/viewer.css` | Full-page viewer ("Open in a new tab"). `viewer.html` links the three stylesheets above, uses `fl-theme` on `<body>`, and this file turns the modal into a page |
 
 `theme.css` is listed first in `manifest.json`, so tokens are available to both content stylesheets.
 
@@ -54,7 +55,7 @@ Tints become translucent hue overlays in dark mode (for example `--fl-red-50` is
 ## Components
 
 - **Chip** (`.sf-filter-toggle`): quiet tinted pill. Each category sets `--chip-fg/--chip-bg/--chip-line`; active is tinted, inactive is a dashed outline.
-- **Log card** (`.sf-log-entry`): status rail (`sf-log-tone-success|danger`), operation as title, status chip, tabular meta.
+- **Log card** (`.sf-log-entry`): status rail (`sf-log-tone-success|danger`), operation as title, status chip, tabular meta. The clickable part is the inner `.sf-log-main` (`role="button"`); icon actions such as `.sf-card-newtab-btn` sit next to it, never inside it, and the focus ring is drawn around the whole card.
 - **KPI card** (`.sf-summary-overview .sf-summary-item`) and **meter** (`.sf-limit-fill.sf-limit-success|warning|danger`, thresholds at 75% and 90%; `--score` drives the health-score meter).
 - **Switch** (`.sf-debug-toggle-*`, popup `.toggle-switch`): uses `--fl-switch-off`, which meets 3:1 against the surface.
 - **Toast** (`.sf-toast`, `src/ui/toast-manager.js`): plain confirmations are solid tone fills in the top-right corner. The alert variant (`.sf-toast-alert`, used by the error alerts) is a card in the bottom-left corner with a tone rail, a `role="status"` text block, an action button and a close button; it pauses while hovered or focused, closes on Esc, and moves clear of the launcher when that is docked near the corner.
@@ -65,7 +66,7 @@ Tints become translucent hue overlays in dark mode (for example `--fl-red-50` is
 - Every icon-only button has an `aria-label` (not just `title`).
 - Clickable non-button elements use `role="button"`, `tabindex="0"` and Enter/Space handling, and must not contain other interactive elements.
 - Scrollable regions that hold no focusable content get `tabindex="0"`.
-- The modal is a `role="dialog"` with `aria-modal`, traps Tab, closes on Esc and returns focus.
+- The modal is a `role="dialog"` with `aria-modal`, traps Tab, closes on Esc and returns focus. In the full-page viewer (`ModalManager.pageMode`) it is the page's `role="main"` landmark instead: no trap, nothing closes it.
 - Text contrast is at least 4.5:1 in both themes. Check any new token pair before using it.
 
 ## Previewing and verifying
